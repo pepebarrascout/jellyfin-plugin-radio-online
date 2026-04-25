@@ -80,15 +80,13 @@ public class AudioProviderService
                         audioItems.Add(audio);
                     }
                 }
-                catch (Exception ex)
+                catch
                 {
-                    _logger.LogDebug("Skipping unavailable item {ItemId} in playlist: {Message}", linkedChild.ItemId, ex.Message);
+                    // Skip unavailable items silently
                 }
             }
 
-            _logger.LogInformation(
-                "Retrieved {Count} audio items from playlist \"{Name}\" (in playlist order)",
-                audioItems.Count, playlist.Name);
+            _logger.LogDebug("Playlist \"{Name}\": {Count} tracks", playlist.Name, audioItems.Count);
 
             return audioItems;
         }
@@ -124,7 +122,7 @@ public class AudioProviderService
                 .Select(p => (p.Id.ToString("N"), p.Name))
                 .ToList();
 
-            _logger.LogInformation("Found {Count} playlists for user {UserId}", playlists.Count, userId);
+            _logger.LogDebug("Found {Count} playlists", playlists.Count);
             return playlists;
         }
         catch (Exception ex)

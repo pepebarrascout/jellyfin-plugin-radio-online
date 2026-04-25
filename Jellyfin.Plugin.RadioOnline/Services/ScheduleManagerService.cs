@@ -60,15 +60,13 @@ public class ScheduleManagerService
 
         if (activeEntries.Count == 0)
         {
-            _logger.LogDebug("No active schedule entry for {Day} at {Time}", currentDay, currentTime);
             return null;
         }
 
         if (activeEntries.Count == 1)
         {
             var entry = activeEntries[0];
-            _logger.LogInformation(
-                "Active schedule: \"{Name}\" ({Day} {Start}-{End})",
+            _logger.LogInformation("Active: \"{Name}\" ({Day} {Start}-{End})",
                 entry.DisplayName, entry.DayOfWeek, entry.StartTime, entry.EndTime);
             return entry;
         }
