@@ -133,3 +133,27 @@ Stage Summary:
 - New FFmpeg concat demuxer approach eliminates connection drops between songs
 - Robust API helper function using native fetch with Jellyfin auth
 - Released as v0.0.0.5 Alpha on GitHub
+
+---
+Task ID: 1
+Agent: main
+Task: Fix v0.0.0.7 - Playback order, client sync, and schedule overlap
+
+Work Log:
+- Analyzed three reported bugs: wrong playlist order, entire playlist sent as single track, desynchronized audio between players
+- Identified root cause: FFmpeg concat demuxer without -re flag sends entire playlist as one blob at max CPU speed
+- Rewrote IcecastStreamingService.cs: replaced StreamPlaylistAsync (concat demuxer) with StreamSingleFileAsync (single file + -re flag)
+- Rewrote RadioStreamingHostedService.cs: track-by-track loop with schedule verification BETWEEN each track
+- Cleaned AudioProviderService.cs: removed GetRandomMusic and ShuffleItems methods
+- Updated version to 0.0.0.7 in csproj
+- Added v0.0.0.7 entry to manifest.json with correct MD5 checksum
+- Compiled successfully (dotnet publish -c Release)
+- Created ZIP release (54063 bytes), MD5: acfb7d69f18475c44603eee911b1b33e
+- Created GitHub release v0.0.0.7-alpha with ZIP asset uploaded
+- Pushed all changes to main branch
+
+Stage Summary:
+- v0.0.0.7-alpha released at: https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/tag/v0.0.0.7-alpha
+- Key fix: -re flag in FFmpeg ensures real-time pacing (all clients hear same audio)
+- Key fix: Track-by-track streaming enables schedule overlap detection between tracks
+- Key fix: Sequential file iteration guarantees correct playlist order
