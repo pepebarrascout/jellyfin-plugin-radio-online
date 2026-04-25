@@ -9,33 +9,27 @@ namespace Jellyfin.Plugin.RadioOnline;
 
 /// <summary>
 /// Registers services for the Radio Online plugin with Jellyfin's DI container.
-/// This class is automatically discovered by Jellyfin via reflection.
 /// </summary>
 public class ServiceRegistrator : IPluginServiceRegistrator
 {
     /// <summary>
     /// Registers all plugin services, scheduled tasks, and hosted services.
     /// </summary>
-    /// <param name="serviceCollection">The service collection to register services with.</param>
-    /// <param name="applicationHost">The server application host.</param>
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
-        // Register the radio streaming background service (runs continuously)
+        // Radio streaming background service (runs continuously)
         serviceCollection.AddHostedService<RadioStreamingHostedService>();
 
-        // Register the FFmpeg streaming service (works inside Docker containers)
+        // FFmpeg streaming service (uses Jellyfin's bundled FFmpeg)
         serviceCollection.AddSingleton<IcecastStreamingService>();
 
-        // Register the Liquidsoap streaming service (requires Liquidsoap installed in container)
-        serviceCollection.AddSingleton<LiquidsoapStreamingService>();
-
-        // Register the schedule manager service
+        // Schedule manager
         serviceCollection.AddSingleton<ScheduleManagerService>();
 
-        // Register the audio provider service
+        // Audio provider (retrieves playlists from Jellyfin library)
         serviceCollection.AddSingleton<AudioProviderService>();
 
-        // Register the radio scheduler task (for dashboard visibility and manual triggers)
+        // Scheduled task (dashboard visibility)
         serviceCollection.AddSingleton<IScheduledTask, RadioSchedulerTask>();
     }
 }

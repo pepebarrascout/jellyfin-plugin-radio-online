@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Jellyfin.Plugin.RadioOnline.Configuration;
 using Jellyfin.Plugin.RadioOnline.Services;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Model.Dto;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,8 +10,6 @@ namespace Jellyfin.Plugin.RadioOnline.Api;
 
 /// <summary>
 /// API controller for the Radio Online plugin.
-/// Provides endpoints for managing the radio streaming configuration,
-/// schedule entries, and runtime status.
 /// </summary>
 [ApiController]
 [Authorize(Policy = "RequiresElevation")]
@@ -22,33 +18,22 @@ namespace Jellyfin.Plugin.RadioOnline.Api;
 public class RadioOnlineController : ControllerBase
 {
     private readonly AudioProviderService _audioProvider;
-    private readonly IcecastStreamingService _icecastService;
-    private readonly LiquidsoapStreamingService _liquidsoapService;
     private readonly RadioStreamingHostedService _hostedService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RadioOnlineController"/> class.
     /// </summary>
-    /// <param name="audioProvider">The audio provider service.</param>
-    /// <param name="icecastService">The FFmpeg streaming service.</param>
-    /// <param name="liquidsoapService">The Liquidsoap streaming service.</param>
-    /// <param name="hostedService">The hosted streaming service.</param>
     public RadioOnlineController(
         AudioProviderService audioProvider,
-        IcecastStreamingService icecastService,
-        LiquidsoapStreamingService liquidsoapService,
         RadioStreamingHostedService hostedService)
     {
         _audioProvider = audioProvider;
-        _icecastService = icecastService;
-        _liquidsoapService = liquidsoapService;
         _hostedService = hostedService;
     }
 
     /// <summary>
     /// Gets the current streaming status.
     /// </summary>
-    /// <returns>The current streaming status.</returns>
     [HttpGet("Status")]
     public ActionResult<object> GetStatus()
     {
@@ -62,8 +47,6 @@ public class RadioOnlineController : ControllerBase
         {
             isEnabled = config.IsEnabled,
             isStreaming = _hostedService.IsStreaming,
-            activeEngine = _hostedService.ActiveEngine,
-            configuredEngine = config.StreamingEngine ?? "ffmpeg",
             icecastUrl = config.IcecastUrl,
             mountPoint = config.IcecastMountPoint,
             audioFormat = config.AudioFormat,
@@ -75,7 +58,6 @@ public class RadioOnlineController : ControllerBase
     /// <summary>
     /// Gets all available playlists from Jellyfin.
     /// </summary>
-    /// <returns>A list of playlist IDs and names.</returns>
     [HttpGet("Playlists")]
     public ActionResult<List<object>> GetPlaylists()
     {
@@ -93,8 +75,6 @@ public class RadioOnlineController : ControllerBase
     /// <summary>
     /// Validates a schedule entry.
     /// </summary>
-    /// <param name="entry">The schedule entry to validate.</param>
-    /// <returns>A list of validation errors (empty if valid).</returns>
     [HttpPost("ValidateSchedule")]
     public ActionResult<List<string>> ValidateSchedule([FromBody] ScheduleEntry entry)
     {
@@ -107,19 +87,11 @@ public class RadioOnlineController : ControllerBase
         var errors = new List<string>();
 
         if (!TimeSpan.TryParse(entry.StartTime, out var start))
-        {
             errors.Add("Invalid start time format. Use HH:mm.");
-        }
-
         if (!TimeSpan.TryParse(entry.EndTime, out var end))
-        {
             errors.Add("Invalid end time format. Use HH:mm.");
-        }
-
         if (start >= end)
-        {
             errors.Add("End time must be after start time.");
-        }
 
         return Ok(errors);
     }

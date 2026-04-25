@@ -10,11 +10,10 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.RadioOnline.Services;
 
 /// <summary>
-/// Handles the actual streaming of audio data to an Icecast server.
-/// Streams one audio file at a time using FFmpeg with the -re flag for real-time pacing.
-/// This ensures all listeners hear synchronized audio and allows schedule checks between tracks.
-/// The calling service (RadioStreamingHostedService) is responsible for iterating through
-/// playlist tracks and checking the schedule between each one.
+/// Handles streaming audio to an Icecast server using FFmpeg.
+/// Uses the concat demuxer with -stream_loop -1 for continuous gapless playback
+/// of an entire playlist. The playlist is written as an FFmpeg concat format file.
+/// When the schedule changes, the process is killed and restarted with a new playlist.
 /// </summary>
 public class IcecastStreamingService : IDisposable
 {
@@ -24,11 +23,13 @@ public class IcecastStreamingService : IDisposable
     private bool _isStreaming;
     private readonly object _lock = new();
 
+    private const string WorkDir = "/tmp/radio-online";
+    private const string PlaylistFile = "/tmp/radio-online/playlist.txt";
+    private const string PlaylistTempFile = "/tmp/radio-online/playlist.txt.tmp";
+
     /// <summary>
     /// Initializes a new instance of the <see cref="IcecastStreamingService"/> class.
     /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="mediaEncoder">The media encoder service (FFmpeg access).</param>
     public IcecastStreamingService(ILogger<IcecastStreamingService> logger, IMediaEncoder mediaEncoder)
     {
         _logger = logger;
@@ -36,7 +37,7 @@ public class IcecastStreamingService : IDisposable
     }
 
     /// <summary>
-    /// Gets whether the service is currently streaming audio.
+    /// Gets whether FFmpeg is currently streaming.
     /// </summary>
     public bool IsStreaming
     {
@@ -44,40 +45,28 @@ public class IcecastStreamingService : IDisposable
         {
             lock (_lock)
             {
-                return _isStreaming;
+                return _isStreaming && _ffmpegProcess != null && !_ffmpegProcess.HasExited;
             }
         }
     }
 
     /// <summary>
-    /// Gets the file name of the currently streaming track, or null if not streaming.
+    /// Writes an FFmpeg concat playlist file and starts streaming it to Icecast.
+    /// Uses -f concat with -safe 0 and -stream_loop -1 for continuous gapless playback.
     /// </summary>
-    public string? CurrentTrackName { get; private set; }
-
-    /// <summary>
-    /// Streams a single audio file to Icecast in real-time.
-    /// The -re flag forces FFmpeg to read the input at its native frame rate,
-    /// ensuring the output is paced in real-time. This is critical because:
-    /// - Without -re, FFmpeg encodes as fast as possible, flooding Icecast with data.
-    ///   Icecast buffers this data, and different clients connecting at different times
-    ///   hear completely different parts of the playlist (massive desynchronization).
-    /// - With -re, FFmpeg reads at the audio's natural speed (e.g., 1 second of audio
-    ///   takes 1 second to process), so all clients hear the same audio in real-time,
-    ///   just like a traditional radio broadcast.
-    /// </summary>
-    /// <param name="filePath">Absolute path to the audio file to stream.</param>
-    /// <param name="icecastUrl">The Icecast server URL.</param>
-    /// <param name="icecastUsername">The Icecast source username.</param>
-    /// <param name="icecastPassword">The Icecast source password.</param>
-    /// <param name="icecastMountPoint">The Icecast mount point.</param>
-    /// <param name="audioFormat">The target audio format ("m4a" or "ogg").</param>
-    /// <param name="audioBitrate">The target audio bitrate in kbps.</param>
-    /// <param name="streamName">The stream name metadata.</param>
-    /// <param name="streamGenre">The stream genre metadata.</param>
-    /// <param name="cancellationToken">Cancellation token to stop streaming.</param>
-    /// <returns>True if the file was streamed successfully or cancelled; false on error.</returns>
-    public async Task<bool> StreamSingleFileAsync(
-        string filePath,
+    /// <param name="filePaths">Absolute paths to audio files in playlist order.</param>
+    /// <param name="icecastUrl">Icecast server URL (e.g., http://server:8000).</param>
+    /// <param name="icecastUsername">Icecast source username.</param>
+    /// <param name="icecastPassword">Icecast source password.</param>
+    /// <param name="icecastMountPoint">Icecast mount point (e.g., /radio).</param>
+    /// <param name="audioFormat">Audio format: "ogg" or "m4a".</param>
+    /// <param name="audioBitrate">Audio bitrate in kbps.</param>
+    /// <param name="streamName">Stream name metadata.</param>
+    /// <param name="streamGenre">Stream genre metadata.</param>
+    /// <param name="cancellationToken">Token to cancel streaming.</param>
+    /// <returns>True if streaming started successfully.</returns>
+    public async Task<bool> StreamPlaylistAsync(
+        List<string> filePaths,
         string icecastUrl,
         string icecastUsername,
         string icecastPassword,
@@ -88,48 +77,60 @@ public class IcecastStreamingService : IDisposable
         string streamGenre,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+        // Stop any existing stream first
+        StopStreaming();
+
+        if (filePaths.Count == 0)
         {
-            _logger.LogWarning("File not found: {FilePath}", filePath);
+            _logger.LogWarning("Cannot stream empty playlist");
             return false;
         }
 
-        var fileName = Path.GetFileName(filePath);
-        CurrentTrackName = fileName;
+        // Create work directory
+        Directory.CreateDirectory(WorkDir);
 
-        _logger.LogInformation(
-            "Starting real-time stream: {FileName} -> {Mount} ({Format}/{Bitrate}kbps)",
-            fileName, icecastMountPoint, audioFormat, audioBitrate);
+        // Write concat playlist file
+        WriteConcatPlaylist(filePaths);
 
-        var icecastSourceUrl = BuildIcecastSourceUrl(icecastUrl, icecastMountPoint);
+        // Get FFmpeg path from Jellyfin
         var ffmpegPath = _mediaEncoder.EncoderPath;
-
         if (string.IsNullOrEmpty(ffmpegPath) || !File.Exists(ffmpegPath))
         {
             _logger.LogError("FFmpeg not found at path: {FFmpegPath}", ffmpegPath);
-            CurrentTrackName = null;
             return false;
         }
 
-        var startInfo = BuildFFmpegArguments(
-            ffmpegPath,
-            filePath,
-            icecastSourceUrl,
+        // Build FFmpeg command:
+        // -re: real-time pacing (critical for synchronized listening)
+        // -stream_loop -1: loop the entire playlist infinitely
+        // -f concat -safe 0: use concat demuxer with absolute paths
+        var arguments = BuildConcatArguments(
+            icecastUrl,
             icecastUsername,
             icecastPassword,
+            icecastMountPoint,
             audioFormat,
             audioBitrate,
             streamName,
             streamGenre);
 
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegPath,
+            Arguments = arguments,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = WorkDir,
+        };
+
+        _logger.LogInformation(
+            "Starting FFmpeg concat stream: {Count} tracks -> {Mount} ({Format}/{Bitrate}kbps)",
+            filePaths.Count, icecastMountPoint, audioFormat, audioBitrate);
+
         lock (_lock)
         {
-            if (_isStreaming)
-            {
-                _logger.LogWarning("Already streaming, stopping previous stream");
-                StopStreamingInternal();
-            }
-
             _isStreaming = true;
         }
 
@@ -142,19 +143,17 @@ public class IcecastStreamingService : IDisposable
                 EnableRaisingEvents = true,
             };
 
-            process.OutputDataReceived += (_, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    _logger.LogDebug("FFmpeg stdout: {Data}", e.Data);
-                }
-            };
-
             process.ErrorDataReceived += (_, e) =>
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    _logger.LogDebug("FFmpeg stderr: {Data}", e.Data);
+                    // Only log actual warnings/errors, not stats
+                    if (e.Data.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
+                        e.Data.Contains("warn", StringComparison.OrdinalIgnoreCase) ||
+                        e.Data.Contains("failed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogWarning("FFmpeg: {Data}", e.Data);
+                    }
                 }
             };
 
@@ -162,13 +161,12 @@ public class IcecastStreamingService : IDisposable
 
             if (!process.Start())
             {
-                _logger.LogError("Failed to start FFmpeg process for {FileName}", fileName);
+                _logger.LogError("Failed to start FFmpeg process");
                 lock (_lock) { _isStreaming = false; }
-                CurrentTrackName = null;
+                _ffmpegProcess = null;
                 return false;
             }
 
-            process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
             // Wait for the process to finish or be cancelled
@@ -178,148 +176,160 @@ public class IcecastStreamingService : IDisposable
                 {
                     if (process != null && !process.HasExited)
                     {
-                        _logger.LogInformation("Cancelling FFmpeg stream for {FileName}", fileName);
                         process.Kill(true);
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug("Error killing FFmpeg: {Message}", ex.Message);
-                }
+                catch { }
             }))
             {
                 await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            var exitCode = process.ExitCode;
-            lock (_lock)
-            {
-                _isStreaming = false;
-            }
-            CurrentTrackName = null;
+            lock (_lock) { _isStreaming = false; }
+            _ffmpegProcess = null;
 
             if (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("FFmpeg stream cancelled for {FileName}", fileName);
-                return true; // Cancellation is expected, not an error
-            }
-
-            if (exitCode == 0)
-            {
-                _logger.LogInformation("FFmpeg stream completed: {FileName}", fileName);
+                _logger.LogInformation("FFmpeg concat stream stopped (schedule change or plugin stop)");
                 return true;
             }
 
-            _logger.LogError("FFmpeg exited with code {ExitCode} for {FileName}", exitCode, fileName);
+            // Process exited on its own - log it
+            _logger.LogWarning("FFmpeg concat stream exited with code {ExitCode}", process.ExitCode);
             return false;
         }
         catch (OperationCanceledException)
         {
             lock (_lock) { _isStreaming = false; }
-            CurrentTrackName = null;
-            _logger.LogInformation("Stream cancelled for {FileName}", fileName);
+            _ffmpegProcess = null;
             return true;
         }
         catch (Exception ex)
         {
             lock (_lock) { _isStreaming = false; }
-            CurrentTrackName = null;
-            _logger.LogError(ex, "Error streaming {FileName} to Icecast", fileName);
+            _ffmpegProcess = null;
+            _logger.LogError(ex, "Error during FFmpeg concat streaming");
             return false;
         }
         finally
         {
-            _ffmpegProcess = null;
             CleanupProcess(process);
         }
     }
 
     /// <summary>
-    /// Builds FFmpeg process start info for single-file streaming.
-    /// The -re flag is critical: it limits reading speed to the input's native frame rate,
-    /// producing output in real-time. Without it, FFmpeg processes as fast as CPU allows,
-    /// which breaks client synchronization when streaming to Icecast.
-    /// The -ar 44100 -ac 2 options normalize audio output for consistent playback.
+    /// Stops the current FFmpeg streaming process.
     /// </summary>
-    private ProcessStartInfo BuildFFmpegArguments(
-        string ffmpegPath,
-        string inputFilePath,
-        string icecastUrl,
-        string username,
-        string password,
-        string format,
-        int bitrate,
-        string streamName,
-        string streamGenre)
+    public void StopStreaming()
     {
-        var arguments = new StringBuilder();
-
-        // Global options
-        arguments.Append("-hide_banner -loglevel warning ");
-
-        // -re: REAL-TIME PACING - Read input at its native frame rate.
-        // This is the most important flag for radio streaming. Without it,
-        // FFmpeg encodes at maximum CPU speed, flooding the Icecast buffer.
-        // Listeners connecting at different times would hear different audio.
-        arguments.Append("-re ");
-
-        // Input file
-        arguments.Append($"-i \"{inputFilePath}\" ");
-
-        // Metadata for Icecast
-        arguments.Append($"-metadata title=\"{EscapeMetadata(streamName)}\" ");
-        arguments.Append($"-metadata genre=\"{EscapeMetadata(streamGenre)}\" ");
-        arguments.Append("-metadata artist=\"Jellyfin Radio Online\" ");
-
-        // Audio encoding options based on format
-        if (format.Equals("m4a", StringComparison.OrdinalIgnoreCase))
+        lock (_lock)
         {
-            arguments.Append("-c:a aac ");
-            arguments.Append($"-b:a {bitrate}k ");
-            arguments.Append("-ar 44100 ");
-            arguments.Append("-ac 2 ");
-            arguments.Append("-f adts ");
+            if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
+            {
+                try
+                {
+                    _ffmpegProcess.Kill(true);
+                    _logger.LogInformation("Stopped FFmpeg streaming process");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error stopping FFmpeg process");
+                }
+            }
+
+            _isStreaming = false;
+            _ffmpegProcess = null;
         }
-        else
-        {
-            // Ogg Vorbis format (default)
-            arguments.Append("-c:a libvorbis ");
-            arguments.Append($"-b:a {bitrate}k ");
-            arguments.Append("-ar 44100 ");
-            arguments.Append("-ac 2 ");
-            arguments.Append("-f ogg ");
-        }
-
-        // Output to Icecast via icecast:// protocol with source credentials
-        var escapedPassword = password.Replace("\"", "\\\"");
-        var cleanUrl = icecastUrl.Replace("http://", string.Empty).Replace("https://", string.Empty);
-        arguments.Append($"icecast://{username}:{escapedPassword}@{cleanUrl}");
-
-        _logger.LogDebug("FFmpeg arguments: {Arguments}", arguments.ToString());
-
-        return new ProcessStartInfo
-        {
-            FileName = ffmpegPath,
-            Arguments = arguments.ToString(),
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
     }
 
     /// <summary>
-    /// Builds the Icecast source URL from server URL and mount point.
+    /// Writes an FFmpeg concat playlist file from the given file paths.
+    /// Each line has the format: file '/absolute/path/to/audio.m4a'
+    /// Single quotes within paths are properly escaped.
     /// </summary>
-    private string BuildIcecastSourceUrl(string baseUrl, string mountPoint)
+    private void WriteConcatPlaylist(List<string> filePaths)
     {
-        var url = baseUrl.TrimEnd('/');
-        if (!mountPoint.StartsWith('/'))
+        var sb = new StringBuilder();
+        sb.AppendLine("# FFmpeg concat playlist - Radio Online");
+
+        foreach (var path in filePaths)
         {
-            mountPoint = '/' + mountPoint;
+            // Escape single quotes in the path for the concat format
+            var escapedPath = path.Replace("'", "'\\''");
+            sb.AppendLine($"file '{escapedPath}'");
         }
 
-        return $"{url}{mountPoint}";
+        // Atomic write: write to temp file, then move
+        File.WriteAllText(PlaylistTempFile, sb.ToString());
+        File.Move(PlaylistTempFile, PlaylistFile, overwrite: true);
+
+        _logger.LogDebug("Concat playlist written: {Count} tracks at {Path}", filePaths.Count, PlaylistFile);
+    }
+
+    /// <summary>
+    /// Builds FFmpeg arguments for concat demuxer streaming with continuous loop.
+    /// </summary>
+    private string BuildConcatArguments(
+        string icecastUrl,
+        string icecastUsername,
+        string icecastPassword,
+        string icecastMountPoint,
+        string audioFormat,
+        int audioBitrate,
+        string streamName,
+        string streamGenre)
+    {
+        var args = new StringBuilder();
+
+        // Global options
+        args.Append("-hide_banner -loglevel warning ");
+
+        // -re: real-time pacing - read input at native frame rate
+        // Critical for radio: without this, FFmpeg floods Icecast with data
+        args.Append("-re ");
+
+        // -stream_loop -1: loop the concat playlist infinitely
+        args.Append("-stream_loop -1 ");
+
+        // Input: concat demuxer with safe 0 (allows absolute paths)
+        args.Append("-f concat -safe 0 ");
+        args.Append($"-i \"{PlaylistFile}\" ");
+
+        // Metadata for Icecast
+        args.Append($"-metadata title=\"{EscapeMetadata(streamName)}\" ");
+        args.Append($"-metadata genre=\"{EscapeMetadata(streamGenre)}\" ");
+        args.Append("-metadata artist=\"Jellyfin Radio Online\" ");
+
+        // Audio encoding
+        if (audioFormat.Equals("m4a", StringComparison.OrdinalIgnoreCase))
+        {
+            args.Append("-c:a aac ");
+            args.Append($"-b:a {audioBitrate}k ");
+            args.Append("-ar 44100 ");
+            args.Append("-ac 2 ");
+            args.Append("-content_type audio/aac ");
+            args.Append("-f adts ");
+        }
+        else
+        {
+            // OGG Vorbis (default)
+            args.Append("-c:a libvorbis ");
+            args.Append($"-b:a {audioBitrate}k ");
+            args.Append("-ar 44100 ");
+            args.Append("-ac 2 ");
+            args.Append("-f ogg ");
+        }
+
+        // Output: Icecast via icecast:// protocol
+        var escapedPassword = icecastPassword.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        var cleanUrl = icecastUrl.Replace("http://", string.Empty).Replace("https://", string.Empty);
+        var mount = icecastMountPoint;
+        if (!mount.StartsWith('/'))
+            mount = '/' + mount;
+
+        args.Append($"icecast://{icecastUsername}:{escapedPassword}@{cleanUrl}{mount}");
+
+        return args.ToString();
     }
 
     /// <summary>
@@ -331,40 +341,7 @@ public class IcecastStreamingService : IDisposable
     }
 
     /// <summary>
-    /// Stops the current streaming session.
-    /// </summary>
-    public void StopStreaming()
-    {
-        lock (_lock)
-        {
-            StopStreamingInternal();
-        }
-    }
-
-    /// <summary>
-    /// Internal method to stop streaming (caller must hold _lock).
-    /// </summary>
-    private void StopStreamingInternal()
-    {
-        if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
-        {
-            try
-            {
-                _ffmpegProcess.Kill(true);
-                _logger.LogInformation("Stopped FFmpeg streaming process");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error stopping FFmpeg process");
-            }
-        }
-
-        _isStreaming = false;
-        CurrentTrackName = null;
-    }
-
-    /// <summary>
-    /// Cleans up a specific FFmpeg process resources.
+    /// Cleans up process event handlers.
     /// </summary>
     private void CleanupProcess(Process? process)
     {
@@ -377,16 +354,14 @@ public class IcecastStreamingService : IDisposable
     }
 
     /// <summary>
-    /// Disposes of the streaming service resources.
+    /// Disposes of all resources.
     /// </summary>
     public void Dispose()
     {
         lock (_lock)
         {
-            StopStreamingInternal();
-            CleanupProcess(_ffmpegProcess);
+            StopStreaming();
         }
-
         GC.SuppressFinalize(this);
     }
 }

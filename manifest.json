@@ -9,32 +9,16 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
-        "version": "0.0.0.10",
-        "changelog": "- CRITICAL FIX: FFmpeg is now the default streaming engine (works inside Docker containers)\n- NEW: Dual engine support - choose between FFmpeg (default) and Liquidsoap in plugin config\n- FIX: Liquidsoap didn't work because Jellyfin runs in Docker but Liquidsoap was on the host\n- FIX: Audio file paths inside Docker container are different from host paths\n- Reduced log spam: removed repetitive schedule check logs and config validation logs\n- Status tab now shows the active streaming engine\n- Better error message when Liquidsoap is not found (suggests switching to FFmpeg)\n- Schedule overlap log reduced to single warning line",
+        "version": "0.0.0.11",
+        "changelog": "- NEW: Continuous gapless playback using FFmpeg concat demuxer with -stream_loop -1\n- Playlist is streamed as a single continuous stream with no gaps between tracks\n- Schedule monitoring every 5 seconds - kills and restarts FFmpeg when schedule changes\n- Removed all Liquidsoap code (not compatible with Docker containers)\n- Simplified architecture: FFmpeg concat playlist instead of track-by-track approach\n- Reduced log spam: only important events logged\n- Cleaner config UI (removed streaming engine selector)",
         "targetAbi": "10.11.8.0",
-        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.10-alpha/jellyfin-plugin-radio-online_0.0.0.10.zip",
-        "checksum": "221f42c770f86ca32d13702ffb4af175",
-        "timestamp": "2026-04-26T18:00:00Z"
-      },
-      {
-        "version": "0.0.0.9",
-        "changelog": "- FIX: Liquidsoap binary now found via absolute paths (/usr/bin, /usr/local/bin) instead of relying on systemd PATH\n- FIX: Liquidsoap startup errors now captured and logged at ERROR level (before they were invisible at DEBUG level)\n- FIX: Removed -v flag from Liquidsoap launch that caused extra noise\n- FIX: Simplified crossfade syntax for Liquidsoap 2.x compatibility\n- Reduced log spam: only important messages logged (schedule changes, Liquidsoap start/stop, errors)\n- Liquidsoap stderr captured and reported on startup failure\n- Removed all LogDebug calls that flooded Jellyfin logs",
-        "targetAbi": "10.11.8.0",
-        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.9-alpha/jellyfin-plugin-radio-online_v0.0.0.9-alpha.zip",
-        "checksum": "3b5f8e0fd4885ea075b6a734836389bc",
-        "timestamp": "2026-04-26T16:00:00Z"
-      },
-      {
-        "version": "0.0.0.8",
-        "changelog": "- NEW: Switched from FFmpeg to Liquidsoap for streaming engine (requires Liquidsoap installed on server)\n- Crossfade transitions between tracks (0.5s fade out + 0.5s fade in) - NO MORE gaps between tracks\n- Persistent Icecast connection - Liquidsoap stays connected, never disconnects between tracks\n- All listeners now hear perfectly synchronized audio (no desync between VLC, MPV, etc)\n- Playlist auto-reload via Linux inotify when M3U file changes (instant detection)\n- Atomic playlist file replacement (write to temp, rename) for reliable inotify triggers\n- Graceful Liquidsoap shutdown (clear playlist, wait for fade-out, then stop process)\n- Schedule overlap: stops Liquidsoap and restarts with new playlist for clean transition\n- Dynamic .liq script generation from plugin configuration\n- HTTP control API for Liquidsoap commands (skip, status, playlist)\n- Requires: liquidsoap 2.x installed on the Jellyfin server",
-        "targetAbi": "10.11.8.0",
-        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.8-alpha/jellyfin-plugin-radio-online_v0.0.0.8-alpha.zip",
-        "checksum": "d3305e4ff1c322a2831616410bfc66b3",
-        "timestamp": "2026-04-26T14:00:00Z"
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.11-alpha/jellyfin-plugin-radio-online_0.0.0.11.zip",
+        "checksum": "14922c23458768ba4536553858c0ac76",
+        "timestamp": "2026-04-26T20:00:00Z"
       },
       {
         "version": "0.0.0.7",
-        "changelog": "- CRITICAL FIX: Added -re flag to FFmpeg for real-time pacing - fixes desynchronization between players (VLC, MPV, etc now hear the same audio)\n- CRITICAL FIX: Switched from concat demuxer to track-by-track streaming - fixes playlist order and enables schedule overlap detection\n- Schedule overlap now works correctly: schedule is checked BETWEEN each track, later schedule interrupts earlier one mid-playlist\n- Playlist playback order is now guaranteed correct (sequential iteration in playlist order)\n- Removed all random music / shuffle logic (GetRandomMusic, ShuffleItems)\n- Streaming only active when a scheduled playlist is running; stops completely when playlist ends or schedule slot expires\n- Removed IcecastStreamingService.StreamPlaylistAsync (concat demuxer approach) in favor of StreamSingleFileAsync\n- Added CurrentTrackName property for status reporting",
+        "changelog": "- CRITICAL FIX: Added -re flag to FFmpeg for real-time pacing - fixes desynchronization between players\n- CRITICAL FIX: Switched to track-by-track streaming - fixes playlist order and enables schedule overlap detection\n- Schedule overlap: later schedule interrupts earlier one mid-playlist\n- Playlist playback order guaranteed correct\n- Removed random music / shuffle logic\n- Streaming only active during scheduled hours",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.7-alpha/jellyfin-plugin-radio-online_v0.0.0.7-alpha.zip",
         "checksum": "acfb7d69f18475c44603eee911b1b33e",
@@ -42,7 +26,7 @@
       },
       {
         "version": "0.0.0.6",
-        "changelog": "- Removed random music playback entirely; streaming only active during scheduled playlists\n- Transmission stops when playlist ends; no music plays outside scheduled hours\n- Schedule overlap support: later-starting playlist takes priority and interrupts the earlier one\n- Schedule monitoring every 5 seconds during streaming for overlap detection\n- Removed non-functional enable/disable checkbox from schedule entries\n- Removed footer text and link\n- Playlist selection is now required when adding a program\n- Removed RandomFillLimit config field",
+        "changelog": "- Removed random music playback entirely; streaming only active during scheduled playlists\n- Transmission stops when playlist ends; no music plays outside scheduled hours\n- Schedule overlap support: later-starting playlist takes priority\n- Schedule monitoring every 5 seconds during streaming\n- Playlist selection required when adding a program",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.6-alpha/jellyfin-plugin-radio-online_v0.0.0.6-alpha.zip",
         "checksum": "c2d23e540113afeb9c3f4ea4e654d4df",
@@ -50,7 +34,7 @@
       },
       {
         "version": "0.0.0.5",
-        "changelog": "- Fixed native Jellyfin styles in schedule list (all selects now use is=\"emby-select\", checkbox uses is=\"emby-checkbox\")\n- Fixed Estado tab now shows correct status using getPluginConfiguration (reads from disk)\n- Fixed playlist loading: now loads after config is ready, auto-reloads after save, handles API errors gracefully\n- Fixed transmission interruption between songs: now uses FFmpeg concat demuxer for gapless continuous streaming\n- Improved API calls using native fetch with Jellyfin auth headers instead of ApiClient.ajax\n- Removed conflicting custom CSS for schedule form elements\n- Better error handling throughout config page",
+        "changelog": "- Fixed native Jellyfin styles in schedule list\n- Fixed Estado tab status\n- Fixed playlist loading and auto-reload after save\n- Fixed transmission interruption between songs: FFmpeg concat demuxer for gapless streaming\n- Improved API calls using native fetch",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.5-alpha/jellyfin-plugin-radio-online_v0.0.0.5-alpha.zip",
         "checksum": "026d52d07680e0be4fec5191cd781477",
@@ -58,7 +42,7 @@
       },
       {
         "version": "0.0.0.4",
-        "changelog": "- Fixed status refresh button now uses ApiClient.ajax\n- Added Saturday and Sunday to schedule programming\n- Time selectors are now dropdown lists (hours 0-23, minutes in 5-min intervals)\n- Fixed playlist order now preserved using LinkedChildren\n- Fixed Icecast connection not stopping when plugin is disabled\n- Fixed transmission lost between tracks (better reconnection + 1s gap)\n- Schedule entries now use Jellyfin listItem style instead of raw table\n- Fixed day and playlist selection persistence after save/reload\n- Removed weekend restriction from backend schedule manager",
+        "changelog": "- Fixed status refresh button\n- Added Saturday and Sunday to schedule\n- Time selectors now dropdown lists\n- Fixed playlist order preserved using LinkedChildren\n- Fixed Icecast connection stop\n- Fixed schedule entries with listItem style",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.4-alpha/jellyfin-plugin-radio-online_v0.0.0.4-alpha.zip",
         "checksum": "178c21e83d53091774d6391a55a9646d",
@@ -66,7 +50,7 @@
       },
       {
         "version": "0.0.0.3",
-        "changelog": "- Fixed checkbox overlapping text label\n- Removed custom CSS overrides that conflicted with Jellyfin native styles\n- Form elements now use Jellyfin native emby-input, emby-select, emby-checkbox styling\n- Buttons use Jellyfin native emby-button styling\n- Cleaner schedule table and status grid styling",
+        "changelog": "- Fixed checkbox overlapping text\n- Form elements use Jellyfin native styles\n- Cleaner schedule table and status grid",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.3-alpha/jellyfin-plugin-radio-online_v0.0.0.3-alpha.zip",
         "checksum": "473e4d3944f359d91190a7b1291d4b3e",
@@ -74,7 +58,7 @@
       },
       {
         "version": "0.0.0.2",
-        "changelog": "- Fixed blank configuration page (rewrote as single inline div with embedded script)\n- Tabbed config dashboard: Configuracion, Programacion, Estado\n- Proper Jellyfin localnav tab navigation\n- All JavaScript inline (no external script dependencies)\n- Stable config load/save via ApiClient\n- Schedule CRUD with table editing\n- Status monitoring tab with streaming info",
+        "changelog": "- Fixed blank configuration page\n- Tabbed config dashboard: Configuracion, Programacion, Estado\n- Stable config load/save via ApiClient\n- Schedule CRUD with table editing",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.2-alpha/jellyfin-plugin-radio-online_v0.0.0.2-alpha.zip",
         "checksum": "5c7bd897d15b43a6ae76df3456b9f6cf",
@@ -82,7 +66,7 @@
       },
       {
         "version": "0.0.0.1",
-        "changelog": "- Initial alpha release\n- Icecast server streaming support (OGG Vorbis / M4A AAC)\n- Weekly schedule programming (Monday-Friday)\n- Jellyfin playlist integration\n- Smart time-slot management\n- Random music fill for unscheduled slots\n- Audio bitrate configuration (32-320 kbps)\n- Stream metadata (name, description, genre)",
+        "changelog": "- Initial alpha release\n- Icecast streaming (OGG Vorbis / M4A AAC)\n- Weekly schedule programming\n- Jellyfin playlist integration\n- Audio bitrate configuration",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.1-alpha/jellyfin-plugin-radio-online_v0.0.0.1-alpha.zip",
         "checksum": "1682dfbdb9e4170a24e8ed4799afb3a5",

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.RadioOnline.Configuration;
@@ -12,15 +11,14 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 
 /// <summary>
 /// Background hosted service that manages the radio streaming loop.
-/// Supports two streaming engines:
-/// - FFmpeg (default): Uses Jellyfin's bundled FFmpeg. Works inside Docker containers.
-/// - Liquidsoap: Requires Liquidsoap installed INSIDE the Jellyfin container.
+/// Uses FFmpeg with concat demuxer and -stream_loop -1 for continuous gapless playback.
+/// When a schedule becomes active, writes a concat playlist.txt and starts FFmpeg.
+/// Monitors the schedule every 5 seconds - kills and restarts FFmpeg when the schedule changes.
 /// </summary>
 public class RadioStreamingHostedService : BackgroundService
 {
     private readonly ILogger<RadioStreamingHostedService> _logger;
     private readonly IcecastStreamingService _icecastService;
-    private readonly LiquidsoapStreamingService _liquidsoapService;
     private readonly ScheduleManagerService _scheduleManager;
     private readonly AudioProviderService _audioProvider;
 
@@ -32,38 +30,28 @@ public class RadioStreamingHostedService : BackgroundService
     public RadioStreamingHostedService(
         ILogger<RadioStreamingHostedService> logger,
         IcecastStreamingService icecastService,
-        LiquidsoapStreamingService liquidsoapService,
         ScheduleManagerService scheduleManager,
         AudioProviderService audioProvider)
     {
         _logger = logger;
         _icecastService = icecastService;
-        _liquidsoapService = liquidsoapService;
         _scheduleManager = scheduleManager;
         _audioProvider = audioProvider;
     }
 
     /// <summary>
-    /// Gets whether any streaming engine is currently active.
+    /// Gets whether FFmpeg is currently streaming.
     /// </summary>
-    public bool IsStreaming =>
-        _icecastService.IsStreaming || _liquidsoapService.IsStreaming;
-
-    /// <summary>
-    /// Gets the name of the currently active streaming engine, or null.
-    /// </summary>
-    public string? ActiveEngine =>
-        _liquidsoapService.IsStreaming ? "liquidsoap" :
-        _icecastService.IsStreaming ? "ffmpeg" : null;
+    public bool IsStreaming => _icecastService.IsStreaming;
 
     /// <summary>
     /// Executes the main radio streaming loop.
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started");
+        _logger.LogInformation("Radio Online service started (FFmpeg concat mode)");
 
-        // Wait for Jellyfin to fully initialize before accessing plugins/config
+        // Wait for Jellyfin to fully initialize
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -82,7 +70,7 @@ public class RadioStreamingHostedService : BackgroundService
                 // Check if plugin is enabled
                 if (config == null || !config.IsEnabled)
                 {
-                    StopAllStreaming();
+                    StopStreaming();
                     await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
                     continue;
                 }
@@ -90,22 +78,23 @@ public class RadioStreamingHostedService : BackgroundService
                 // Validate configuration
                 if (!ValidateConfig(config))
                 {
-                    StopAllStreaming();
+                    StopStreaming();
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
                 }
 
-                // Determine active schedule entry
+                // Get the active schedule entry for the current time
                 var activeEntry = _scheduleManager.GetActiveScheduleEntry(config.ScheduleEntries);
 
                 if (activeEntry == null || string.IsNullOrEmpty(activeEntry.PlaylistId))
                 {
-                    StopAllStreaming();
+                    // No active schedule - stop streaming and wait
+                    StopStreaming();
 
                     var timeUntilNext = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
                     if (timeUntilNext.HasValue && timeUntilNext.Value < TimeSpan.FromMinutes(5))
                     {
-                        _logger.LogInformation("Next schedule in {Minutes:F0} min, waiting", timeUntilNext.Value.TotalMinutes);
+                        _logger.LogInformation("Next schedule in {Minutes:F0} min", timeUntilNext.Value.TotalMinutes);
                         await Task.Delay(timeUntilNext.Value, stoppingToken).ConfigureAwait(false);
                     }
                     else
@@ -116,18 +105,8 @@ public class RadioStreamingHostedService : BackgroundService
                     continue;
                 }
 
-                // Choose streaming engine based on configuration
-                var engine = config.StreamingEngine?.Trim().ToLowerInvariant() ?? "ffmpeg";
-
-                if (engine == "liquidsoap")
-                {
-                    await RunLiquidsoapCycleAsync(config, activeEntry, stoppingToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    // Default: FFmpeg (works inside Docker containers)
-                    await RunFFmpegCycleAsync(config, activeEntry, stoppingToken).ConfigureAwait(false);
-                }
+                // Start streaming the active playlist
+                await StreamPlaylistAsync(config, activeEntry, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -136,7 +115,7 @@ public class RadioStreamingHostedService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Streaming cycle error, retrying in 15s");
-                StopAllStreaming();
+                StopStreaming();
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -148,41 +127,36 @@ public class RadioStreamingHostedService : BackgroundService
             }
         }
 
-        StopAllStreaming();
+        StopStreaming();
         _logger.LogInformation("Radio Online service stopped");
     }
 
     /// <summary>
-    /// Runs the FFmpeg streaming cycle: streams tracks one-by-one with schedule checks between tracks.
-    /// This engine uses Jellyfin's bundled FFmpeg and works inside Docker containers.
-    /// There is a brief pause (~1-2s) between tracks due to FFmpeg reconnection.
+    /// Streams a playlist to Icecast using FFmpeg concat demuxer.
+    /// Generates the concat playlist file, starts FFmpeg, and monitors for schedule changes.
+    /// When the schedule changes or ends, kills FFmpeg and returns (the main loop handles the transition).
     /// </summary>
-    private async Task RunFFmpegCycleAsync(
+    private async Task StreamPlaylistAsync(
         PluginConfiguration config,
         ScheduleEntry activeEntry,
         CancellationToken cancellationToken)
     {
-        // Make sure Liquidsoap is not running
-        if (_liquidsoapService.IsStreaming)
-        {
-            _liquidsoapService.StopStreaming();
-        }
-
-        // Get playlist items
+        // Get audio files from Jellyfin playlist
         var playlistItems = _audioProvider.GetPlaylistItems(activeEntry.PlaylistId, config.JellyfinUserId);
         if (playlistItems.Count == 0)
         {
-            _logger.LogWarning("Playlist \"{Name}\" empty or not found", activeEntry.DisplayName);
+            _logger.LogWarning("Playlist \"{Name}\" is empty or not found", activeEntry.DisplayName);
             await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        // Collect valid file paths
+        // Collect valid file paths in playlist order
         var filePaths = new List<string>();
         foreach (var item in playlistItems)
         {
             var path = _audioProvider.GetAudioFilePath(item);
-            if (path != null) filePaths.Add(path);
+            if (path != null)
+                filePaths.Add(path);
         }
 
         if (filePaths.Count == 0)
@@ -193,21 +167,59 @@ public class RadioStreamingHostedService : BackgroundService
         }
 
         _logger.LogInformation(
-            "Streaming \"{Name}\" ({Day} {Start}-{End}) via FFmpeg - {Count} tracks",
+            "Streaming \"{Name}\" ({Day} {Start}-{End}) - {Count} tracks",
             activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime, filePaths.Count);
 
-        // Stream each track sequentially
-        for (int i = 0; i < filePaths.Count; i++)
-        {
-            if (cancellationToken.IsCancellationRequested)
-                break;
+        // Use a linked cancellation token so we can kill FFmpeg when the schedule changes
+        using var scheduleCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-            // Check schedule still active before each track
-            var currentEntry = _scheduleManager.GetActiveScheduleEntry(config.ScheduleEntries);
+        // Start FFmpeg concat streaming in a background task
+        var streamTask = _icecastService.StreamPlaylistAsync(
+            filePaths,
+            config.IcecastUrl,
+            config.IcecastUsername,
+            config.IcecastPassword,
+            config.IcecastMountPoint,
+            config.AudioFormat,
+            config.AudioBitrate,
+            config.StreamName,
+            config.StreamGenre,
+            scheduleCts.Token);
+
+        // Monitor schedule while streaming
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds), cancellationToken).ConfigureAwait(false);
+
+            // Check if FFmpeg died unexpectedly
+            if (!_icecastService.IsStreaming && !scheduleCts.IsCancellationRequested)
+            {
+                _logger.LogWarning("FFmpeg died unexpectedly during \"{Name}\"", activeEntry.DisplayName);
+                // Wait for the task to complete, then restart
+                try
+                {
+                    await streamTask.ConfigureAwait(false);
+                }
+                catch { }
+                return;
+            }
+
+            // Check if plugin was disabled
+            var currentConfig = Plugin.Instance?.Configuration as PluginConfiguration;
+            if (currentConfig == null || !currentConfig.IsEnabled)
+            {
+                _logger.LogInformation("Plugin disabled, stopping stream");
+                scheduleCts.Cancel();
+                break;
+            }
+
+            // Check if schedule is still active
+            var currentEntry = _scheduleManager.GetActiveScheduleEntry(currentConfig.ScheduleEntries);
 
             if (currentEntry == null)
             {
-                _logger.LogInformation("Schedule ended during playback of \"{Name}\"", activeEntry.DisplayName);
+                _logger.LogInformation("Schedule ended for \"{Name}\"", activeEntry.DisplayName);
+                scheduleCts.Cancel();
                 break;
             }
 
@@ -217,199 +229,53 @@ public class RadioStreamingHostedService : BackgroundService
                 _logger.LogInformation(
                     "Schedule overlap: \"{New}\" takes priority over \"{Old}\"",
                     currentEntry.DisplayName, activeEntry.DisplayName);
-                break;
-            }
-
-            var filePath = filePaths[i];
-            var fileName = Path.GetFileName(filePath);
-
-            _logger.LogInformation(
-                "Track {Index}/{Total}: {FileName}",
-                i + 1, filePaths.Count, fileName);
-
-            var success = await _icecastService.StreamSingleFileAsync(
-                filePath,
-                config.IcecastUrl,
-                config.IcecastUsername,
-                config.IcecastPassword,
-                config.IcecastMountPoint,
-                config.AudioFormat,
-                config.AudioBitrate,
-                config.StreamName,
-                config.StreamGenre,
-                cancellationToken).ConfigureAwait(false);
-
-            if (!success && !cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogWarning("FFmpeg stream failed for {FileName}, skipping", fileName);
-            }
-        }
-
-        _logger.LogInformation("FFmpeg cycle completed for \"{Name}\"", activeEntry.DisplayName);
-    }
-
-    /// <summary>
-    /// Runs the Liquidsoap streaming cycle: starts a persistent Liquidsoap process
-    /// and monitors for schedule changes. Requires Liquidsoap installed inside the container.
-    /// </summary>
-    private async Task RunLiquidsoapCycleAsync(
-        PluginConfiguration config,
-        ScheduleEntry activeEntry,
-        CancellationToken cancellationToken)
-    {
-        // Make sure FFmpeg is not running
-        if (_icecastService.IsStreaming)
-        {
-            _icecastService.StopStreaming();
-        }
-
-        // Start Liquidsoap if not already running
-        if (!_liquidsoapService.IsStreaming)
-        {
-            var started = await _liquidsoapService.StartStreamingAsync(config, cancellationToken).ConfigureAwait(false);
-            if (!started)
-            {
-                _logger.LogError(
-                    "Liquidsoap failed to start. If Jellyfin runs in Docker, " +
-                    "install Liquidsoap inside the container or switch engine to FFmpeg in plugin config.");
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
-                return;
-            }
-        }
-
-        // Get playlist files
-        var playlistItems = _audioProvider.GetPlaylistItems(activeEntry.PlaylistId, config.JellyfinUserId);
-        if (playlistItems.Count == 0)
-        {
-            _logger.LogWarning("Playlist \"{Name}\" empty or not found", activeEntry.DisplayName);
-            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        var filePaths = new List<string>();
-        foreach (var item in playlistItems)
-        {
-            var path = _audioProvider.GetAudioFilePath(item);
-            if (path != null) filePaths.Add(path);
-        }
-
-        if (filePaths.Count == 0)
-        {
-            _logger.LogWarning("No valid audio files in playlist \"{Name}\"", activeEntry.DisplayName);
-            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        _logger.LogInformation(
-            "Streaming \"{Name}\" ({Day} {Start}-{End}) via Liquidsoap - {Count} tracks",
-            activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime, filePaths.Count);
-
-        await _liquidsoapService.SetPlaylistAsync(filePaths, cancellationToken).ConfigureAwait(false);
-
-        // Monitor for schedule changes
-        await MonitorScheduleAsync(activeEntry, config, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Monitors the schedule while Liquidsoap is streaming.
-    /// Stops Liquidsoap when the schedule ends or a different playlist takes priority.
-    /// </summary>
-    private async Task MonitorScheduleAsync(
-        ScheduleEntry activeEntry,
-        PluginConfiguration config,
-        CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds), cancellationToken).ConfigureAwait(false);
-
-            if (!_liquidsoapService.IsStreaming)
-            {
-                _logger.LogWarning("Liquidsoap process died during \"{Name}\"", activeEntry.DisplayName);
-                break;
-            }
-
-            var currentConfig = Plugin.Instance?.Configuration as PluginConfiguration;
-            if (currentConfig == null || !currentConfig.IsEnabled)
-            {
-                _logger.LogInformation("Plugin disabled, stopping Liquidsoap");
-                await StopLiquidsoapGracefullyAsync(cancellationToken).ConfigureAwait(false);
-                break;
-            }
-
-            var currentEntry = _scheduleManager.GetActiveScheduleEntry(currentConfig.ScheduleEntries);
-
-            if (currentEntry == null)
-            {
-                _logger.LogInformation("Schedule ended for \"{Name}\"", activeEntry.DisplayName);
-                await StopLiquidsoapGracefullyAsync(cancellationToken).ConfigureAwait(false);
-                break;
-            }
-
-            if (!string.Equals(currentEntry.PlaylistId, activeEntry.PlaylistId, StringComparison.Ordinal) ||
-                !string.Equals(currentEntry.StartTime, activeEntry.StartTime, StringComparison.Ordinal))
-            {
-                _logger.LogInformation(
-                    "Schedule overlap: \"{New}\" takes priority over \"{Old}\"",
-                    currentEntry.DisplayName, activeEntry.DisplayName);
-                await StopLiquidsoapGracefullyAsync(cancellationToken).ConfigureAwait(false);
+                scheduleCts.Cancel();
                 break;
             }
         }
-    }
 
-    /// <summary>
-    /// Gracefully stops Liquidsoap: clears playlist, waits, then kills the process.
-    /// </summary>
-    private async Task StopLiquidsoapGracefullyAsync(CancellationToken cancellationToken)
-    {
+        // Wait for FFmpeg to finish after cancellation
         try
         {
-            await _liquidsoapService.ClearPlaylistAsync(cancellationToken).ConfigureAwait(false);
-            await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken).ConfigureAwait(false);
+            await streamTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when we cancelled
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Graceful Liquidsoap stop failed, forcing");
+            _logger.LogDebug("Stream task exception: {Message}", ex.Message);
         }
 
-        _liquidsoapService.StopStreaming();
+        // Small delay before potentially starting a new stream
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { }
     }
 
     /// <summary>
-    /// Stops all streaming engines.
+    /// Stops the current FFmpeg stream.
     /// </summary>
-    private void StopAllStreaming()
+    private void StopStreaming()
     {
         if (_icecastService.IsStreaming)
         {
             _icecastService.StopStreaming();
         }
-
-        if (_liquidsoapService.IsStreaming)
-        {
-            _liquidsoapService.StopStreaming();
-        }
     }
 
+    /// <summary>
+    /// Validates that the plugin has all required configuration.
+    /// </summary>
     private bool ValidateConfig(PluginConfiguration config)
     {
-        if (string.IsNullOrWhiteSpace(config.IcecastUrl))
-        {
-            return false;
-        }
-        if (string.IsNullOrWhiteSpace(config.IcecastPassword))
-        {
-            return false;
-        }
-        if (string.IsNullOrWhiteSpace(config.IcecastMountPoint))
-        {
-            return false;
-        }
-        if (string.IsNullOrWhiteSpace(config.JellyfinUserId))
-        {
-            return false;
-        }
+        if (string.IsNullOrWhiteSpace(config.IcecastUrl)) return false;
+        if (string.IsNullOrWhiteSpace(config.IcecastPassword)) return false;
+        if (string.IsNullOrWhiteSpace(config.IcecastMountPoint)) return false;
+        if (string.IsNullOrWhiteSpace(config.JellyfinUserId)) return false;
         return true;
     }
 
@@ -418,7 +284,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        StopAllStreaming();
+        StopStreaming();
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 }

@@ -29,13 +29,12 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// Gets or sets the Icecast mount point (e.g., /radio or /stream).
-    /// Must start with a forward slash.
     /// </summary>
     public string IcecastMountPoint { get; set; } = "/radio";
 
     /// <summary>
     /// Gets or sets the audio format to send to Icecast.
-    /// Supported values: "m4a" (AAC in MPEG-4 container) or "ogg" (Ogg Vorbis/Opus).
+    /// "ogg" (Vorbis) or "m4a" (AAC).
     /// </summary>
     public string AudioFormat { get; set; } = "ogg";
 
@@ -50,28 +49,19 @@ public class PluginConfiguration : BasePluginConfiguration
     public string StreamName { get; set; } = "Jellyfin Radio Online";
 
     /// <summary>
-    /// Gets or sets the stream description metadata sent to Icecast listeners.
+    /// Gets or sets the stream description metadata.
     /// </summary>
     public string StreamDescription { get; set; } = "Automated online radio powered by Jellyfin";
 
     /// <summary>
-    /// Gets or sets the stream genre metadata sent to Icecast listeners.
+    /// Gets or sets the stream genre metadata.
     /// </summary>
     public string StreamGenre { get; set; } = "Various";
 
     /// <summary>
-    /// Gets or sets the public flag for the Icecast stream (true = listed in directory).
+    /// Gets or sets the public flag for the Icecast stream.
     /// </summary>
     public bool StreamPublic { get; set; } = false;
-
-    // ── Streaming Engine ────────────────────────────────────────────────
-
-    /// <summary>
-    /// Gets or sets the streaming engine to use.
-    /// "ffmpeg" (default): Uses Jellyfin's bundled FFmpeg. Works in Docker containers.
-    /// "liquidsoap": Requires Liquidsoap installed INSIDE the Jellyfin container.
-    /// </summary>
-    public string StreamingEngine { get; set; } = "ffmpeg";
 
     // ── Scheduling Settings ──────────────────────────────────────────────
 
@@ -82,7 +72,6 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// Gets or sets the weekly schedule entries.
-    /// Each entry maps a specific day and time slot to a playlist.
     /// </summary>
     public List<ScheduleEntry> ScheduleEntries { get; set; } = new();
 
@@ -90,7 +79,6 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// Gets or sets the Jellyfin user ID used for library access.
-    /// This user must have access to all relevant media libraries.
     /// </summary>
     public string JellyfinUserId { get; set; } = string.Empty;
 }
