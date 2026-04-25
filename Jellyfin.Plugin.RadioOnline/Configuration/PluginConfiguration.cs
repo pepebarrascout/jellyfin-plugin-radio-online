@@ -77,17 +77,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public List<ScheduleEntry> ScheduleEntries { get; set; } = new();
 
-    // ── Fallback Settings ────────────────────────────────────────────────
+    // ── Jellyfin Settings ────────────────────────────────────────────────
 
     /// <summary>
     /// Gets or sets the Jellyfin user ID used for library access.
     /// This user must have access to all relevant media libraries.
     /// </summary>
     public string JellyfinUserId { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets the maximum number of random songs to queue when filling
-    /// unscheduled time slots or when a playlist ends before the time slot.
-    /// </summary>
-    public int RandomFillLimit { get; set; } = 500;
 }

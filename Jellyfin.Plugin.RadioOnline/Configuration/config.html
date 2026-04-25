@@ -4,7 +4,7 @@
         <div class="content-primary">
 
             <h1>Radio Online</h1>
-            <p>Transmite audio a un servidor Icecast con programacion semanal de playlists. Los horarios sin programar se llenan con musica aleatoria de tu biblioteca de Jellyfin.</p>
+            <p>Transmite audio a un servidor Icecast con programacion semanal de playlists. La transmision esta activa unicamente durante las horas programadas.</p>
 
             <div data-role="controlgroup" data-type="horizontal" class="localnav" id="roTabNav">
                 <a class="emby-button ui-btn-active" href="#" data-role="button" data-tab="config">Configuracion</a>
@@ -95,7 +95,7 @@
                             <span>Activar radio automatizada</span>
                         </label>
                         <div class="fieldDescription checkboxFieldDescription">
-                            Al activar, el plugin comenzara a transmitir audio al servidor Icecast segun la programacion.
+                            Al activar, el plugin transmitira audio al servidor Icecast unicamente durante las horas programadas.
                         </div>
                     </div>
 
@@ -108,7 +108,7 @@
                 <div style="margin-top:2em;">
 
                     <div class="sectionHeader">Programacion Semanal</div>
-                    <p class="fieldDescription">Asigna playlists a dias y horarios especificos. Los horarios sin programar se llenan con musica aleatoria. Se repite semanalmente.</p>
+                    <p class="fieldDescription">Asigna playlists a dias y horarios especificos. La transmision se activa solo durante las horas programadas y se detiene al terminar la playlist. Si dos programas se solapan, el que empieza mas tarde tiene prioridad.</p>
 
                     <div id="roEmptySched" style="padding:1.5em;text-align:center;display:none;">
                         <p>No hay programacion configurada.</p>
@@ -150,7 +150,7 @@
                         <div class="selectContainer">
                             <label class="selectLabel" for="roNewPlaylist">Playlist</label>
                             <select id="roNewPlaylist" is="emby-select">
-                                <option value="">-- Musica Aleatoria --</option>
+                                <option value="">-- Seleccionar --</option>
                             </select>
                         </div>
 
@@ -191,10 +191,6 @@
                 </div>
             </div>
 
-            <div style="margin-top:2em;text-align:center;color:#666;font-size:0.85em;">
-                <a href="https://github.com/pepebarrascout/jellyfin-plugin-radio-online" target="_blank" rel="noopener noreferrer" style="color:#00a4dc;text-decoration:none;">Radio Online Plugin por PepeBarrascout</a>
-            </div>
-
         </div>
     </div>
 
@@ -212,7 +208,6 @@
         .ro-sched-field label { font-size:0.8em;color:rgba(255,255,255,0.5);min-width:32px; }
         .ro-sched-actions { display:flex;gap:0.5em;align-items:center; }
         .ro-sched-time-sep { font-size:1.1em;color:rgba(255,255,255,0.4); }
-        .ro-disabled-item { opacity:0.4; }
     </style>
 
     <script type="text/javascript">
@@ -224,8 +219,6 @@
         var playlistsLoaded = false;
         var inited = false;
 
-        // UI day values: 1=Lunes ... 6=Sabado, 7=Domingo
-        // C# DayOfWeek: Sunday=0, Monday=1 ... Saturday=6
         var dayNames = {1:'Lunes',2:'Martes',3:'Miercoles',4:'Jueves',5:'Viernes',6:'Sabado',7:'Domingo'};
         var csharpDayNames = {'Sunday':7,'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6};
 
@@ -251,7 +244,6 @@
         }
         function sv(k,v){ cfg[k]=v; cfg[k.charAt(0).toLowerCase()+k.slice(1)]=v; }
 
-        // --- Robust API helper using fetch with Jellyfin auth ---
         function apiGet(path){
             var serverAddr = ApiClient.serverAddress() || '';
             var token = ApiClient.accessToken() || '';
@@ -269,7 +261,6 @@
             });
         }
 
-        // --- Generate time dropdown options ---
         function hourOpts(sel){
             var html='';
             for(var h=0;h<24;h++){
@@ -332,11 +323,10 @@
                 fillForm();
                 tryRenderSchedule();
                 Dashboard.hideLoadingMsg();
-                // After config is loaded, load playlists (needs JellyfinUserId)
                 loadPlaylists();
             }).catch(function(e){
                 console.error('[RadioOnline] Config load error',e);
-                configLoaded=true; // Allow schedule to render even without config
+                configLoaded=true;
                 playlistsLoaded=true;
                 tryRenderSchedule();
                 Dashboard.hideLoadingMsg();
@@ -381,7 +371,6 @@
             ApiClient.updatePluginConfiguration(PLUGIN_ID, cfg).then(function(r){
                 Dashboard.hideLoadingMsg();
                 Dashboard.processPluginConfigurationUpdateResult(r);
-                // Reload playlists after save (in case userId changed)
                 playlistsLoaded=false;
                 loadPlaylists();
             }).catch(function(e){
@@ -392,12 +381,8 @@
         }
 
         // --- Status ---
-        // Uses getPluginConfiguration (always reads from disk) as primary source
-        // Falls back to custom API endpoint for isStreaming
         function loadStatus(){
             Dashboard.showLoadingMsg();
-
-            // Primary: read config from disk via getPluginConfiguration
             ApiClient.getPluginConfiguration(PLUGIN_ID).then(function(c){
                 var st = c || {};
                 var isEnabled = st.IsEnabled || st.isEnabled || false;
@@ -406,7 +391,6 @@
                 var fmt = st.AudioFormat || st.audioFormat || '--';
                 var br = st.AudioBitrate || st.audioBitrate || '--';
 
-                // Update DOM from config
                 var ep=document.getElementById('roStPlugin');
                 if(ep) ep.innerHTML=isEnabled?'<span class="ro-st-on">Activado</span>':'<span class="ro-st-off">Desactivado</span>';
                 var ei=document.getElementById('roStIcecast');
@@ -416,18 +400,15 @@
                 var ec=document.getElementById('roStCount');
                 if(ec) ec.textContent=schedCount;
 
-                // Secondary: get live streaming status from custom API
                 apiGet('Plugins/RadioOnline/Status').then(function(apiSt){
                     var es=document.getElementById('roStStream');
                     if(es) es.innerHTML=(apiSt && apiSt.isStreaming)?'<span class="ro-st-live">En Vivo</span>':'<span class="ro-st-off">Inactivo</span>';
                     Dashboard.hideLoadingMsg();
                 }).catch(function(){
-                    // Custom API failed - show streaming as unknown from config
                     var es=document.getElementById('roStStream');
-                    if(es) es.innerHTML=isEnabled?'<span class="ro-st-off">Inactivo</span>':'<span class="ro-st-off">Inactivo</span>';
+                    if(es) es.innerHTML='<span class="ro-st-off">Inactivo</span>';
                     Dashboard.hideLoadingMsg();
                 });
-
             }).catch(function(e){
                 console.error('[RadioOnline] Status config error',e);
                 Dashboard.hideLoadingMsg();
@@ -451,17 +432,15 @@
 
         // --- Playlists ---
         function loadPlaylists(){
-            // Avoid duplicate calls
             if(playlistsLoaded) { tryRenderSchedule(); return; }
-
             apiGet('Plugins/RadioOnline/Playlists').then(function(d){
                 playlists=d||[];
                 playlistsLoaded=true;
                 fillPlaylistSelect();
                 tryRenderSchedule();
             }).catch(function(e){
-                console.warn('[RadioOnline] Playlists API failed, trying direct playlist query',e);
-                playlistsLoaded=true; // Don't block schedule rendering
+                console.warn('[RadioOnline] Playlists API failed',e);
+                playlistsLoaded=true;
                 playlists=[];
                 fillPlaylistSelect();
                 tryRenderSchedule();
@@ -501,7 +480,6 @@
             list.style.display='';
             if(empty) empty.style.display='none';
 
-            // Sort by day then start time
             var sorted=[];
             for(var i=0;i<entries.length;i++) sorted.push({e:entries[i],i:i});
             sorted.sort(function(a,b){
@@ -520,23 +498,25 @@
                 var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
                 var pl=en.PlaylistId||en.playlistId||'';
                 var nm=en.DisplayName||en.displayName||'';
-                var ac=en.IsEnabled!==undefined?en.IsEnabled:(en.isEnabled!==undefined?en.isEnabled:true);
 
                 var div=document.createElement('div');
-                div.className='listItem listItem-narrow ro-sched-item'+(ac?'':' ro-disabled-item');
+                div.className='listItem listItem-narrow ro-sched-item';
                 div.setAttribute('data-i',idx);
 
-                // Build innerHTML with is="emby-select" on all selects
+                var plName='-- Sin playlist --';
+                for(var p=0;p<playlists.length;p++){
+                    if(playlists[p].id===pl){ plName=playlists[p].name; break; }
+                }
+
                 div.innerHTML=
                     '<div class="ro-sched-row">'+
                         '<div class="ro-sched-field"><label>Dia</label><select is="emby-select" data-i="'+idx+'" data-f="DayOfWeek">'+dayOpts(day)+'</select></div>'+
                         '<div class="ro-sched-field"><label>De</label><select is="emby-select" data-i="'+idx+'" data-f="StartTimeH">'+hourOpts(stHM.h)+'</select><span class="ro-sched-time-sep">:</span><select is="emby-select" data-i="'+idx+'" data-f="StartTimeM">'+minOpts(stHM.m)+'</select></div>'+
                         '<div class="ro-sched-field"><label>A</label><select is="emby-select" data-i="'+idx+'" data-f="EndTimeH">'+hourOpts(etHM.h)+'</select><span class="ro-sched-time-sep">:</span><select is="emby-select" data-i="'+idx+'" data-f="EndTimeM">'+minOpts(etHM.m)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>Lista</label><select is="emby-select" data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Aleatoria --</option>'+plOpts(pl)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>Lista</label><select is="emby-select" data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Seleccionar --</option>'+plOpts(pl)+'</select></div>'+
                         '<div class="ro-sched-field"><label>Nombre</label><input type="text" is="emby-input" data-i="'+idx+'" data-f="DisplayName" value="'+esc(nm)+'" /></div>'+
                     '</div>'+
                     '<div class="ro-sched-actions">'+
-                        '<input type="checkbox" is="emby-checkbox" '+(ac?'checked':'')+' data-i="'+idx+'" data-f="IsEnabled" title="Activar/Desactivar" />'+
                         '<button type="button" is="emby-button" class="raised btn-danger" data-i="'+idx+'" data-act="del"><span>Borrar</span></button>'+
                     '</div>';
 
@@ -572,11 +552,6 @@
                 en.EndTime=newVal2; en.endTime=newVal2;
             } else if(field==='DisplayName'){
                 en.DisplayName=t.value; en.displayName=t.value;
-            } else if(field==='IsEnabled'){
-                en.IsEnabled=t.checked; en.isEnabled=t.checked;
-                setEntries(entries);
-                renderSchedule();
-                return;
             }
             setEntries(entries);
         }
@@ -609,6 +584,7 @@
             var nm=(document.getElementById('roNewName').value||'').trim();
 
             if(st>=et){ showMsg('La hora de fin debe ser despues de la hora de inicio.'); return; }
+            if(!pl){ showMsg('Debes seleccionar una playlist.'); return; }
 
             var name=nm||(dayNames[day]+' '+st+'-'+et);
             var entries=getEntries();
@@ -628,11 +604,9 @@
         function hideMsg(){ var m=document.getElementById('roSchedMsg'); if(m) m.style.display='none'; }
         function showMsg(t){ var m=document.getElementById('roSchedMsg'); if(m){ m.style.display=''; m.textContent=t; } }
 
-        // --- Populate dropdowns ---
         function populateDropdowns(){
             var daySel=document.getElementById('roNewDay');
             if(daySel) daySel.innerHTML=dayOpts(1);
-
             var sh=document.getElementById('roNewStartH');
             if(sh) sh.innerHTML=hourOpts('08');
             var sm=document.getElementById('roNewStartM');
@@ -645,14 +619,12 @@
 
         // --- Init ---
         function init(){
-            if(inited) return; // Prevent double init from pageshow
+            if(inited) return;
             inited = true;
             populateDropdowns();
             loadConfig();
             loadUsers();
-            // loadPlaylists is called inside loadConfig's .then() after config is loaded
 
-            // Tab clicks
             var nav=document.querySelectorAll('#roTabNav a[data-tab]');
             for(var i=0;i<nav.length;i++){
                 nav[i].addEventListener('click',function(e){
@@ -661,13 +633,11 @@
                 });
             }
 
-            // Save buttons
             var bs=document.getElementById('roBtnSave');
             if(bs) bs.addEventListener('click',saveConfig);
             var bss=document.getElementById('roBtnSaveSched');
             if(bss) bss.addEventListener('click',saveConfig);
 
-            // Schedule buttons
             var ba=document.getElementById('roBtnAddSched');
             if(ba) ba.addEventListener('click',function(){ var f=document.getElementById('roAddForm'); if(f) f.style.display=f.style.display==='none'?'':'none'; hideMsg(); });
             var bc=document.getElementById('roBtnCancelNew');
@@ -675,13 +645,11 @@
             var bn=document.getElementById('roBtnSaveNew');
             if(bn) bn.addEventListener('click',addEntry);
 
-            // Refresh button - event delegation
             document.getElementById('roTabStatus').addEventListener('click',function(e){
                 var btn=e.target.closest('#roBtnRefresh');
                 if(btn) loadStatus();
             });
 
-            // Schedule list delegation
             var sl=document.getElementById('roSchedList');
             if(sl){
                 sl.addEventListener('change',schedChange);
@@ -692,9 +660,8 @@
             switchTab('config');
         }
 
-        // Jellyfin SPA pageshow listener
         document.querySelector('#radioOnlineConfigPage').addEventListener('pageshow', function(){
-            inited = false; // Allow re-init on page re-show
+            inited = false;
             init();
         });
     })();

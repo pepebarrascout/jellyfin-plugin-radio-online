@@ -9,7 +9,8 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 /// <summary>
 /// Manages the weekly radio schedule by determining which playlist should play
 /// at any given time based on the configured schedule entries.
-/// Handles time slot matching, playlist duration management, and fallback logic.
+/// Handles time slot matching, overlap resolution, and fallback logic.
+/// When two schedules overlap, the one with the latest start time takes priority.
 /// </summary>
 public class ScheduleManagerService
 {
@@ -26,12 +27,15 @@ public class ScheduleManagerService
 
     /// <summary>
     /// Gets the active schedule entry for the current time (or a specific time).
-    /// If no schedule entry matches, returns null (indicating random fill mode).
+    /// If multiple entries are active at the same time (overlap), the entry with
+    /// the latest start time takes priority, as it represents the newer program
+    /// that should preempt the earlier one.
+    /// Returns null if no schedule entry matches (indicating no streaming).
     /// Supports all 7 days of the week including Saturday and Sunday.
     /// </summary>
     /// <param name="scheduleEntries">The configured schedule entries.</param>
     /// <param name="dateTime">The date/time to check. Defaults to now.</param>
-    /// <returns>The matching schedule entry, or null if unscheduled.</returns>
+    /// <returns>The matching schedule entry with highest priority, or null if unscheduled.</returns>
     public ScheduleEntry? GetActiveScheduleEntry(
         List<ScheduleEntry> scheduleEntries,
         DateTime? dateTime = null)
@@ -40,30 +44,47 @@ public class ScheduleManagerService
         var currentDay = now.DayOfWeek;
         var currentTime = now.TimeOfDay;
 
-        // Find all enabled entries for the current day that have a playlist assigned
-        var entriesWithPlaylist = scheduleEntries
+        // Find all enabled entries for the current day with a playlist assigned
+        // that are active at the current time
+        var activeEntries = scheduleEntries
             .Where(e => e.IsEnabled
                         && e.DayOfWeek == currentDay
                         && !string.IsNullOrEmpty(e.PlaylistId))
+            .Where(e =>
+            {
+                var startTime = e.GetStartTimeSpan();
+                var endTime = e.GetEndTimeSpan();
+                return currentTime >= startTime && currentTime < endTime;
+            })
             .ToList();
 
-        foreach (var entry in entriesWithPlaylist)
+        if (activeEntries.Count == 0)
         {
-            var startTime = entry.GetStartTimeSpan();
-            var endTime = entry.GetEndTimeSpan();
-
-            if (currentTime >= startTime && currentTime < endTime)
-            {
-                _logger.LogInformation(
-                    "Active schedule: \"{Name}\" ({Day} {Start}-{End}, Playlist: {Playlist})",
-                    entry.DisplayName, entry.DayOfWeek, entry.StartTime, entry.EndTime, entry.PlaylistId);
-
-                return entry;
-            }
+            _logger.LogDebug("No active schedule entry for {Day} at {Time}", currentDay, currentTime);
+            return null;
         }
 
-        _logger.LogDebug("No active schedule entry for {Day} at {Time}", currentDay, currentTime);
-        return null;
+        if (activeEntries.Count == 1)
+        {
+            var entry = activeEntries[0];
+            _logger.LogInformation(
+                "Active schedule: \"{Name}\" ({Day} {Start}-{End})",
+                entry.DisplayName, entry.DayOfWeek, entry.StartTime, entry.EndTime);
+            return entry;
+        }
+
+        // Multiple entries overlap - the one with the LATEST start time wins
+        // (e.g., if Lista 1 is 10:00-10:35 and Lista 2 is 10:30-11:00,
+        // at 10:30 Lista 2 starts and has priority over Lista 1)
+        var winner = activeEntries
+            .OrderByDescending(e => e.GetStartTimeSpan())
+            .First();
+
+        _logger.LogInformation(
+            "Schedule overlap detected at {Time}: {Count} entries active. Selected \"{Name}\" ({Start}-{End}) as it starts latest.",
+            currentTime, activeEntries.Count, winner.DisplayName, winner.StartTime, winner.EndTime);
+
+        return winner;
     }
 
     /// <summary>
@@ -91,7 +112,6 @@ public class ScheduleManagerService
         var now = DateTime.Now;
         var currentTime = now.TimeOfDay;
 
-        // Search for the next entry across all 7 days
         for (var daysAhead = 0; daysAhead < 7; daysAhead++)
         {
             var checkDate = now.Date.AddDays(daysAhead);
@@ -116,90 +136,6 @@ public class ScheduleManagerService
             }
         }
 
-        // No entries found at all - return null
         return null;
-    }
-
-    /// <summary>
-    /// Gets the next schedule change information (when current state ends).
-    /// </summary>
-    /// <param name="scheduleEntries">All configured schedule entries.</param>
-    /// <returns>A tuple with the next change time and whether it's a scheduled playlist.</returns>
-    public (DateTime NextChange, bool IsScheduledPlaylist) GetNextScheduleChange(
-        List<ScheduleEntry> scheduleEntries)
-    {
-        var now = DateTime.Now;
-        var activeEntry = GetActiveScheduleEntry(scheduleEntries, now);
-
-        if (activeEntry != null)
-        {
-            // Currently in a scheduled slot - it ends at the entry's end time
-            var endTime = activeEntry.GetEndTimeSpan();
-            var nextChange = now.Date.Add(endTime);
-            return (nextChange, true);
-        }
-
-        // Not in a scheduled slot - find when the next one starts
-        var timeUntilNext = GetTimeUntilNextScheduleEntry(scheduleEntries);
-        if (timeUntilNext.HasValue)
-        {
-            return (now + timeUntilNext.Value, true);
-        }
-
-        // No scheduled entries at all
-        return (now + TimeSpan.FromDays(7), false);
-    }
-
-    /// <summary>
-    /// Validates a schedule entry for correctness.
-    /// Checks that times are valid and do not conflict with existing entries.
-    /// Supports all 7 days of the week.
-    /// </summary>
-    /// <param name="entry">The schedule entry to validate.</param>
-    /// <param name="allEntries">All existing schedule entries for conflict checking.</param>
-    /// <returns>A list of validation error messages. Empty if valid.</returns>
-    public List<string> ValidateScheduleEntry(ScheduleEntry entry, List<ScheduleEntry> allEntries)
-    {
-        var errors = new List<string>();
-
-        if (!TimeSpan.TryParse(entry.StartTime, out _))
-        {
-            errors.Add($"Invalid start time format: {entry.StartTime}. Use HH:mm format.");
-        }
-
-        if (!TimeSpan.TryParse(entry.EndTime, out _))
-        {
-            errors.Add($"Invalid end time format: {entry.EndTime}. Use HH:mm format.");
-        }
-
-        if (TimeSpan.TryParse(entry.StartTime, out var start) && TimeSpan.TryParse(entry.EndTime, out var end))
-        {
-            if (start >= end)
-            {
-                errors.Add("End time must be after start time.");
-            }
-        }
-
-        // Check for overlapping entries on the same day
-        var overlapping = allEntries
-            .Where(e => e.IsEnabled
-                        && e.DayOfWeek == entry.DayOfWeek
-                        && e.PlaylistId != entry.PlaylistId)
-            .Where(e =>
-            {
-                var s1 = entry.GetStartTimeSpan();
-                var e1 = entry.GetEndTimeSpan();
-                var s2 = e.GetStartTimeSpan();
-                var e2 = e.GetEndTimeSpan();
-                return s1 < e2 && s2 < e1;
-            })
-            .ToList();
-
-        foreach (var overlap in overlapping)
-        {
-            errors.Add($"Time overlaps with existing schedule: \"{overlap.DisplayName}\" ({overlap.StartTime}-{overlap.EndTime})");
-        }
-
-        return errors;
     }
 }

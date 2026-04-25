@@ -13,10 +13,10 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 
 /// <summary>
 /// Background hosted service that manages the continuous radio streaming loop.
-/// This service runs continuously while the plugin is enabled, managing the
-/// schedule-aware playback cycle: checking the schedule, selecting playlists
-/// or random music, streaming to Icecast via gapless concat demuxer, and handling
-/// transitions between slots.
+/// Streams audio to Icecast ONLY when a scheduled playlist is active.
+/// When no schedule is active or the playlist ends, the Icecast connection is stopped.
+/// When schedules overlap, the later-starting entry takes priority and interrupts the earlier one.
+/// Uses FFmpeg concat demuxer for gapless track-to-track transitions within a playlist.
 /// </summary>
 public class RadioStreamingHostedService : BackgroundService
 {
@@ -24,15 +24,15 @@ public class RadioStreamingHostedService : BackgroundService
     private readonly IcecastStreamingService _icecastService;
     private readonly ScheduleManagerService _scheduleManager;
     private readonly AudioProviderService _audioProvider;
-    private readonly Random _random = new();
+
+    /// <summary>
+    /// How often to check for schedule changes while streaming (seconds).
+    /// </summary>
+    private const int ScheduleCheckIntervalSeconds = 5;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RadioStreamingHostedService"/> class.
     /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="icecastService">The Icecast streaming service.</param>
-    /// <param name="scheduleManager">The schedule manager service.</param>
-    /// <param name="audioProvider">The audio provider service.</param>
     public RadioStreamingHostedService(
         ILogger<RadioStreamingHostedService> logger,
         IcecastStreamingService icecastService,
@@ -47,15 +47,13 @@ public class RadioStreamingHostedService : BackgroundService
 
     /// <summary>
     /// Executes the main radio streaming loop.
-    /// Continuously checks the schedule and streams appropriate audio to Icecast.
-    /// When the plugin is disabled, stops the Icecast connection immediately.
+    /// Only streams when a scheduled playlist is active.
+    /// Stops Icecast when no schedule is active or the playlist ends.
     /// </summary>
-    /// <param name="stoppingToken">The cancellation token for service shutdown.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Radio Online streaming service started");
 
-        // Wait for Jellyfin to fully initialize before starting
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -73,10 +71,9 @@ public class RadioStreamingHostedService : BackgroundService
 
                 if (config == null || !config.IsEnabled)
                 {
-                    // Plugin disabled - stop any active Icecast connection immediately
                     if (_icecastService.IsStreaming)
                     {
-                        _logger.LogInformation("Plugin was disabled, stopping Icecast stream");
+                        _logger.LogInformation("Plugin disabled, stopping Icecast stream");
                         _icecastService.StopStreaming();
                     }
 
@@ -84,14 +81,17 @@ public class RadioStreamingHostedService : BackgroundService
                     continue;
                 }
 
-                // Validate configuration
                 if (!ValidateConfig(config))
                 {
+                    if (_icecastService.IsStreaming)
+                    {
+                        _icecastService.StopStreaming();
+                    }
+
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
                 }
 
-                // Check if we should be streaming right now
                 await RunStreamingCycle(config, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -112,80 +112,56 @@ public class RadioStreamingHostedService : BackgroundService
             }
         }
 
-        // Ensure streaming is stopped when service exits
         _icecastService.StopStreaming();
         _logger.LogInformation("Radio Online streaming service stopped");
     }
 
     /// <summary>
-    /// Runs a single streaming cycle: determines what to play and streams it continuously.
-    /// Uses FFmpeg's concat demuxer for gapless playback of the entire audio queue as a
-    /// single continuous Icecast stream, eliminating interruptions between tracks.
-    /// After the audio queue is exhausted, re-evaluates the schedule for the next cycle.
+    /// Runs a single streaming cycle: checks schedule, streams playlist if active,
+    /// stops when playlist ends or schedule changes.
     /// </summary>
     private async Task RunStreamingCycle(PluginConfiguration config, CancellationToken cancellationToken)
     {
-        // Get the active schedule entry for the current time
+        // Get the active schedule entry (handles overlaps by picking latest start time)
         var activeEntry = _scheduleManager.GetActiveScheduleEntry(config.ScheduleEntries);
 
-        List<Audio> audioQueue;
-
-        if (activeEntry != null && !string.IsNullOrEmpty(activeEntry.PlaylistId))
+        if (activeEntry == null || string.IsNullOrEmpty(activeEntry.PlaylistId))
         {
-            // We are in a scheduled time slot with an assigned playlist
-            var playlistItems = _audioProvider.GetPlaylistItems(activeEntry.PlaylistId, config.JellyfinUserId);
-
-            if (playlistItems.Count > 0)
+            // No active schedule - ensure streaming is stopped and wait
+            if (_icecastService.IsStreaming)
             {
-                var remainingTime = _scheduleManager.GetRemainingTimeInSlot(activeEntry);
-                var playlistDuration = _audioProvider.CalculateTotalDuration(playlistItems);
+                _logger.LogInformation("No active schedule, stopping Icecast stream");
+                _icecastService.StopStreaming();
+            }
 
-                if (playlistDuration <= remainingTime)
-                {
-                    // Playlist fits within the time slot - play it, then fill remainder with random
-                    _logger.LogInformation(
-                        "Playlist \"{Name}\" fits in slot ({Duration:F1}min / {Remaining:F1}min). Adding random fill.",
-                        activeEntry.DisplayName, playlistDuration.TotalMinutes, remainingTime.TotalMinutes);
-
-                    var randomFill = _audioProvider.GetRandomMusic(config.JellyfinUserId, config.RandomFillLimit);
-                    var shuffledRandom = _audioProvider.ShuffleItems(randomFill);
-                    audioQueue = playlistItems.Concat(shuffledRandom).ToList();
-                }
-                else
-                {
-                    // Playlist exceeds the time slot - trim it
-                    _logger.LogInformation(
-                        "Playlist \"{Name}\" exceeds slot ({Duration:F1}min / {Remaining:F1}min). Trimming to fit.",
-                        activeEntry.DisplayName, playlistDuration.TotalMinutes, remainingTime.TotalMinutes);
-
-                    audioQueue = TrimAudioToDuration(playlistItems, remainingTime);
-                }
+            // Wait until next schedule starts or re-check interval
+            var timeUntilNext = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
+            if (timeUntilNext.HasValue && timeUntilNext.Value < TimeSpan.FromMinutes(5))
+            {
+                _logger.LogInformation("Next schedule in {Minutes:F1} minutes", timeUntilNext.Value.TotalMinutes);
+                await Task.Delay(timeUntilNext.Value, cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                _logger.LogWarning("Playlist \"{Name}\" is empty or not found, using random music", activeEntry.DisplayName);
-                audioQueue = _audioProvider.GetRandomMusic(config.JellyfinUserId, config.RandomFillLimit);
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
             }
-        }
-        else
-        {
-            // No active schedule - play random music
-            _logger.LogInformation("No active schedule, playing random music");
-            audioQueue = _audioProvider.GetRandomMusic(config.JellyfinUserId, config.RandomFillLimit);
+
+            return;
         }
 
-        if (audioQueue.Count == 0)
+        // We have an active schedule entry - get its playlist items
+        var playlistItems = _audioProvider.GetPlaylistItems(activeEntry.PlaylistId, config.JellyfinUserId);
+
+        if (playlistItems.Count == 0)
         {
-            _logger.LogWarning("No audio items available to stream. Waiting 30 seconds.");
+            _logger.LogWarning("Playlist \"{Name}\" is empty or not found", activeEntry.DisplayName);
             await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        _logger.LogInformation("Streaming cycle starting with {Count} audio items (gapless concat mode)", audioQueue.Count);
-
-        // Collect all valid file paths for gapless streaming
+        // Collect valid file paths
         var filePaths = new List<string>();
-        foreach (var audioItem in audioQueue)
+        foreach (var audioItem in playlistItems)
         {
             var filePath = _audioProvider.GetAudioFilePath(audioItem);
             if (filePath != null)
@@ -200,18 +176,37 @@ public class RadioStreamingHostedService : BackgroundService
 
         if (filePaths.Count == 0)
         {
-            _logger.LogWarning("No valid audio files to stream after validation. Waiting 30 seconds.");
+            _logger.LogWarning("No valid audio files in playlist \"{Name}\"", activeEntry.DisplayName);
             await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
             return;
         }
 
         _logger.LogInformation(
-            "Starting gapless Icecast stream with {FileCount} files (from {TotalItems} queue items)",
-            filePaths.Count, audioQueue.Count);
+            "Starting stream for \"{Name}\" ({Day} {Start}-{End}) with {FileCount} files",
+            activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime, filePaths.Count);
 
-        // Stream the entire playlist as one continuous gapless stream via FFmpeg concat demuxer.
-        // This eliminates the connection drop between tracks that occurred with per-file streaming.
-        var success = await _icecastService.StreamPlaylistAsync(
+        // Stream with schedule monitoring for overlap detection
+        await StreamWithScheduleMonitoring(
+            filePaths,
+            activeEntry,
+            config,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Streams a playlist to Icecast while monitoring for schedule changes.
+    /// If a new schedule entry starts (overlap), cancels the current stream.
+    /// If the current schedule slot ends, cancels the stream.
+    /// When the playlist finishes naturally, stops streaming and returns.
+    /// </summary>
+    private async Task StreamWithScheduleMonitoring(
+        List<string> filePaths,
+        ScheduleEntry activeEntry,
+        PluginConfiguration config,
+        CancellationToken cancellationToken)
+    {
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var streamTask = _icecastService.StreamPlaylistAsync(
             filePaths,
             config.IcecastUrl,
             config.IcecastUsername,
@@ -221,58 +216,66 @@ public class RadioStreamingHostedService : BackgroundService
             config.AudioBitrate,
             config.StreamName,
             config.StreamGenre,
-            cancellationToken).ConfigureAwait(false);
+            linkedCts.Token);
 
-        if (!success && !cancellationToken.IsCancellationRequested)
+        // Monitor for schedule changes while streaming
+        while (!streamTask.IsCompleted)
         {
-            _logger.LogWarning("Gapless streaming failed. Retrying in 5 seconds...");
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds), cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
-                // Service is stopping, exit gracefully
-            }
-        }
-
-        _logger.LogInformation("Streaming cycle completed ({FileCount} files processed)", filePaths.Count);
-    }
-
-    /// <summary>
-    /// Trims a list of audio items to fit within a maximum duration.
-    /// Items are included sequentially until the time limit would be exceeded.
-    /// </summary>
-    private List<Audio> TrimAudioToDuration(List<Audio> audioItems, TimeSpan maxDuration)
-    {
-        var result = new List<Audio>();
-        var accumulated = TimeSpan.Zero;
-
-        foreach (var item in audioItems)
-        {
-            if (!item.RunTimeTicks.HasValue || item.RunTimeTicks.Value <= 0)
-            {
-                result.Add(item);
-                continue;
-            }
-
-            var itemDuration = TimeSpan.FromTicks(item.RunTimeTicks.Value);
-
-            if (accumulated + itemDuration > maxDuration)
-            {
-                // This item would exceed the time limit - stop here
+                // Main cancellation token fired - stop monitoring
+                linkedCts.Cancel();
                 break;
             }
 
-            result.Add(item);
-            accumulated += itemDuration;
+            // Check if plugin was disabled
+            var currentConfig = Plugin.Instance?.Configuration as PluginConfiguration;
+            if (currentConfig == null || !currentConfig.IsEnabled)
+            {
+                _logger.LogInformation("Plugin disabled during streaming, stopping immediately");
+                linkedCts.Cancel();
+                break;
+            }
+
+            // Check current schedule status
+            var currentEntry = _scheduleManager.GetActiveScheduleEntry(currentConfig.ScheduleEntries);
+
+            if (currentEntry == null)
+            {
+                // Current schedule slot ended - stop streaming
+                _logger.LogInformation("Schedule slot ended, stopping stream for \"{Name}\"", activeEntry.DisplayName);
+                linkedCts.Cancel();
+                break;
+            }
+
+            // Check if a different (later) schedule has taken over (overlap)
+            if (currentEntry.PlaylistId != activeEntry.PlaylistId ||
+                currentEntry.StartTime != activeEntry.StartTime)
+            {
+                _logger.LogInformation(
+                    "Schedule overlap: \"{NewName}\" ({NewStart}-{NewEnd}) takes priority over \"{OldName}\" ({OldStart}-{OldEnd})",
+                    currentEntry.DisplayName, currentEntry.StartTime, currentEntry.EndTime,
+                    activeEntry.DisplayName, activeEntry.StartTime, activeEntry.EndTime);
+                linkedCts.Cancel();
+                break;
+            }
         }
 
-        _logger.LogInformation(
-            "Trimmed playlist from {Original} to {Trimmed} items ({Duration:F1}min / {Max:F1}min)",
-            audioItems.Count, result.Count, accumulated.TotalMinutes, maxDuration.TotalMinutes);
+        // Wait for the stream task to complete (it may already be done)
+        try
+        {
+            await streamTask.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Stream task ended: {Message}", ex.Message);
+        }
 
-        return result;
+        _logger.LogInformation("Stream cycle completed for \"{Name}\"", activeEntry.DisplayName);
     }
 
     /// <summary>
