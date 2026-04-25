@@ -1,0 +1,27 @@
+## Build outputs
+bin/
+obj/
+*.dll
+*.pdb
+*.so
+*.dylib
+
+## IDE / Editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+## OS files
+.DS_Store
+Thumbs.db
+
+## NuGet
+*.nupkg
+packages/
+.nuget/
+
+## Misc
+*.log
+*.tmp

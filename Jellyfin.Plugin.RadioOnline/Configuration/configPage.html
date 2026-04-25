@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Radio Online</title>
+    <style>
+        :root {
+            --bg-primary: #101010;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #202020;
+            --text-primary: #ddd;
+            --text-secondary: #999;
+            --accent: #00a4dc;
+            --accent-hover: #00b8f0;
+            --border: #333;
+            --danger: #cc0000;
+            --success: #52b54b;
+            --warning: #f5a623;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--accent);
+        }
+
+        .page-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+        }
+
+        .section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            gap: 16px;
+        }
+
+        .form-row label {
+            flex: 0 0 180px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .form-row input[type="text"],
+        .form-row input[type="password"],
+        .form-row input[type="number"],
+        .form-row select {
+            flex: 1;
+            max-width: 400px;
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-row input:focus,
+        .form-row select:focus {
+            border-color: var(--accent);
+        }
+
+        .form-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .form-row .checkbox-label {
+            flex: none;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: #dd2222;
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        /* Schedule Table */
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .schedule-table th {
+            text-align: left;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .schedule-table td {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        .schedule-table tr:hover td {
+            background: rgba(0, 164, 220, 0.05);
+        }
+
+        .schedule-table select,
+        .schedule-table input {
+            padding: 6px 10px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: rgba(82, 181, 75, 0.2);
+            color: var(--success);
+        }
+
+        .status-inactive {
+            background: rgba(153, 153, 153, 0.2);
+            color: var(--text-secondary);
+        }
+
+        .status-streaming {
+            background: rgba(0, 164, 220, 0.2);
+            color: var(--accent);
+        }
+
+        /* Status Section */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .status-card {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .status-card-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-card-value {
+            font-size: 20px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        /* Schedule Add Form */
+        .add-schedule-form {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 6px;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .add-schedule-form.visible {
+            display: block;
+        }
+
+        .add-schedule-form .form-row {
+            margin-bottom: 12px;
+        }
+
+        .add-schedule-form label {
+            flex: 0 0 120px;
+            font-size: 13px;
+        }
+
+        .add-schedule-form select,
+        .add-schedule-form input {
+            flex: 1;
+            max-width: 300px;
+        }
+
+        .playlist-select {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .no-playlists-msg {
+            color: var(--warning);
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .version-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            background: rgba(0, 164, 220, 0.15);
+            color: var(--accent);
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .empty-schedule-msg {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 600px) {
+            .form-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .form-row label {
+                flex: none;
+                margin-bottom: 4px;
+            }
+            .form-row input,
+            .form-row select {
+                max-width: 100%;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="radioOnlineConfig">
+        <h1 class="page-title">
+            Radio Online
+            <span class="version-tag">v0.0.0.1 Alpha</span>
+        </h1>
+        <p class="page-subtitle">
+            Automated online radio streaming to Icecast with weekly playlist scheduling.
+        </p>
+
+        <!-- Status Section -->
+        <div class="section">
+            <h2 class="section-title">Status</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="status-card-label">Plugin</div>
+                    <div class="status-card-value">
+                        <span id="statusEnabled" class="status-badge status-inactive">Disabled</span>
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-label">Icecast</div>
+                    <div class="status-card-value" id="statusIcecast">--</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-label">Streaming</div>
+                    <div class="status-card-value">
+                        <span id="statusStreaming" class="status-badge status-inactive">Idle</span>
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-label">Format</div>
+                    <div class="status-card-value" id="statusFormat">--</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-label">Schedule Entries</div>
+                    <div class="status-card-value" id="statusScheduleCount">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Icecast Configuration -->
+        <div class="section">
+            <h2 class="section-title">Icecast Server Configuration</h2>
+
+            <div class="form-row">
+                <label>Server URL</label>
+                <input type="text" id="icecastUrl" placeholder="http://your-server:8000" />
+                <span class="form-hint">Full URL to your Icecast server (without trailing slash)</span>
+            </div>
+
+            <div class="form-row">
+                <label>Username</label>
+                <input type="text" id="icecastUsername" placeholder="source" />
+                <span class="form-hint">Icecast source username (usually "source")</span>
+            </div>
+
+            <div class="form-row">
+                <label>Password</label>
+                <input type="password" id="icecastPassword" placeholder="••••••••" />
+                <span class="form-hint">Icecast source password</span>
+            </div>
+
+            <div class="form-row">
+                <label>Mount Point</label>
+                <input type="text" id="icecastMountPoint" placeholder="/radio" />
+                <span class="form-hint">Icecast mount point (must start with /)</span>
+            </div>
+
+            <div class="form-row">
+                <label>Audio Format</label>
+                <select id="audioFormat">
+                    <option value="ogg">OGG (Vorbis)</option>
+                    <option value="m4a">M4A (AAC)</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label>Audio Bitrate (kbps)</label>
+                <input type="number" id="audioBitrate" min="32" max="320" step="16" value="128" />
+                <span class="form-hint">Recommended: 96-192 kbps</span>
+            </div>
+
+            <div class="form-row">
+                <label>Stream Name</label>
+                <input type="text" id="streamName" placeholder="My Radio Station" />
+            </div>
+
+            <div class="form-row">
+                <label>Stream Description</label>
+                <input type="text" id="streamDescription" placeholder="Powered by Jellyfin" />
+            </div>
+
+            <div class="form-row">
+                <label>Stream Genre</label>
+                <input type="text" id="streamGenre" placeholder="Various" />
+            </div>
+
+            <div class="form-row">
+                <label>Public Stream</label>
+                <input type="checkbox" id="streamPublic" />
+                <label class="checkbox-label" for="streamPublic">List in Icecast directory</label>
+            </div>
+        </div>
+
+        <!-- Jellyfin Settings -->
+        <div class="section">
+            <h2 class="section-title">Jellyfin Settings</h2>
+
+            <div class="form-row">
+                <label>Library User</label>
+                <select id="jellyfinUserId">
+                    <option value="">-- Select a user --</option>
+                </select>
+                <span class="form-hint">User account used to access Jellyfin's media library</span>
+            </div>
+
+            <div class="form-row">
+                <label>Enable Radio</label>
+                <input type="checkbox" id="isEnabled" />
+                <label class="checkbox-label" for="isEnabled">Enable automated radio streaming</label>
+            </div>
+        </div>
+
+        <!-- Schedule Section -->
+        <div class="section">
+            <h2 class="section-title">Weekly Schedule (Monday - Friday)</h2>
+            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+                Assign playlists to specific day/time slots. Unscheduled times will be filled with random music from your library.
+                All schedules repeat weekly.
+            </p>
+
+            <div id="scheduleContainer">
+                <div id="emptyScheduleMsg" class="empty-schedule-msg" style="display:none;">
+                    No schedule entries yet. Add one below to get started.
+                </div>
+                <table class="schedule-table" id="scheduleTable" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th style="width:40px;">#</th>
+                            <th style="width:120px;">Day</th>
+                            <th style="width:100px;">Start Time</th>
+                            <th style="width:100px;">End Time</th>
+                            <th>Playlist</th>
+                            <th style="width:140px;">Display Name</th>
+                            <th style="width:70px;">Active</th>
+                            <th style="width:80px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleBody"></tbody>
+                </table>
+            </div>
+
+            <div style="margin-top: 16px;">
+                <button class="btn btn-secondary btn-sm" id="btnAddSchedule" type="button">+ Add Schedule Entry</button>
+            </div>
+
+            <!-- Add Schedule Form -->
+            <div class="add-schedule-form" id="addScheduleForm">
+                <h3 style="font-size: 15px; margin-bottom: 16px;">New Schedule Entry</h3>
+
+                <div class="form-row">
+                    <label>Day</label>
+                    <select id="newDay">
+                        <option value="1">Monday</option>
+                        <option value="2">Tuesday</option>
+                        <option value="3">Wednesday</option>
+                        <option value="4">Thursday</option>
+                        <option value="5">Friday</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label>Start Time</label>
+                    <input type="text" id="newStartTime" placeholder="08:00" />
+                </div>
+
+                <div class="form-row">
+                    <label>End Time</label>
+                    <input type="text" id="newEndTime" placeholder="12:00" />
+                </div>
+
+                <div class="form-row">
+                    <label>Playlist</label>
+                    <select id="newPlaylist" class="playlist-select">
+                        <option value="">-- Random Music --</option>
+                    </select>
+                </div>
+                <div id="noPlaylistsMsg" class="no-playlists-msg" style="display:none;">
+                    No playlists found. Create playlists in Jellyfin first, then reload this page.
+                </div>
+
+                <div class="form-row">
+                    <label>Display Name</label>
+                    <input type="text" id="newDisplayName" placeholder="Morning Show" />
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary btn-sm" id="btnSaveSchedule" type="button">Save Entry</button>
+                    <button class="btn btn-secondary btn-sm" id="btnCancelSchedule" type="button">Cancel</button>
+                </div>
+
+                <div id="scheduleValidationMsg" style="margin-top: 12px; color: var(--danger); font-size: 13px;"></div>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="btn-group" style="margin-top: 10px;">
+            <button class="btn btn-primary" id="btnSave" type="button">Save Configuration</button>
+            <button class="btn btn-secondary" id="btnReload" type="button">Reload Status</button>
+        </div>
+    </div>
+
+    <script src="configPage.js"></script>
+</body>
+</html>
