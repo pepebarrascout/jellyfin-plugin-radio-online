@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.3",
+        "changelog": "- Fixed checkbox overlapping text label\n- Removed custom CSS overrides that conflicted with Jellyfin native styles\n- Form elements now use Jellyfin native emby-input, emby-select, emby-checkbox styling\n- Buttons use Jellyfin native emby-button styling\n- Cleaner schedule table and status grid styling",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.3-alpha/jellyfin-plugin-radio-online_v0.0.0.3-alpha.zip",
+        "checksum": "473e4d3944f359d91190a7b1291d4b3e",
+        "timestamp": "2026-04-25T13:35:00Z"
+      },
+      {
         "version": "0.0.0.2",
         "changelog": "- Fixed blank configuration page (rewrote as single inline div with embedded script)\n- Tabbed config dashboard: Configuracion, Programacion, Estado\n- Proper Jellyfin localnav tab navigation\n- All JavaScript inline (no external script dependencies)\n- Stable config load/save via ApiClient\n- Schedule CRUD with table editing\n- Status monitoring tab with streaming info",
         "targetAbi": "10.11.8.0",

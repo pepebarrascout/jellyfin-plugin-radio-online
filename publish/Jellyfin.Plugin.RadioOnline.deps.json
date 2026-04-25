@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v9.0": {
-      "Jellyfin.Plugin.RadioOnline/0.0.0.2": {
+      "Jellyfin.Plugin.RadioOnline/0.0.0.3": {
         "dependencies": {
           "Jellyfin.Controller": "10.11.8",
           "Jellyfin.Database.Implementations": "10.11.8",
@@ -182,7 +182,7 @@
     }
   },
   "libraries": {
-    "Jellyfin.Plugin.RadioOnline/0.0.0.2": {
+    "Jellyfin.Plugin.RadioOnline/0.0.0.3": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
