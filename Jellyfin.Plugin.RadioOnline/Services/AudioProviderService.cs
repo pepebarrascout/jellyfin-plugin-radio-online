@@ -12,7 +12,8 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 
 /// <summary>
 /// Provides audio items from Jellyfin's library and playlists.
-/// Handles retrieving playlist items in their defined order, random music selection, and item metadata.
+/// Handles retrieving playlist items in their defined order and item metadata.
+/// No random music functionality - streaming only occurs when a scheduled playlist is active.
 /// </summary>
 public class AudioProviderService
 {
@@ -20,7 +21,6 @@ public class AudioProviderService
     private readonly ILibraryManager _libraryManager;
     private readonly IPlaylistManager _playlistManager;
     private readonly IUserManager _userManager;
-    private readonly Random _random = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AudioProviderService"/> class.
@@ -100,50 +100,6 @@ public class AudioProviderService
     }
 
     /// <summary>
-    /// Gets a shuffled list of random audio items from the entire Jellyfin library.
-    /// </summary>
-    /// <param name="userId">The user ID for library access.</param>
-    /// <param name="maxItems">Maximum number of items to return.</param>
-    /// <returns>A shuffled list of random audio items.</returns>
-    public List<Audio> GetRandomMusic(string userId, int maxItems = 500)
-    {
-        try
-        {
-            if (!TryGetUser(userId, out _))
-            {
-                _logger.LogError("User not found: {UserId}", userId);
-                return new List<Audio>();
-            }
-
-            var query = new InternalItemsQuery
-            {
-                IncludeItemTypes = new[] { BaseItemKind.Audio },
-                Recursive = true,
-                MediaTypes = new[] { Jellyfin.Data.Enums.MediaType.Audio },
-                IsPlaceHolder = false,
-                Limit = maxItems,
-            };
-
-            var result = _libraryManager.GetItemsResult(query);
-            var audioItems = result.Items.OfType<Audio>().Where(a => a.Path != null).ToList();
-
-            // Shuffle to get random ordering
-            var shuffled = ShuffleItems(audioItems);
-
-            _logger.LogInformation(
-                "Retrieved {Count} random audio items from library",
-                shuffled.Count);
-
-            return shuffled;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving random music for user {UserId}", userId);
-            return new List<Audio>();
-        }
-    }
-
-    /// <summary>
     /// Gets all available playlists in Jellyfin for a user.
     /// </summary>
     /// <param name="userId">The user ID for access validation.</param>
@@ -190,26 +146,6 @@ public class AudioProviderService
             .Sum(a => a.RunTimeTicks!.Value);
 
         return TimeSpan.FromTicks(totalTicks);
-    }
-
-    /// <summary>
-    /// Shuffles a list of audio items using Fisher-Yates algorithm.
-    /// </summary>
-    /// <param name="items">The items to shuffle.</param>
-    /// <returns>A new shuffled list.</returns>
-    public List<Audio> ShuffleItems(List<Audio> items)
-    {
-        var shuffled = items.ToList();
-        var n = shuffled.Count;
-
-        while (n > 1)
-        {
-            n--;
-            var k = _random.Next(n + 1);
-            (shuffled[k], shuffled[n]) = (shuffled[n], shuffled[k]);
-        }
-
-        return shuffled;
     }
 
     /// <summary>
