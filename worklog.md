@@ -79,3 +79,35 @@ Stage Summary:
 - Jellyfin's native `emby-input`, `emby-select`, `emby-checkbox`, `emby-button` now control their own styling
 - Release v0.0.0.3-alpha published: https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/tag/v0.0.0.3-alpha
 - Checksum: 473e4d3944f359d91190a7b1291d4b3e
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix all issues in v0.0.0.4 - scheduling, streaming, UI persistence
+
+Work Log:
+- Analyzed two screenshots with VLM to identify exact UI problems
+- Identified 8 distinct issues to fix across backend and frontend
+
+Backend fixes:
+1. ScheduleManagerService.cs - Removed weekend restriction (Mon-Fri only), now supports all 7 days. Fixed GetTimeUntilNextScheduleEntry to search across all 7 days with wrapping. Removed weekday-only validation.
+2. AudioProviderService.cs - Fixed GetPlaylistItems to use LinkedChildren instead of Children, preserving exact playlist order defined by user in Jellyfin.
+3. RadioStreamingHostedService.cs - Added re-reading config before each track to detect plugin disable. Calls _icecastService.StopStreaming() immediately when disabled. Increased inter-track gap from 500ms to 1s. Added retry on failed track (3s delay). Better logging with track index.
+4. IcecastStreamingService.cs - Fixed URL trimming using Replace("http://","") instead of TrimStart("http://".ToCharArray()) which was unsafe.
+5. RadioOnlineController.cs - Removed weekday-only validation from ValidateSchedule endpoint.
+
+Frontend fixes (config.html):
+1. Status refresh button - Changed from fetch() to ApiClient.ajax() with proper URL. Added event delegation on parent container for reliable click handling. Added Dashboard.showLoadingMsg/hideLoadingMsg.
+2. Added Saturday (Sabado) and Sunday (Domingo) to day selector dropdown.
+3. Time selectors changed from text inputs to dropdown lists: hours (00-23), minutes (00, 05, 10, ..., 55 in 5-min intervals).
+4. Schedule table replaced with Jellyfin listItem/paperList div-based layout for native styling.
+5. Fixed day persistence - normalizeDay() handles both C# enum strings ("Monday") and numbers (1). toCSharpDay() converts UI Sunday(7) to C# Sunday(0).
+6. Fixed playlist persistence - renderSchedule() only called after both config AND playlists are loaded (tryRenderSchedule pattern).
+7. Added form dropdowns use is="emby-select" for native Jellyfin styling.
+
+Compiled, created ZIP, updated manifest with checksum 178c21e83d53091774d6391a55a9646d, pushed to GitHub, created release v0.0.0.4-alpha.
+
+Stage Summary:
+- All 8 issues addressed in v0.0.0.4
+- Release: https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/tag/v0.0.0.4-alpha
+- Checksum: 178c21e83d53091774d6391a55a9646d
