@@ -92,13 +92,8 @@ public class RadioOnlineController : ControllerBase
             return Ok(new List<string> { "Plugin not configured" });
         }
 
-        // Use a simple validation - the full service validation needs more dependencies
+        // Use a simple validation - supports all 7 days of the week
         var errors = new List<string>();
-
-        if (entry.DayOfWeek < DayOfWeek.Monday || entry.DayOfWeek > DayOfWeek.Friday)
-        {
-            errors.Add("Scheduling is only available Monday through Friday.");
-        }
 
         if (!TimeSpan.TryParse(entry.StartTime, out var start))
         {

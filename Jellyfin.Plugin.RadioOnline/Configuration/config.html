@@ -107,58 +107,44 @@
             <div id="roTabSchedule" class="ro-tab-content" data-tab-content="schedule" style="display:none;">
                 <div style="margin-top:2em;">
 
-                    <div class="sectionHeader">Programacion Semanal (Lunes a Viernes)</div>
-                    <p style="color:#888;font-size:0.9em;margin-bottom:1em;">Asigna playlists a dias y horarios especificos. Los horarios sin programar se llenan con musica aleatoria. Se repite semanalmente.</p>
+                    <div class="sectionHeader">Programacion Semanal</div>
+                    <p class="fieldDescription">Asigna playlists a dias y horarios especificos. Los horarios sin programar se llenan con musica aleatoria. Se repite semanalmente.</p>
 
-                    <div id="roEmptySched" style="padding:1.5em;text-align:center;">
-                        <p style="margin:0;">No hay programacion configurada.</p>
-                        <p style="margin:0.5em 0 0;">Haz clic en "Agregar Programa" para comenzar.</p>
+                    <div id="roEmptySched" style="padding:1.5em;text-align:center;display:none;">
+                        <p>No hay programacion configurada.</p>
+                        <p style="margin-top:0.5em;">Haz clic en "Agregar Programa" para comenzar.</p>
                     </div>
 
-                    <table class="ro-sched-table" id="roSchedTable" style="display:none;">
-                        <thead>
-                            <tr>
-                                <th style="width:35px">#</th>
-                                <th style="width:110px">Dia</th>
-                                <th style="width:80px">Inicio</th>
-                                <th style="width:80px">Fin</th>
-                                <th>Playlist</th>
-                                <th style="width:130px">Nombre</th>
-                                <th style="width:60px">Act.</th>
-                                <th style="width:65px">Accion</th>
-                            </tr>
-                        </thead>
-                        <tbody id="roSchedBody"></tbody>
-                    </table>
+                    <div class="paperList" id="roSchedList"></div>
 
                     <div style="margin-top:1em;">
                         <button type="button" is="emby-button" class="raised button-submit" id="roBtnAddSched"><span>Agregar Programa</span></button>
                     </div>
 
                     <div id="roAddForm" style="display:none;padding:1em;margin-top:1em;">
-                        <h3 style="margin-top:0;font-size:1.1em;">Nuevo Programa</h3>
+                        <h3 style="margin-top:0;">Nuevo Programa</h3>
 
                         <div class="selectContainer">
                             <label class="selectLabel" for="roNewDay">Dia</label>
-                            <select id="roNewDay" is="emby-select">
-                                <option value="1">Lunes</option>
-                                <option value="2">Martes</option>
-                                <option value="3">Miercoles</option>
-                                <option value="4">Jueves</option>
-                                <option value="5">Viernes</option>
-                            </select>
+                            <select id="roNewDay" is="emby-select"></select>
                         </div>
 
-                        <div class="inputContainer">
-                            <label class="inputLabel" for="roNewStart">Hora de Inicio</label>
-                            <input type="text" id="roNewStart" is="emby-input" placeholder="08:00" />
-                            <div class="fieldDescription">Formato 24 horas (HH:mm)</div>
+                        <div class="selectContainer">
+                            <label class="selectLabel">Hora de Inicio</label>
+                            <div style="display:flex;gap:0.5em;align-items:center;">
+                                <select id="roNewStartH" is="emby-select" style="width:auto;flex:1;"></select>
+                                <span style="font-size:1.2em;">:</span>
+                                <select id="roNewStartM" is="emby-select" style="width:auto;flex:1;"></select>
+                            </div>
                         </div>
 
-                        <div class="inputContainer">
-                            <label class="inputLabel" for="roNewEnd">Hora de Fin</label>
-                            <input type="text" id="roNewEnd" is="emby-input" placeholder="12:00" />
-                            <div class="fieldDescription">Formato 24 horas (HH:mm)</div>
+                        <div class="selectContainer">
+                            <label class="selectLabel">Hora de Fin</label>
+                            <div style="display:flex;gap:0.5em;align-items:center;">
+                                <select id="roNewEndH" is="emby-select" style="width:auto;flex:1;"></select>
+                                <span style="font-size:1.2em;">:</span>
+                                <select id="roNewEndM" is="emby-select" style="width:auto;flex:1;"></select>
+                            </div>
                         </div>
 
                         <div class="selectContainer">
@@ -213,19 +199,21 @@
     </div>
 
     <style>
-        /* Only custom styles for plugin-specific elements.
-           All form elements (inputs, selects, checkboxes, buttons) use Jellyfin native styles via emby-* web components.
-           DO NOT override emby-input, emby-select, emby-checkbox, or emby-button native CSS. */
+        .ro-tab-content { padding-top: 0.5em; }
         .ro-status-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.8em;margin-bottom:1.5em; }
         .ro-status-card { padding:0.8em 1em; }
         .ro-status-label { font-size:0.75em;text-transform:uppercase;letter-spacing:0.5px; }
         .ro-status-val { font-size:1.3em;font-weight:600;margin-top:0.2em; }
         .ro-st-on { color:#52b54b; } .ro-st-off { color:#888; } .ro-st-live { color:#00a4dc; }
-        .ro-sched-table { width:100%;border-collapse:collapse;margin-top:0.8em; }
-        .ro-sched-table th { text-align:left;padding:0.6em 0.8em;font-size:0.85em;font-weight:500; }
-        .ro-sched-table td { padding:0.5em 0.6em;font-size:0.9em;vertical-align:middle; }
-        .ro-disabled-row { opacity:0.4; }
-        .ro-tab-content { padding-top: 0.5em; }
+        .ro-sched-item { padding:0.8em 1em;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:0.8em;flex-wrap:wrap; }
+        .ro-sched-item:last-child { border-bottom:none; }
+        .ro-sched-row { display:flex;align-items:center;gap:0.5em;flex:1;min-width:200px;flex-wrap:wrap; }
+        .ro-sched-field { display:flex;align-items:center;gap:0.3em; }
+        .ro-sched-field label { font-size:0.8em;color:rgba(255,255,255,0.5);min-width:32px; }
+        .ro-sched-field select, .ro-sched-field input[type="text"] { font-size:0.85em;min-width:60px; }
+        .ro-sched-actions { display:flex;gap:0.5em;align-items:center; }
+        .ro-sched-time-sep { font-size:1.1em;color:rgba(255,255,255,0.4); }
+        .ro-disabled-item { opacity:0.4; }
     </style>
 
     <script type="text/javascript">
@@ -233,21 +221,84 @@
         var PLUGIN_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
         var cfg = {};
         var playlists = [];
-        var dayNames = {1:'Lunes',2:'Martes',3:'Miercoles',4:'Jueves',5:'Viernes'};
+        var configLoaded = false;
+        var playlistsLoaded = false;
+
+        // UI day values: 1=Lunes ... 6=Sabado, 7=Domingo
+        // C# DayOfWeek: Sunday=0, Monday=1 ... Saturday=6
+        var dayNames = {1:'Lunes',2:'Martes',3:'Miercoles',4:'Jueves',5:'Viernes',6:'Sabado',7:'Domingo'};
+        var csharpDayNames = {'Sunday':7,'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6};
 
         function esc(t){ var d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
-        function validTime(s){ return /^([01]\d|2[0-3]):([0-5]\d)$/.test(s); }
-        function gv(k){ if(cfg[k]!==undefined) return cfg[k]; var c=k.charAt(0).toLowerCase()+k.slice(1); return cfg[c]!==undefined?cfg[c]:undefined; }
+
+        // Convert any DayOfWeek value to UI day (1-7)
+        function normalizeDay(d){
+            if(d==null) return 1;
+            if(typeof d==='number') return d===0?7:d;
+            if(typeof d==='string'){
+                if(csharpDayNames[d]!==undefined) return csharpDayNames[d];
+                var n=parseInt(d,10);
+                return isNaN(n)?1:(n===0?7:n);
+            }
+            return 1;
+        }
+
+        // Convert UI day (1-7) to C# DayOfWeek value (0-6)
+        function toCSharpDay(uiDay){ return uiDay===7?0:uiDay; }
+
+        function gv(k){
+            if(cfg[k]!==undefined) return cfg[k];
+            var c=k.charAt(0).toLowerCase()+k.slice(1);
+            return cfg[c]!==undefined?cfg[c]:undefined;
+        }
         function sv(k,v){ cfg[k]=v; cfg[k.charAt(0).toLowerCase()+k.slice(1)]=v; }
+
+        // --- Generate time dropdown options ---
+        function hourOpts(sel){
+            var html='';
+            for(var h=0;h<24;h++){
+                var v=(h<10?'0':'')+h;
+                html+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+v+'</option>';
+            }
+            return html;
+        }
+        function minOpts(sel){
+            var html='';
+            for(var m=0;m<60;m+=5){
+                var v=(m<10?'0':'')+m;
+                html+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+v+'</option>';
+            }
+            return html;
+        }
+        function dayOpts(sel){
+            var html='';
+            for(var d=1;d<=7;d++){
+                html+='<option value="'+d+'"'+(d===sel?' selected':'')+'>'+dayNames[d]+'</option>';
+            }
+            return html;
+        }
+        function plOpts(sel){
+            var html='';
+            for(var i=0;i<playlists.length;i++){
+                html+='<option value="'+playlists[i].id+'"'+(playlists[i].id===sel?' selected':'')+'>'+esc(playlists[i].name)+'</option>';
+            }
+            return html;
+        }
+
+        function parseTimeToHM(timeStr){
+            if(!timeStr) return {h:'00',m:'00'};
+            var parts=timeStr.split(':');
+            return {h:parts[0]||'00', m:parts[1]||'00'};
+        }
 
         // --- Tabs ---
         function switchTab(id){
-            var nav = document.querySelectorAll('#roTabNav a[data-tab]');
+            var nav=document.querySelectorAll('#roTabNav a[data-tab]');
             for(var i=0;i<nav.length;i++){
                 if(nav[i].getAttribute('data-tab')===id) nav[i].classList.add('ui-btn-active');
                 else nav[i].classList.remove('ui-btn-active');
             }
-            var tabs = document.querySelectorAll('.ro-tab-content');
+            var tabs=document.querySelectorAll('.ro-tab-content');
             for(var j=0;j<tabs.length;j++){
                 if(tabs[j].getAttribute('data-tab-content')===id) tabs[j].style.display='';
                 else tabs[j].style.display='none';
@@ -260,9 +311,10 @@
         function loadConfig(){
             Dashboard.showLoadingMsg();
             ApiClient.getPluginConfiguration(PLUGIN_ID).then(function(c){
-                cfg = c || {};
+                cfg=c||{};
+                configLoaded=true;
                 fillForm();
-                renderSchedule();
+                tryRenderSchedule();
                 Dashboard.hideLoadingMsg();
             }).catch(function(e){
                 console.error('[RadioOnline]',e);
@@ -271,7 +323,7 @@
         }
 
         function fillForm(){
-            var s = function(id,val){ var el=document.getElementById(id); if(el) el.value=val; };
+            var s=function(id,val){ var el=document.getElementById(id); if(el) el.value=val; };
             s('roIcecastUrl', gv('IcecastUrl')||'');
             s('roIcecastUser', gv('IcecastUsername')||'source');
             s('roIcecastPass', gv('IcecastPassword')||'');
@@ -317,9 +369,12 @@
 
         // --- Status ---
         function loadStatus(){
-            fetch(ApiClient.getUrl('Plugins/RadioOnline/Status'),{headers:{'X-Emby-Token':ApiClient.accessToken()}})
-            .then(function(r){return r.json();})
-            .then(function(st){
+            Dashboard.showLoadingMsg();
+            ApiClient.ajax({
+                type:'GET',
+                url:ApiClient.getUrl('Plugins/RadioOnline/Status')
+            }).then(function(result){
+                var st=result;
                 var ep=document.getElementById('roStPlugin');
                 if(ep) ep.innerHTML=st.isEnabled?'<span class="ro-st-on">Activado</span>':'<span class="ro-st-off">Desactivado</span>';
                 var ei=document.getElementById('roStIcecast');
@@ -330,10 +385,10 @@
                 if(ef) ef.textContent=(st.audioFormat||'--').toUpperCase()+' / '+(st.audioBitrate||'--')+'kbps';
                 var ec=document.getElementById('roStCount');
                 if(ec) ec.textContent=st.scheduleEntriesCount||0;
-            }).catch(function(){
-                ['roStPlugin','roStIcecast','roStStream','roStFormat','roStCount'].forEach(function(id){
-                    var el=document.getElementById(id); if(el) el.textContent='--';
-                });
+                Dashboard.hideLoadingMsg();
+            }).catch(function(e){
+                console.error('[RadioOnline] Status error',e);
+                Dashboard.hideLoadingMsg();
             });
         }
 
@@ -354,10 +409,15 @@
 
         // --- Playlists ---
         function loadPlaylists(){
-            fetch(ApiClient.getUrl('Plugins/RadioOnline/Playlists'),{headers:{'X-Emby-Token':ApiClient.accessToken()}})
-            .then(function(r){return r.json();})
-            .then(function(d){ playlists=d|| []; fillPlaylistSelect(); })
-            .catch(function(e){ console.error('[RadioOnline]',e); });
+            ApiClient.ajax({
+                type:'GET',
+                url:ApiClient.getUrl('Plugins/RadioOnline/Playlists')
+            }).then(function(d){
+                playlists=d||[];
+                playlistsLoaded=true;
+                fillPlaylistSelect();
+                tryRenderSchedule();
+            }).catch(function(e){ console.error('[RadioOnline]',e); });
         }
 
         function fillPlaylistSelect(){
@@ -371,74 +431,179 @@
         }
 
         // --- Schedule ---
+        // Only render when both config and playlists are loaded
+        function tryRenderSchedule(){
+            if(configLoaded && playlistsLoaded) renderSchedule();
+        }
+
         function getEntries(){ return gv('ScheduleEntries')||[]; }
         function setEntries(e){ sv('ScheduleEntries',e); }
 
-        function dayOpts(sel){
-            var html='';
-            [1,2,3,4,5].forEach(function(d){ html+='<option value="'+d+'"'+(d===sel?' selected':'')+'>'+dayNames[d]+'</option>'; });
-            return html;
-        }
-
-        function plOpts(sel){
-            var html='';
-            for(var i=0;i<playlists.length;i++){
-                html+='<option value="'+playlists[i].id+'"'+(playlists[i].id===sel?' selected':'')+'>'+esc(playlists[i].name)+'</option>';
-            }
-            return html;
-        }
-
         function renderSchedule(){
             var entries=getEntries();
-            var body=document.getElementById('roSchedBody');
-            var table=document.getElementById('roSchedTable');
+            var list=document.getElementById('roSchedList');
             var empty=document.getElementById('roEmptySched');
-            if(!body) return;
-            body.innerHTML='';
+            if(!list) return;
+            list.innerHTML='';
 
             if(!entries||entries.length===0){
-                if(table) table.style.display='none';
+                list.style.display='none';
                 if(empty) empty.style.display='';
                 return;
             }
-            if(table) table.style.display='table';
+            list.style.display='';
             if(empty) empty.style.display='none';
 
+            // Sort by day then start time
             var sorted=[];
             for(var i=0;i<entries.length;i++) sorted.push({e:entries[i],i:i});
             sorted.sort(function(a,b){
-                var dA=a.e.DayOfWeek!==undefined?a.e.DayOfWeek:(a.e.dayOfWeek||1);
-                var dB=b.e.DayOfWeek!==undefined?b.e.DayOfWeek:(b.e.dayOfWeek||1);
+                var dA=normalizeDay(a.e.DayOfWeek!==undefined?a.e.DayOfWeek:a.e.dayOfWeek);
+                var dB=normalizeDay(b.e.DayOfWeek!==undefined?b.e.DayOfWeek:b.e.dayOfWeek);
                 if(dA!==dB) return dA-dB;
-                return (a.e.StartTime||a.e.startTime||'').localeCompare(b.e.StartTime||b.e.startTime||'');
+                var stA=a.e.StartTime||a.e.startTime||'';
+                var stB=b.e.StartTime||b.e.startTime||'';
+                return stA.localeCompare(stB);
             });
 
             for(var s=0;s<sorted.length;s++){
                 var en=sorted[s].e, idx=sorted[s].i;
-                var day=en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek;
-                var st=en.StartTime||en.startTime||'';
-                var et=en.EndTime||en.endTime||'';
+                var day=normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek);
+                var stHM=parseTimeToHM(en.StartTime||en.startTime||'');
+                var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
                 var pl=en.PlaylistId||en.playlistId||'';
                 var nm=en.DisplayName||en.displayName||'';
                 var ac=en.IsEnabled!==undefined?en.IsEnabled:(en.isEnabled!==undefined?en.isEnabled:true);
 
-                var tr=document.createElement('tr');
-                if(!ac) tr.className='ro-disabled-row';
-                tr.innerHTML=
-                    '<td>'+(idx+1)+'</td>'+
-                    '<td><select data-i="'+idx+'" data-f="DayOfWeek">'+dayOpts(day)+'</select></td>'+
-                    '<td><input type="text" value="'+esc(st)+'" data-i="'+idx+'" data-f="StartTime" placeholder="HH:mm" /></td>'+
-                    '<td><input type="text" value="'+esc(et)+'" data-i="'+idx+'" data-f="EndTime" placeholder="HH:mm" /></td>'+
-                    '<td><select data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Aleatoria --</option>'+plOpts(pl)+'</select></td>'+
-                    '<td><input type="text" value="'+esc(nm)+'" data-i="'+idx+'" data-f="DisplayName" /></td>'+
-                    '<td style="text-align:center"><input type="checkbox" '+(ac?'checked':'')+' data-i="'+idx+'" data-f="IsEnabled" /></td>'+
-                    '<td><button type="button" is="emby-button" class="raised btn-danger" data-i="'+idx+'" data-act="del"><span>Borrar</span></button></td>';
-                body.appendChild(tr);
+                var div=document.createElement('div');
+                div.className='listItem listItem-narrow ro-sched-item'+(ac?'':' ro-disabled-item');
+                div.setAttribute('data-i',idx);
+
+                var plName='-- Aleatoria --';
+                for(var p=0;p<playlists.length;p++){
+                    if(playlists[p].id===pl){ plName=playlists[p].name; break; }
+                }
+
+                div.innerHTML=
+                    '<div class="ro-sched-row">'+
+                        '<div class="ro-sched-field"><label>Dia</label><select data-i="'+idx+'" data-f="DayOfWeek">'+dayOpts(day)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>De</label><select data-i="'+idx+'" data-f="StartTimeH">'+hourOpts(stHM.h)+'</select><span class="ro-sched-time-sep">:</span><select data-i="'+idx+'" data-f="StartTimeM">'+minOpts(stHM.m)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>A</label><select data-i="'+idx+'" data-f="EndTimeH">'+hourOpts(etHM.h)+'</select><span class="ro-sched-time-sep">:</span><select data-i="'+idx+'" data-f="EndTimeM">'+minOpts(etHM.m)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>Lista</label><select data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Aleatoria --</option>'+plOpts(pl)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>Nombre</label><input type="text" data-i="'+idx+'" data-f="DisplayName" value="'+esc(nm)+'" /></div>'+
+                    '</div>'+
+                    '<div class="ro-sched-actions">'+
+                        '<input type="checkbox" '+(ac?'checked':'')+' data-i="'+idx+'" data-f="IsEnabled" title="Activar/Desactivar" />'+
+                        '<button type="button" is="emby-button" class="raised btn-danger" data-i="'+idx+'" data-act="del"><span>Borrar</span></button>'+
+                    '</div>';
+
+                list.appendChild(div);
             }
+        }
+
+        function schedChange(e){
+            var t=e.target;
+            var idx=parseInt(t.getAttribute('data-i'),10);
+            var field=t.getAttribute('data-f');
+            if(isNaN(idx)||!field) return;
+            var entries=getEntries();
+            if(!entries[idx]) return;
+            var en=entries[idx];
+
+            if(field==='DayOfWeek'){
+                var v=parseInt(t.value,10);
+                en.DayOfWeek=toCSharpDay(v);
+                en.dayOfWeek=v;
+            } else if(field==='PlaylistId'){
+                en.PlaylistId=t.value;
+                en.playlistId=t.value;
+            } else if(field==='StartTimeH'||field==='StartTimeM'){
+                var cur=parseTimeToHM(en.StartTime||en.startTime||'');
+                if(field==='StartTimeH') cur.h=t.value; else cur.m=t.value;
+                var newVal=cur.h+':'+cur.m;
+                en.StartTime=newVal; en.startTime=newVal;
+            } else if(field==='EndTimeH'||field==='EndTimeM'){
+                var cur2=parseTimeToHM(en.EndTime||en.endTime||'');
+                if(field==='EndTimeH') cur2.h=t.value; else cur2.m=t.value;
+                var newVal2=cur2.h+':'+cur2.m;
+                en.EndTime=newVal2; en.endTime=newVal2;
+            } else if(field==='DisplayName'){
+                en.DisplayName=t.value; en.displayName=t.value;
+            } else if(field==='IsEnabled'){
+                en.IsEnabled=t.checked; en.isEnabled=t.checked;
+                // Re-render to update disabled style
+                setEntries(entries);
+                renderSchedule();
+                return;
+            }
+            setEntries(entries);
+        }
+
+        function schedClick(e){
+            var t=e.target;
+            var btn=t.closest?t.closest('[data-act="del"]'):null;
+            if(btn){
+                var idx=parseInt(btn.getAttribute('data-i'),10);
+                if(!isNaN(idx)){
+                    var entries=getEntries();
+                    entries.splice(idx,1);
+                    setEntries(entries);
+                    renderSchedule();
+                }
+            }
+        }
+
+        // --- Add entry ---
+        function addEntry(){
+            hideMsg();
+            var day=parseInt(document.getElementById('roNewDay').value,10);
+            var stH=document.getElementById('roNewStartH').value;
+            var stM=document.getElementById('roNewStartM').value;
+            var etH=document.getElementById('roNewEndH').value;
+            var etM=document.getElementById('roNewEndM').value;
+            var st=stH+':'+stM;
+            var et=etH+':'+etM;
+            var pl=(document.getElementById('roNewPlaylist').value||'').trim();
+            var nm=(document.getElementById('roNewName').value||'').trim();
+
+            if(st>=et){ showMsg('La hora de fin debe ser despues de la hora de inicio.'); return; }
+
+            var name=nm||(dayNames[day]+' '+st+'-'+et);
+            var entries=getEntries();
+            entries.push({
+                DayOfWeek:toCSharpDay(day), dayOfWeek:day,
+                StartTime:st, startTime:st,
+                EndTime:et, endTime:et,
+                PlaylistId:pl, playlistId:pl,
+                DisplayName:name, displayName:name,
+                IsEnabled:true, isEnabled:true
+            });
+            setEntries(entries);
+            renderSchedule();
+            var f=document.getElementById('roAddForm'); if(f) f.style.display='none';
+        }
+
+        function hideMsg(){ var m=document.getElementById('roSchedMsg'); if(m) m.style.display='none'; }
+        function showMsg(t){ var m=document.getElementById('roSchedMsg'); if(m){ m.style.display=''; m.textContent=t; } }
+
+        // --- Populate dropdowns ---
+        function populateDropdowns(){
+            var daySel=document.getElementById('roNewDay');
+            if(daySel) daySel.innerHTML=dayOpts(1);
+
+            var sh=document.getElementById('roNewStartH');
+            if(sh) sh.innerHTML=hourOpts('08');
+            var sm=document.getElementById('roNewStartM');
+            if(sm) sm.innerHTML=minOpts('00');
+            var eh=document.getElementById('roNewEndH');
+            if(eh) eh.innerHTML=hourOpts('12');
+            var em=document.getElementById('roNewEndM');
+            if(em) em.innerHTML=minOpts('00');
         }
 
         // --- Init ---
         function init(){
+            populateDropdowns();
             loadConfig();
             loadUsers();
             loadPlaylists();
@@ -466,80 +631,21 @@
             var bn=document.getElementById('roBtnSaveNew');
             if(bn) bn.addEventListener('click',addEntry);
 
-            // Refresh
-            var br=document.getElementById('roBtnRefresh');
-            if(br) br.addEventListener('click',loadStatus);
+            // Refresh button - use event delegation for reliability
+            document.getElementById('roTabStatus').addEventListener('click',function(e){
+                var btn=e.target.closest('#roBtnRefresh');
+                if(btn) loadStatus();
+            });
 
-            // Schedule table delegation
-            var sb=document.getElementById('roSchedBody');
-            if(sb){
-                sb.addEventListener('change',schedChange);
-                sb.addEventListener('input',schedChange);
-                sb.addEventListener('click',schedClick);
+            // Schedule list delegation
+            var sl=document.getElementById('roSchedList');
+            if(sl){
+                sl.addEventListener('change',schedChange);
+                sl.addEventListener('input',schedChange);
+                sl.addEventListener('click',schedClick);
             }
 
             switchTab('config');
-        }
-
-        function hideMsg(){ var m=document.getElementById('roSchedMsg'); if(m) m.style.display='none'; }
-        function showMsg(t){ var m=document.getElementById('roSchedMsg'); if(m){ m.style.display=''; m.textContent=t; } }
-
-        function addEntry(){
-            hideMsg();
-            var day=parseInt(document.getElementById('roNewDay').value,10);
-            var st=(document.getElementById('roNewStart').value||'').trim();
-            var et=(document.getElementById('roNewEnd').value||'').trim();
-            var pl=(document.getElementById('roNewPlaylist').value||'').trim();
-            var nm=(document.getElementById('roNewName').value||'').trim();
-
-            if(!st||!et){ showMsg('Las horas de inicio y fin son requeridas.'); return; }
-            if(!validTime(st)){ showMsg('Hora de inicio invalida (HH:mm).'); return; }
-            if(!validTime(et)){ showMsg('Hora de fin invalida (HH:mm).'); return; }
-            if(st>=et){ showMsg('La hora de fin debe ser despues de la hora de inicio.'); return; }
-
-            var name=nm||(dayNames[day]+' '+st+'-'+et);
-            var entries=getEntries();
-            entries.push({
-                DayOfWeek:day,dayOfWeek:day,
-                StartTime:st,startTime:st,
-                EndTime:et,endTime:et,
-                PlaylistId:pl,playlistId:pl,
-                DisplayName:name,displayName:name,
-                IsEnabled:true,isEnabled:true
-            });
-            setEntries(entries);
-            renderSchedule();
-            var f=document.getElementById('roAddForm'); if(f) f.style.display='none';
-            var e; e=document.getElementById('roNewStart'); if(e) e.value='';
-            e=document.getElementById('roNewEnd'); if(e) e.value='';
-            e=document.getElementById('roNewName'); if(e) e.value='';
-            e=document.getElementById('roNewPlaylist'); if(e) e.value='';
-        }
-
-        function schedChange(e){
-            var t=e.target;
-            var idx=parseInt(t.getAttribute('data-i'),10);
-            var field=t.getAttribute('data-f');
-            if(isNaN(idx)||!field) return;
-            var entries=getEntries();
-            if(!entries[idx]) return;
-            var en=entries[idx];
-            if(field==='DayOfWeek'){ var v=parseInt(t.value,10); en.DayOfWeek=v; en.dayOfWeek=v; }
-            else if(field==='PlaylistId'){ en.PlaylistId=t.value; en.playlistId=t.value; }
-            else if(field==='StartTime'){ en.StartTime=t.value; en.startTime=t.value; }
-            else if(field==='EndTime'){ en.EndTime=t.value; en.endTime=t.value; }
-            else if(field==='DisplayName'){ en.DisplayName=t.value; en.displayName=t.value; }
-            else if(field==='IsEnabled'){ en.IsEnabled=t.checked; en.isEnabled=t.checked; renderSchedule(); return; }
-            setEntries(entries);
-        }
-
-        function schedClick(e){
-            var t=e.target;
-            var btn=t.closest?t.closest('[data-act="del"]'):null;
-            if(btn){
-                var idx=parseInt(btn.getAttribute('data-i'),10);
-                if(!isNaN(idx)){ var entries=getEntries(); entries.splice(idx,1); setEntries(entries); renderSchedule(); }
-            }
         }
 
         // Multiple init listeners for Jellyfin SPA

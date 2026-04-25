@@ -27,6 +27,7 @@ public class ScheduleManagerService
     /// <summary>
     /// Gets the active schedule entry for the current time (or a specific time).
     /// If no schedule entry matches, returns null (indicating random fill mode).
+    /// Supports all 7 days of the week including Saturday and Sunday.
     /// </summary>
     /// <param name="scheduleEntries">The configured schedule entries.</param>
     /// <param name="dateTime">The date/time to check. Defaults to now.</param>
@@ -39,21 +40,7 @@ public class ScheduleManagerService
         var currentDay = now.DayOfWeek;
         var currentTime = now.TimeOfDay;
 
-        // Only schedule Monday through Friday as per requirements
-        if (currentDay < DayOfWeek.Monday || currentDay > DayOfWeek.Friday)
-        {
-            _logger.LogDebug("Current day {Day} is weekend, no scheduled programming", currentDay);
-            return null;
-        }
-
-        // Find all enabled entries for the current day that encompass the current time
-        var matchingEntries = scheduleEntries
-            .Where(e => e.IsEnabled
-                        && e.DayOfWeek == currentDay
-                        && string.IsNullOrEmpty(e.PlaylistId))  // Has an assigned playlist
-            .ToList();
-
-        // Filter out entries that have a playlist assigned
+        // Find all enabled entries for the current day that have a playlist assigned
         var entriesWithPlaylist = scheduleEntries
             .Where(e => e.IsEnabled
                         && e.DayOfWeek == currentDay
@@ -95,45 +82,42 @@ public class ScheduleManagerService
 
     /// <summary>
     /// Calculates the time until the next schedule entry begins.
-    /// Useful for determining how long to play random music before a scheduled slot.
+    /// Searches across all 7 days, wrapping to the next week if needed.
     /// </summary>
     /// <param name="scheduleEntries">All configured schedule entries.</param>
-    /// <returns>The time until the next scheduled entry, or null if none exists today.</returns>
+    /// <returns>The time until the next scheduled entry, or null if none exists.</returns>
     public TimeSpan? GetTimeUntilNextScheduleEntry(List<ScheduleEntry> scheduleEntries)
     {
         var now = DateTime.Now;
-        var currentDay = now.DayOfWeek;
         var currentTime = now.TimeOfDay;
 
-        if (currentDay < DayOfWeek.Monday || currentDay > DayOfWeek.Friday)
+        // Search for the next entry across all 7 days
+        for (var daysAhead = 0; daysAhead < 7; daysAhead++)
         {
-            // Weekend - calculate until Monday morning
-            var daysUntilMonday = (int)DayOfWeek.Monday - (int)currentDay;
-            if (daysUntilMonday <= 0) daysUntilMonday += 7;
-            var mondayMorning = now.Date.AddDays(daysUntilMonday);
-            return mondayMorning - now;
+            var checkDate = now.Date.AddDays(daysAhead);
+            var checkDay = checkDate.DayOfWeek;
+
+            var nextEntries = scheduleEntries
+                .Where(e => e.IsEnabled
+                            && e.DayOfWeek == checkDay
+                            && !string.IsNullOrEmpty(e.PlaylistId))
+                .OrderBy(e => e.GetStartTimeSpan())
+                .ToList();
+
+            foreach (var entry in nextEntries)
+            {
+                var entryStart = entry.GetStartTimeSpan();
+                var entryDateTime = checkDate.Add(entryStart);
+
+                if (entryDateTime > now)
+                {
+                    return entryDateTime - now;
+                }
+            }
         }
 
-        // Find the next entry today that starts after current time
-        var nextEntries = scheduleEntries
-            .Where(e => e.IsEnabled
-                        && e.DayOfWeek == currentDay
-                        && !string.IsNullOrEmpty(e.PlaylistId)
-                        && e.GetStartTimeSpan() > currentTime)
-            .OrderBy(e => e.GetStartTimeSpan())
-            .ToList();
-
-        if (nextEntries.Count > 0)
-        {
-            var nextStart = nextEntries.First().GetStartTimeSpan();
-            return nextStart - currentTime;
-        }
-
-        // No more entries today; calculate until Monday
-        var daysToMonday = (int)DayOfWeek.Monday - (int)currentDay;
-        if (daysToMonday <= 0) daysToMonday += 7;
-        var nextMonday = now.Date.AddDays(daysToMonday);
-        return nextMonday - now;
+        // No entries found at all - return null
+        return null;
     }
 
     /// <summary>
@@ -169,6 +153,7 @@ public class ScheduleManagerService
     /// <summary>
     /// Validates a schedule entry for correctness.
     /// Checks that times are valid and do not conflict with existing entries.
+    /// Supports all 7 days of the week.
     /// </summary>
     /// <param name="entry">The schedule entry to validate.</param>
     /// <param name="allEntries">All existing schedule entries for conflict checking.</param>
@@ -176,11 +161,6 @@ public class ScheduleManagerService
     public List<string> ValidateScheduleEntry(ScheduleEntry entry, List<ScheduleEntry> allEntries)
     {
         var errors = new List<string>();
-
-        if (entry.DayOfWeek < DayOfWeek.Monday || entry.DayOfWeek > DayOfWeek.Friday)
-        {
-            errors.Add("Scheduling is only available for Monday through Friday.");
-        }
 
         if (!TimeSpan.TryParse(entry.StartTime, out _))
         {

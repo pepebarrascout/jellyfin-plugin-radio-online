@@ -47,6 +47,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// <summary>
     /// Executes the main radio streaming loop.
     /// Continuously checks the schedule and streams appropriate audio to Icecast.
+    /// When the plugin is disabled, stops the Icecast connection immediately.
     /// </summary>
     /// <param name="stoppingToken">The cancellation token for service shutdown.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -71,15 +72,21 @@ public class RadioStreamingHostedService : BackgroundService
 
                 if (config == null || !config.IsEnabled)
                 {
-                    // Plugin not enabled, wait and check again
-                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
+                    // Plugin disabled - stop any active Icecast connection immediately
+                    if (_icecastService.IsStreaming)
+                    {
+                        _logger.LogInformation("Plugin was disabled, stopping Icecast stream");
+                        _icecastService.StopStreaming();
+                    }
+
+                    await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
                     continue;
                 }
 
                 // Validate configuration
                 if (!ValidateConfig(config))
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
                 }
 
@@ -92,10 +99,10 @@ public class RadioStreamingHostedService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in streaming cycle, retrying in 30 seconds");
+                _logger.LogError(ex, "Error in streaming cycle, retrying in 15 seconds");
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -104,11 +111,14 @@ public class RadioStreamingHostedService : BackgroundService
             }
         }
 
+        // Ensure streaming is stopped when service exits
+        _icecastService.StopStreaming();
         _logger.LogInformation("Radio Online streaming service stopped");
     }
 
     /// <summary>
-    /// Runs a single streaming cycle: determines what to play and streams it.
+    /// Runs a single streaming cycle: determines what to play and streams it continuously.
+    /// After the audio queue is exhausted, re-evaluates the schedule for the next cycle.
     /// </summary>
     private async Task RunStreamingCycle(PluginConfiguration config, CancellationToken cancellationToken)
     {
@@ -168,16 +178,30 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
+        _logger.LogInformation("Streaming cycle starting with {Count} audio items", audioQueue.Count);
+
         // Stream each audio file in sequence
+        var trackIndex = 0;
         foreach (var audioItem in audioQueue)
         {
+            trackIndex++;
+
             if (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
 
-            // Re-check the schedule before each track - schedule may have changed
-            var currentEntry = _scheduleManager.GetActiveScheduleEntry(config.ScheduleEntries);
+            // Re-read config to check if plugin was disabled while streaming
+            var currentConfig = Plugin.Instance?.Configuration as PluginConfiguration;
+            if (currentConfig == null || !currentConfig.IsEnabled)
+            {
+                _logger.LogInformation("Plugin was disabled during streaming, stopping immediately");
+                _icecastService.StopStreaming();
+                return;
+            }
+
+            // Re-check the schedule before each track
+            var currentEntry = _scheduleManager.GetActiveScheduleEntry(currentConfig.ScheduleEntries);
             if (currentEntry == null && activeEntry != null)
             {
                 // We were in a scheduled slot but it ended
@@ -199,33 +223,45 @@ public class RadioStreamingHostedService : BackgroundService
                 continue;
             }
 
+            _logger.LogInformation("Streaming track {Index}/{Total}: {Name}", trackIndex, audioQueue.Count, audioItem.Name);
+
             var success = await _icecastService.StreamFileAsync(
                 filePath,
-                config.IcecastUrl,
-                config.IcecastUsername,
-                config.IcecastPassword,
-                config.IcecastMountPoint,
-                config.AudioFormat,
-                config.AudioBitrate,
-                config.StreamName,
-                config.StreamGenre,
+                currentConfig.IcecastUrl,
+                currentConfig.IcecastUsername,
+                currentConfig.IcecastPassword,
+                currentConfig.IcecastMountPoint,
+                currentConfig.AudioFormat,
+                currentConfig.AudioBitrate,
+                currentConfig.StreamName,
+                currentConfig.StreamGenre,
                 cancellationToken).ConfigureAwait(false);
 
             if (!success)
             {
-                _logger.LogWarning("Failed to stream: {Name}. Moving to next track.", audioItem.Name);
+                _logger.LogWarning("Failed to stream: {Name}. Retrying in 3 seconds...", audioItem.Name);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
 
-            // Small delay between tracks for Icecast to sync
+            // Brief delay between tracks to allow Icecast to sync
             try
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
                 break;
             }
         }
+
+        _logger.LogInformation("Streaming cycle completed ({Count} tracks processed)", trackIndex);
     }
 
     /// <summary>

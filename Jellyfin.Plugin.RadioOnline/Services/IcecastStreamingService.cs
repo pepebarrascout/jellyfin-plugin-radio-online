@@ -269,9 +269,10 @@ public class IcecastStreamingService : IDisposable
             arguments.Append("-f ogg ");
         }
 
-        // Output to Icecast via HTTP PUT with source credentials
+        // Output to Icecast via icecast:// protocol with source credentials
         var escapedPassword = password.Replace("\"", "\\\"");
-        arguments.Append($"icecast://{username}:{escapedPassword}@{icecastUrl.TrimStart("http://".ToCharArray())}");
+        var cleanUrl = icecastUrl.Replace("http://", string.Empty).Replace("https://", string.Empty);
+        arguments.Append($"icecast://{username}:{escapedPassword}@{cleanUrl}");
 
         _logger.LogDebug("FFmpeg arguments: {Arguments}", arguments.ToString());
 

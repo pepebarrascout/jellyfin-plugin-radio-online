@@ -263,7 +263,7 @@
         <member name="T:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService">
             <summary>
             Provides audio items from Jellyfin's library and playlists.
-            Handles retrieving playlist items, random music selection, and item metadata.
+            Handles retrieving playlist items in their defined order, random music selection, and item metadata.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.RadioOnline.Services.AudioProviderService},MediaBrowser.Controller.Library.ILibraryManager,MediaBrowser.Controller.Playlists.IPlaylistManager,MediaBrowser.Controller.Library.IUserManager)">
@@ -277,7 +277,8 @@
         </member>
         <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.GetPlaylistItems(System.String,System.String)">
             <summary>
-            Gets all audio items from a specific playlist.
+            Gets all audio items from a specific playlist in their defined order.
+            Uses LinkedChildren to preserve the exact order the user arranged in Jellyfin.
             </summary>
             <param name="playlistId">The GUID of the playlist.</param>
             <param name="userId">The user ID for access validation.</param>
@@ -417,12 +418,14 @@
             <summary>
             Executes the main radio streaming loop.
             Continuously checks the schedule and streams appropriate audio to Icecast.
+            When the plugin is disabled, stops the Icecast connection immediately.
             </summary>
             <param name="stoppingToken">The cancellation token for service shutdown.</param>
         </member>
         <member name="M:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService.RunStreamingCycle(Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration,System.Threading.CancellationToken)">
             <summary>
-            Runs a single streaming cycle: determines what to play and streams it.
+            Runs a single streaming cycle: determines what to play and streams it continuously.
+            After the audio queue is exhausted, re-evaluates the schedule for the next cycle.
             </summary>
         </member>
         <member name="M:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService.TrimAudioToDuration(System.Collections.Generic.List{MediaBrowser.Controller.Entities.Audio.Audio},System.TimeSpan)">
@@ -458,6 +461,7 @@
             <summary>
             Gets the active schedule entry for the current time (or a specific time).
             If no schedule entry matches, returns null (indicating random fill mode).
+            Supports all 7 days of the week including Saturday and Sunday.
             </summary>
             <param name="scheduleEntries">The configured schedule entries.</param>
             <param name="dateTime">The date/time to check. Defaults to now.</param>
@@ -473,10 +477,10 @@
         <member name="M:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService.GetTimeUntilNextScheduleEntry(System.Collections.Generic.List{Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry})">
             <summary>
             Calculates the time until the next schedule entry begins.
-            Useful for determining how long to play random music before a scheduled slot.
+            Searches across all 7 days, wrapping to the next week if needed.
             </summary>
             <param name="scheduleEntries">All configured schedule entries.</param>
-            <returns>The time until the next scheduled entry, or null if none exists today.</returns>
+            <returns>The time until the next scheduled entry, or null if none exists.</returns>
         </member>
         <member name="M:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService.GetNextScheduleChange(System.Collections.Generic.List{Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry})">
             <summary>
@@ -489,6 +493,7 @@
             <summary>
             Validates a schedule entry for correctness.
             Checks that times are valid and do not conflict with existing entries.
+            Supports all 7 days of the week.
             </summary>
             <param name="entry">The schedule entry to validate.</param>
             <param name="allEntries">All existing schedule entries for conflict checking.</param>

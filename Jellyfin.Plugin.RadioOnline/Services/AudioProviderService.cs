@@ -12,7 +12,7 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 
 /// <summary>
 /// Provides audio items from Jellyfin's library and playlists.
-/// Handles retrieving playlist items, random music selection, and item metadata.
+/// Handles retrieving playlist items in their defined order, random music selection, and item metadata.
 /// </summary>
 public class AudioProviderService
 {
@@ -42,7 +42,8 @@ public class AudioProviderService
     }
 
     /// <summary>
-    /// Gets all audio items from a specific playlist.
+    /// Gets all audio items from a specific playlist in their defined order.
+    /// Uses LinkedChildren to preserve the exact order the user arranged in Jellyfin.
     /// </summary>
     /// <param name="playlistId">The GUID of the playlist.</param>
     /// <param name="userId">The user ID for access validation.</param>
@@ -65,13 +66,28 @@ public class AudioProviderService
                 return new List<Audio>();
             }
 
-            var audioItems = playlist.Children
-                .OfType<Audio>()
-                .Where(a => a.Path != null)
-                .ToList();
+            // Use LinkedChildren to preserve the exact playlist order
+            var audioItems = new List<Audio>();
+            foreach (var linkedChild in playlist.LinkedChildren)
+            {
+                try
+                {
+                    var itemId = linkedChild.ItemId;
+                    if (!itemId.HasValue) continue;
+                    var item = _libraryManager.GetItemById(itemId.Value);
+                    if (item is Audio audio && !string.IsNullOrEmpty(audio.Path))
+                    {
+                        audioItems.Add(audio);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug("Skipping unavailable item {ItemId} in playlist: {Message}", linkedChild.ItemId, ex.Message);
+                }
+            }
 
             _logger.LogInformation(
-                "Retrieved {Count} audio items from playlist \"{Name}\"",
+                "Retrieved {Count} audio items from playlist \"{Name}\" (in playlist order)",
                 audioItems.Count, playlist.Name);
 
             return audioItems;
