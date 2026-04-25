@@ -1,545 +1,829 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>Radio Online</title>
+<div id="radioOnlineConfigPage" data-role="page" class="page type-interior pluginConfigurationPage">
+
     <style>
-        :root {
-            --bg-primary: #101010;
-            --bg-secondary: #1a1a1a;
-            --bg-card: #202020;
-            --text-primary: #ddd;
-            --text-secondary: #999;
-            --accent: #00a4dc;
-            --accent-hover: #00b8f0;
-            --border: #333;
-            --danger: #cc0000;
-            --success: #52b54b;
-            --warning: #f5a623;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        .page-title {
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--accent);
-        }
-
-        .page-subtitle {
-            font-size: 14px;
-            color: var(--text-secondary);
-            margin-bottom: 30px;
-        }
-
-        .section {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
-        }
-
-        .section-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--border);
-            color: var(--text-primary);
-        }
-
-        .form-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 16px;
-            gap: 16px;
-        }
-
-        .form-row label {
-            flex: 0 0 180px;
-            font-size: 14px;
-            color: var(--text-secondary);
-        }
-
-        .form-row input[type="text"],
-        .form-row input[type="password"],
-        .form-row input[type="number"],
-        .form-row select {
-            flex: 1;
-            max-width: 400px;
-            padding: 10px 14px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text-primary);
-            font-size: 14px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .form-row input:focus,
-        .form-row select:focus {
-            border-color: var(--accent);
-        }
-
-        .form-row input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: var(--accent);
-            cursor: pointer;
-        }
-
-        .form-row .checkbox-label {
-            flex: none;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .form-hint {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-            flex: 1;
-            max-width: 400px;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 24px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: #000;
-        }
-
-        .btn-primary:hover {
-            background: var(--accent-hover);
-        }
-
-        .btn-secondary {
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            background: var(--border);
-        }
-
-        .btn-danger {
-            background: var(--danger);
+        /* === Native Jellyfin button styling fallback === */
+        #radioOnlineConfigPage button[is="emby-button"].raised {
+            background: #303030;
             color: #fff;
-        }
-
-        .btn-danger:hover {
-            background: #dd2222;
-        }
-
-        .btn-sm {
-            padding: 6px 14px;
-            font-size: 13px;
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-        }
-
-        /* Schedule Table */
-        .schedule-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 16px;
-        }
-
-        .schedule-table th {
-            text-align: left;
-            padding: 10px 12px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            font-size: 13px;
-            color: var(--text-secondary);
-            font-weight: 500;
-        }
-
-        .schedule-table td {
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            font-size: 14px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 0.6em 1.2em;
+            font-size: inherit;
+            cursor: pointer;
             vertical-align: middle;
         }
-
-        .schedule-table tr:hover td {
-            background: rgba(0, 164, 220, 0.05);
+        #radioOnlineConfigPage button[is="emby-button"].raised:hover {
+            background: #404040;
+            border-color: #555;
+        }
+        #radioOnlineConfigPage button[is="emby-button"].raised.button-submit {
+            background: #00a4dc;
+            color: #fff;
+            border: 1px solid #00a4dc;
+        }
+        #radioOnlineConfigPage button[is="emby-button"].raised.button-submit:hover {
+            background: #1db5eb;
+        }
+        #radioOnlineConfigPage button[is="emby-button"].raised:disabled {
+            opacity: 0.5;
+            cursor: default;
         }
 
-        .schedule-table select,
-        .schedule-table input {
-            padding: 6px 10px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
+        /* === Danger button (red) === */
+        #radioOnlineConfigPage button[is="emby-button"].raised.btn-danger {
+            background: #c0392b;
+            color: #fff;
+            border: 1px solid #e74c3c;
+        }
+        #radioOnlineConfigPage button[is="emby-button"].raised.btn-danger:hover {
+            background: #e74c3c;
+        }
+
+        /* === Select dark background fix === */
+        #radioOnlineConfigPage .selectContainer select {
+            background: #101010 !important;
+            color: #ccc !important;
+            border: 1px solid #444;
             border-radius: 4px;
-            color: var(--text-primary);
-            font-size: 13px;
+            padding: 0.5em 0.7em;
             width: 100%;
+            font-size: inherit;
+        }
+        #radioOnlineConfigPage .selectContainer select option {
+            background: #1a1a1a;
+            color: #ccc;
+            padding: 0.4em 0.5em;
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 500;
+        /* === Checkbox Jellyfin style === */
+        #radioOnlineConfigPage .checkboxContainer label {
+            display: flex;
+            align-items: center;
+            gap: 0.6em;
+            cursor: pointer;
+            padding: 0.4em 0;
+            color: inherit;
+        }
+        #radioOnlineConfigPage .checkboxContainer input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            accent-color: #00a4dc;
+            cursor: pointer;
+            flex-shrink: 0;
         }
 
-        .status-active {
-            background: rgba(82, 181, 75, 0.2);
-            color: var(--success);
-        }
-
-        .status-inactive {
-            background: rgba(153, 153, 153, 0.2);
-            color: var(--text-secondary);
-        }
-
-        .status-streaming {
-            background: rgba(0, 164, 220, 0.2);
-            color: var(--accent);
-        }
-
-        /* Status Section */
-        .status-grid {
+        /* === Status cards === */
+        .statusGrid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.8em;
+            margin-bottom: 1.5em;
         }
-
-        .status-card {
-            background: var(--bg-secondary);
-            padding: 16px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
+        .statusCard {
+            background: #1a1a1a;
+            padding: 0.8em 1em;
+            border-radius: 4px;
+            border: 1px solid #333;
         }
-
-        .status-card-label {
-            font-size: 12px;
-            color: var(--text-secondary);
+        .statusCardLabel {
+            font-size: 0.75em;
+            color: #888;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-
-        .status-card-value {
-            font-size: 20px;
+        .statusCardValue {
+            font-size: 1.3em;
             font-weight: 600;
-            margin-top: 4px;
+            margin-top: 0.2em;
         }
+        .statusActive { color: #52b54b; }
+        .statusInactive { color: #888; }
+        .statusStreaming { color: #00a4dc; }
 
-        /* Schedule Add Form */
-        .add-schedule-form {
-            background: var(--bg-secondary);
-            padding: 20px;
-            border-radius: 6px;
-            margin-top: 16px;
-            display: none;
+        /* === Schedule table === */
+        .scheduleTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.8em;
         }
-
-        .add-schedule-form.visible {
-            display: block;
-        }
-
-        .add-schedule-form .form-row {
-            margin-bottom: 12px;
-        }
-
-        .add-schedule-form label {
-            flex: 0 0 120px;
-            font-size: 13px;
-        }
-
-        .add-schedule-form select,
-        .add-schedule-form input {
-            flex: 1;
-            max-width: 300px;
-        }
-
-        .playlist-select {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .no-playlists-msg {
-            color: var(--warning);
-            font-size: 13px;
-            margin-top: 8px;
-        }
-
-        .version-tag {
-            display: inline-block;
-            padding: 2px 8px;
-            background: rgba(0, 164, 220, 0.15);
-            color: var(--accent);
-            border-radius: 4px;
-            font-size: 12px;
+        .scheduleTable th {
+            text-align: left;
+            padding: 0.6em 0.8em;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            font-size: 0.85em;
+            color: #888;
             font-weight: 500;
-            margin-left: 8px;
+        }
+        .scheduleTable td {
+            padding: 0.5em 0.6em;
+            border: 1px solid #333;
+            font-size: 0.9em;
+            vertical-align: middle;
+        }
+        .scheduleTable input,
+        .scheduleTable select {
+            background: #101010;
+            color: #ccc;
+            border: 1px solid #444;
+            border-radius: 3px;
+            padding: 0.3em 0.5em;
+            width: 100%;
+            font-size: 0.9em;
+        }
+        .scheduleTable .disabled-row {
+            opacity: 0.4;
         }
 
-        .empty-schedule-msg {
-            text-align: center;
-            padding: 30px;
-            color: var(--text-secondary);
+        /* === Add schedule form === */
+        #addScheduleForm {
+            background: #1a1a1a;
+            padding: 1em;
+            border-radius: 4px;
+            margin-top: 1em;
+            display: none;
+            border: 1px solid #333;
         }
+        #addScheduleForm h3 { margin-top: 0; font-size: 1.1em; }
 
-        @media (max-width: 600px) {
-            .form-row {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .form-row label {
-                flex: none;
-                margin-bottom: 4px;
-            }
-            .form-row input,
-            .form-row select {
-                max-width: 100%;
-                width: 100%;
-            }
+        /* === Section headers === */
+        .sectionHeader {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin: 1.5em 0 0.8em 0;
+            padding-bottom: 0.5em;
+            border-bottom: 1px solid #333;
+            color: #ddd;
         }
+        .sectionHeader:first-of-type { margin-top: 0; }
+
+        /* === Inline message === */
+        .inlineMsg {
+            padding: 0.5em 0.8em;
+            border-radius: 4px;
+            margin: 0.5em 0;
+            font-size: 0.9em;
+        }
+        .inlineMsg.info { background: #1a2a3a; border-left: 4px solid #2196F3; color: #64b5f6; }
+        .inlineMsg.success { background: #1a3a1a; border-left: 4px solid #4CAF50; color: #81c784; }
+        .inlineMsg.error { background: #3a1a1a; border-left: 4px solid #f44336; color: #ef9a9a; }
     </style>
-</head>
-<body>
-    <div id="radioOnlineConfig">
-        <h1 class="page-title">
-            Radio Online
-            <span class="version-tag">v0.0.0.1 Alpha</span>
-        </h1>
-        <p class="page-subtitle">
-            Automated online radio streaming to Icecast with weekly playlist scheduling.
-        </p>
 
-        <!-- Status Section -->
-        <div class="section">
-            <h2 class="section-title">Status</h2>
-            <div class="status-grid">
-                <div class="status-card">
-                    <div class="status-card-label">Plugin</div>
-                    <div class="status-card-value">
-                        <span id="statusEnabled" class="status-badge status-inactive">Disabled</span>
-                    </div>
+    <div data-role="content">
+        <div class="content-primary">
+
+            <h1>Radio Online</h1>
+            <p>Transmite audio a un servidor Icecast con programacion semanal de playlists. Los horarios sin programar se llenan con musica aleatoria de tu biblioteca de Jellyfin.</p>
+
+            <!-- Status Banner -->
+            <div id="radioStatusBanner" class="inlineMsg info" style="display: none;"></div>
+
+            <!-- Status Grid -->
+            <div class="statusGrid">
+                <div class="statusCard">
+                    <div class="statusCardLabel">Plugin</div>
+                    <div class="statusCardValue" id="statusEnabled"><span class="statusInactive">Desactivado</span></div>
                 </div>
-                <div class="status-card">
-                    <div class="status-card-label">Icecast</div>
-                    <div class="status-card-value" id="statusIcecast">--</div>
+                <div class="statusCard">
+                    <div class="statusCardLabel">Icecast</div>
+                    <div class="statusCardValue" id="statusIcecast">--</div>
                 </div>
-                <div class="status-card">
-                    <div class="status-card-label">Streaming</div>
-                    <div class="status-card-value">
-                        <span id="statusStreaming" class="status-badge status-inactive">Idle</span>
-                    </div>
+                <div class="statusCard">
+                    <div class="statusCardLabel">Streaming</div>
+                    <div class="statusCardValue" id="statusStreaming"><span class="statusInactive">Inactivo</span></div>
                 </div>
-                <div class="status-card">
-                    <div class="status-card-label">Format</div>
-                    <div class="status-card-value" id="statusFormat">--</div>
+                <div class="statusCard">
+                    <div class="statusCardLabel">Formato</div>
+                    <div class="statusCardValue" id="statusFormat">--</div>
                 </div>
-                <div class="status-card">
-                    <div class="status-card-label">Schedule Entries</div>
-                    <div class="status-card-value" id="statusScheduleCount">0</div>
+                <div class="statusCard">
+                    <div class="statusCardLabel">Programas</div>
+                    <div class="statusCardValue" id="statusScheduleCount">0</div>
                 </div>
             </div>
-        </div>
 
-        <!-- Icecast Configuration -->
-        <div class="section">
-            <h2 class="section-title">Icecast Server Configuration</h2>
+            <!-- Icecast Configuration -->
+            <h2 class="sectionHeader">Servidor Icecast</h2>
 
-            <div class="form-row">
-                <label>Server URL</label>
-                <input type="text" id="icecastUrl" placeholder="http://your-server:8000" />
-                <span class="form-hint">Full URL to your Icecast server (without trailing slash)</span>
+            <div class="inputContainer">
+                <label class="inputLabel" for="icecastUrl">URL del Servidor</label>
+                <input type="text" id="icecastUrl" class="emby-input" is="emby-input" placeholder="http://tu-servidor:8000" />
+                <div class="fieldDescription">URL completa del servidor Icecast (sin barra final). Ejemplo: http://192.168.1.100:8000</div>
             </div>
 
-            <div class="form-row">
-                <label>Username</label>
-                <input type="text" id="icecastUsername" placeholder="source" />
-                <span class="form-hint">Icecast source username (usually "source")</span>
+            <div class="inputContainer">
+                <label class="inputLabel" for="icecastUsername">Usuario</label>
+                <input type="text" id="icecastUsername" class="emby-input" is="emby-input" placeholder="source" />
+                <div class="fieldDescription">Usuario de fuente Icecast (generalmente "source")</div>
             </div>
 
-            <div class="form-row">
-                <label>Password</label>
-                <input type="password" id="icecastPassword" placeholder="••••••••" />
-                <span class="form-hint">Icecast source password</span>
+            <div class="inputContainer">
+                <label class="inputLabel" for="icecastPassword">Contrasena</label>
+                <input type="password" id="icecastPassword" class="emby-input" is="emby-input" />
             </div>
 
-            <div class="form-row">
-                <label>Mount Point</label>
-                <input type="text" id="icecastMountPoint" placeholder="/radio" />
-                <span class="form-hint">Icecast mount point (must start with /)</span>
+            <div class="inputContainer">
+                <label class="inputLabel" for="icecastMountPoint">Punto de Montaje</label>
+                <input type="text" id="icecastMountPoint" class="emby-input" is="emby-input" placeholder="/radio" />
+                <div class="fieldDescription">Debe comenzar con /. Ejemplo: /radio, /stream</div>
             </div>
 
-            <div class="form-row">
-                <label>Audio Format</label>
-                <select id="audioFormat">
+            <div class="selectContainer">
+                <label class="selectLabel" for="audioFormat">Formato de Audio</label>
+                <select id="audioFormat" class="emby-select" is="emby-select">
                     <option value="ogg">OGG (Vorbis)</option>
                     <option value="m4a">M4A (AAC)</option>
                 </select>
             </div>
 
-            <div class="form-row">
-                <label>Audio Bitrate (kbps)</label>
-                <input type="number" id="audioBitrate" min="32" max="320" step="16" value="128" />
-                <span class="form-hint">Recommended: 96-192 kbps</span>
+            <div class="inputContainer">
+                <label class="inputLabel" for="audioBitrate">Bitrate (kbps)</label>
+                <input type="number" id="audioBitrate" class="emby-input" is="emby-input" min="32" max="320" step="16" value="128" />
+                <div class="fieldDescription">Recomendado: 96-192 kbps</div>
             </div>
 
-            <div class="form-row">
-                <label>Stream Name</label>
-                <input type="text" id="streamName" placeholder="My Radio Station" />
+            <div class="inputContainer">
+                <label class="inputLabel" for="streamName">Nombre del Stream</label>
+                <input type="text" id="streamName" class="emby-input" is="emby-input" placeholder="Mi Radio" />
             </div>
 
-            <div class="form-row">
-                <label>Stream Description</label>
-                <input type="text" id="streamDescription" placeholder="Powered by Jellyfin" />
+            <div class="inputContainer">
+                <label class="inputLabel" for="streamDescription">Descripcion del Stream</label>
+                <input type="text" id="streamDescription" class="emby-input" is="emby-input" placeholder="Radio automatizada por Jellyfin" />
             </div>
 
-            <div class="form-row">
-                <label>Stream Genre</label>
-                <input type="text" id="streamGenre" placeholder="Various" />
+            <div class="inputContainer">
+                <label class="inputLabel" for="streamGenre">Genero</label>
+                <input type="text" id="streamGenre" class="emby-input" is="emby-input" placeholder="Variado" />
             </div>
 
-            <div class="form-row">
-                <label>Public Stream</label>
-                <input type="checkbox" id="streamPublic" />
-                <label class="checkbox-label" for="streamPublic">List in Icecast directory</label>
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input type="checkbox" id="streamPublic" is="emby-checkbox" />
+                    <span>Stream publico (listar en directorios Icecast)</span>
+                </label>
             </div>
-        </div>
 
-        <!-- Jellyfin Settings -->
-        <div class="section">
-            <h2 class="section-title">Jellyfin Settings</h2>
+            <!-- Jellyfin Settings -->
+            <h2 class="sectionHeader">Configuracion de Jellyfin</h2>
 
-            <div class="form-row">
-                <label>Library User</label>
-                <select id="jellyfinUserId">
-                    <option value="">-- Select a user --</option>
+            <div class="selectContainer">
+                <label class="selectLabel" for="jellyfinUserId">Usuario de Biblioteca</label>
+                <select id="jellyfinUserId" class="emby-select" is="emby-select">
+                    <option value="">-- Seleccionar usuario --</option>
                 </select>
-                <span class="form-hint">User account used to access Jellyfin's media library</span>
+                <div class="fieldDescription">Usuario con acceso a las bibliotecas de musica y playlists que se usaran en la programacion.</div>
             </div>
 
-            <div class="form-row">
-                <label>Enable Radio</label>
-                <input type="checkbox" id="isEnabled" />
-                <label class="checkbox-label" for="isEnabled">Enable automated radio streaming</label>
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input type="checkbox" id="isEnabled" is="emby-checkbox" />
+                    <span>Activar radio automatizada</span>
+                </label>
+                <div class="fieldDescription checkboxFieldDescription">
+                    Al activar, el plugin comenzara a transmitir audio al servidor Icecast segun la programacion configurada.
+                </div>
             </div>
-        </div>
 
-        <!-- Schedule Section -->
-        <div class="section">
-            <h2 class="section-title">Weekly Schedule (Monday - Friday)</h2>
-            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
-                Assign playlists to specific day/time slots. Unscheduled times will be filled with random music from your library.
-                All schedules repeat weekly.
-            </p>
+            <!-- Schedule Section -->
+            <h2 class="sectionHeader">Programacion Semanal (Lunes a Viernes)</h2>
+            <p style="color: #888; font-size: 0.9em;">Asigna playlists a dias y horarios especificos. Los horarios sin programar se llenan con musica aleatoria. Todas las programaciones se repiten semanalmente.</p>
 
             <div id="scheduleContainer">
-                <div id="emptyScheduleMsg" class="empty-schedule-msg" style="display:none;">
-                    No schedule entries yet. Add one below to get started.
+                <div id="emptyScheduleMsg" style="padding: 1.5em; text-align: center; color: #888; border: 1px dashed #444; border-radius: 4px; display: none;">
+                    <p style="margin:0;">No hay programacion configurada.</p>
+                    <p style="margin:0.5em 0 0;">Haz clic en "Agregar Programa" para comenzar.</p>
                 </div>
-                <table class="schedule-table" id="scheduleTable" style="display:none;">
+                <table class="scheduleTable" id="scheduleTable" style="display:none;">
                     <thead>
                         <tr>
-                            <th style="width:40px;">#</th>
-                            <th style="width:120px;">Day</th>
-                            <th style="width:100px;">Start Time</th>
-                            <th style="width:100px;">End Time</th>
+                            <th style="width:35px;">#</th>
+                            <th style="width:110px;">Dia</th>
+                            <th style="width:80px;">Inicio</th>
+                            <th style="width:80px;">Fin</th>
                             <th>Playlist</th>
-                            <th style="width:140px;">Display Name</th>
-                            <th style="width:70px;">Active</th>
-                            <th style="width:80px;">Actions</th>
+                            <th style="width:130px;">Nombre</th>
+                            <th style="width:60px;">Act.</th>
+                            <th style="width:65px;">Accion</th>
                         </tr>
                     </thead>
                     <tbody id="scheduleBody"></tbody>
                 </table>
             </div>
 
-            <div style="margin-top: 16px;">
-                <button class="btn btn-secondary btn-sm" id="btnAddSchedule" type="button">+ Add Schedule Entry</button>
+            <div style="margin-top: 1em;">
+                <button id="btnAddSchedule" type="button" is="emby-button" class="raised button-submit"><span>Agregar Programa</span></button>
             </div>
 
             <!-- Add Schedule Form -->
-            <div class="add-schedule-form" id="addScheduleForm">
-                <h3 style="font-size: 15px; margin-bottom: 16px;">New Schedule Entry</h3>
+            <div id="addScheduleForm">
+                <h3>Nuevo Programa</h3>
 
-                <div class="form-row">
-                    <label>Day</label>
-                    <select id="newDay">
-                        <option value="1">Monday</option>
-                        <option value="2">Tuesday</option>
-                        <option value="3">Wednesday</option>
-                        <option value="4">Thursday</option>
-                        <option value="5">Friday</option>
+                <div class="selectContainer">
+                    <label class="selectLabel" for="newDay">Dia</label>
+                    <select id="newDay" class="emby-select" is="emby-select">
+                        <option value="1">Lunes</option>
+                        <option value="2">Martes</option>
+                        <option value="3">Miercoles</option>
+                        <option value="4">Jueves</option>
+                        <option value="5">Viernes</option>
                     </select>
                 </div>
 
-                <div class="form-row">
-                    <label>Start Time</label>
-                    <input type="text" id="newStartTime" placeholder="08:00" />
+                <div class="inputContainer">
+                    <label class="inputLabel" for="newStartTime">Hora de Inicio</label>
+                    <input type="text" id="newStartTime" class="emby-input" is="emby-input" placeholder="08:00" />
+                    <div class="fieldDescription">Formato 24 horas (HH:mm)</div>
                 </div>
 
-                <div class="form-row">
-                    <label>End Time</label>
-                    <input type="text" id="newEndTime" placeholder="12:00" />
+                <div class="inputContainer">
+                    <label class="inputLabel" for="newEndTime">Hora de Fin</label>
+                    <input type="text" id="newEndTime" class="emby-input" is="emby-input" placeholder="12:00" />
+                    <div class="fieldDescription">Formato 24 horas (HH:mm). Debe ser despues de la hora de inicio.</div>
                 </div>
 
-                <div class="form-row">
-                    <label>Playlist</label>
-                    <select id="newPlaylist" class="playlist-select">
-                        <option value="">-- Random Music --</option>
+                <div class="selectContainer">
+                    <label class="selectLabel" for="newPlaylist">Playlist</label>
+                    <select id="newPlaylist" class="emby-select" is="emby-select">
+                        <option value="">-- Musica Aleatoria --</option>
                     </select>
-                </div>
-                <div id="noPlaylistsMsg" class="no-playlists-msg" style="display:none;">
-                    No playlists found. Create playlists in Jellyfin first, then reload this page.
+                    <div id="noPlaylistsMsg" class="fieldDescription" style="color: #f5a623; display: none;">No se encontraron playlists. Crea playlists en Jellyfin primero.</div>
                 </div>
 
-                <div class="form-row">
-                    <label>Display Name</label>
-                    <input type="text" id="newDisplayName" placeholder="Morning Show" />
+                <div class="inputContainer">
+                    <label class="inputLabel" for="newDisplayName">Nombre del Programa</label>
+                    <input type="text" id="newDisplayName" class="emby-input" is="emby-input" placeholder="Morning Show" />
                 </div>
 
-                <div class="btn-group">
-                    <button class="btn btn-primary btn-sm" id="btnSaveSchedule" type="button">Save Entry</button>
-                    <button class="btn btn-secondary btn-sm" id="btnCancelSchedule" type="button">Cancel</button>
-                </div>
+                <div id="scheduleValidationMsg" class="inlineMsg error" style="display: none;"></div>
 
-                <div id="scheduleValidationMsg" style="margin-top: 12px; color: var(--danger); font-size: 13px;"></div>
+                <div style="margin-top: 1em; display: flex; gap: 0.8em;">
+                    <button id="btnSaveSchedule" type="button" is="emby-button" class="raised button-submit"><span>Guardar Programa</span></button>
+                    <button id="btnCancelSchedule" type="button" is="emby-button" class="raised"><span>Cancelar</span></button>
+                </div>
             </div>
-        </div>
 
-        <!-- Save Button -->
-        <div class="btn-group" style="margin-top: 10px;">
-            <button class="btn btn-primary" id="btnSave" type="button">Save Configuration</button>
-            <button class="btn btn-secondary" id="btnReload" type="button">Reload Status</button>
+            <!-- Save Button -->
+            <div style="margin-top: 2em; display: flex; gap: 0.8em; flex-wrap: wrap;">
+                <button id="btnSave" type="button" is="emby-button" class="raised button-submit"><span>Guardar Configuracion</span></button>
+                <button id="btnReload" type="button" is="emby-button" class="raised"><span>Recargar Estado</span></button>
+            </div>
+
+            <!-- Support link -->
+            <div style="margin-top: 2em; text-align: center; color: #666; font-size: 0.85em;">
+                <a href="https://github.com/pepebarrascout/jellyfin-plugin-radio-online" target="_blank" rel="noopener noreferrer" style="color: #00a4dc; text-decoration: none;">Radio Online Plugin por PepeBarrascout</a>
+            </div>
+
         </div>
     </div>
 
-    <script src="configPage.js"></script>
-</body>
-</html>
+    <script type="text/javascript">
+
+        var RadioOnlinePluginId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+        var currentConfig = null;
+        var playlists = [];
+
+        // --- Enum display names ---
+        var dayNames = { 1: 'Lunes', 2: 'Martes', 3: 'Miercoles', 4: 'Jueves', 5: 'Viernes' };
+
+        // --- HTML escape ---
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // --- Time validation ---
+        function isValidTime(str) {
+            return /^([01]\d|2[0-3]):([0-5]\d)$/.test(str);
+        }
+
+        // --- Normalize config (camelCase + PascalCase from server) ---
+        function normalizeConfig(raw) {
+            if (!raw) return {};
+            var cfg = {};
+            for (var key in raw) {
+                if (raw.hasOwnProperty(key)) {
+                    var camelKey = key.charAt(0).toLowerCase() + key.slice(1);
+                    cfg[key] = raw[key];
+                    cfg[camelKey] = raw[key];
+                }
+            }
+            // Ensure arrays exist
+            if (!cfg.scheduleEntries && !cfg.ScheduleEntries) { cfg.scheduleEntries = []; cfg.ScheduleEntries = []; }
+            return cfg;
+        }
+
+        // --- Build full config to send to server ---
+        function configToServer(cfg) {
+            var serverCfg = {};
+            for (var key in cfg) {
+                if (cfg.hasOwnProperty(key)) {
+                    var pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+                    serverCfg[key] = cfg[key];
+                    serverCfg[pascalKey] = cfg[key];
+                }
+            }
+            return serverCfg;
+        }
+
+        // --- Load plugin configuration ---
+        function loadConfig() {
+            Dashboard.showLoadingMsg();
+            ApiClient.getPluginConfiguration(RadioOnlinePluginId).then(function (raw) {
+                currentConfig = normalizeConfig(raw);
+                populateForm();
+                loadUsers();
+                loadPlaylists();
+                renderSchedule();
+                loadStatus();
+                Dashboard.hideLoadingMsg();
+            }).catch(function (error) {
+                console.error('[RadioOnline] Error loading config:', error);
+                Dashboard.hideLoadingMsg();
+                Dashboard.alert({ title: 'Error', message: 'No se pudo cargar la configuracion del plugin.' });
+            });
+        }
+
+        // --- Populate form from config ---
+        function populateForm() {
+            if (!currentConfig) return;
+            document.getElementById('icecastUrl').value = currentConfig.icecastUrl || currentConfig.IcecastUrl || '';
+            document.getElementById('icecastUsername').value = currentConfig.icecastUsername || currentConfig.IcecastUsername || 'source';
+            document.getElementById('icecastPassword').value = currentConfig.icecastPassword || currentConfig.IcecastPassword || '';
+            document.getElementById('icecastMountPoint').value = currentConfig.icecastMountPoint || currentConfig.IcecastMountPoint || '/radio';
+            document.getElementById('audioFormat').value = currentConfig.audioFormat || currentConfig.AudioFormat || 'ogg';
+            document.getElementById('audioBitrate').value = currentConfig.audioBitrate || currentConfig.AudioBitrate || 128;
+            document.getElementById('streamName').value = currentConfig.streamName || currentConfig.StreamName || '';
+            document.getElementById('streamDescription').value = currentConfig.streamDescription || currentConfig.StreamDescription || '';
+            document.getElementById('streamGenre').value = currentConfig.streamGenre || currentConfig.StreamGenre || '';
+            document.getElementById('streamPublic').checked = !!(currentConfig.streamPublic || currentConfig.StreamPublic);
+            document.getElementById('isEnabled').checked = !!(currentConfig.isEnabled || currentConfig.IsEnabled);
+            document.getElementById('jellyfinUserId').value = currentConfig.jellyfinUserId || currentConfig.JellyfinUserId || '';
+        }
+
+        // --- Read form into config ---
+        function readForm() {
+            if (!currentConfig) return;
+            currentConfig.icecastUrl = document.getElementById('icecastUrl').value.trim();
+            currentConfig.IcecastUrl = currentConfig.icecastUrl;
+            currentConfig.icecastUsername = document.getElementById('icecastUsername').value.trim() || 'source';
+            currentConfig.IcecastUsername = currentConfig.icecastUsername;
+            currentConfig.icecastPassword = document.getElementById('icecastPassword').value;
+            currentConfig.IcecastPassword = currentConfig.icecastPassword;
+            currentConfig.icecastMountPoint = document.getElementById('icecastMountPoint').value.trim() || '/radio';
+            currentConfig.IcecastMountPoint = currentConfig.icecastMountPoint;
+            currentConfig.audioFormat = document.getElementById('audioFormat').value;
+            currentConfig.AudioFormat = currentConfig.audioFormat;
+            currentConfig.audioBitrate = parseInt(document.getElementById('audioBitrate').value, 10) || 128;
+            currentConfig.AudioBitrate = currentConfig.audioBitrate;
+            currentConfig.streamName = document.getElementById('streamName').value.trim();
+            currentConfig.StreamName = currentConfig.streamName;
+            currentConfig.streamDescription = document.getElementById('streamDescription').value.trim();
+            currentConfig.StreamDescription = currentConfig.streamDescription;
+            currentConfig.streamGenre = document.getElementById('streamGenre').value.trim();
+            currentConfig.StreamGenre = currentConfig.streamGenre;
+            currentConfig.streamPublic = document.getElementById('streamPublic').checked;
+            currentConfig.StreamPublic = currentConfig.streamPublic;
+            currentConfig.isEnabled = document.getElementById('isEnabled').checked;
+            currentConfig.IsEnabled = currentConfig.isEnabled;
+            currentConfig.jellyfinUserId = document.getElementById('jellyfinUserId').value;
+            currentConfig.JellyfinUserId = currentConfig.jellyfinUserId;
+        }
+
+        // --- Save plugin configuration ---
+        function saveConfig() {
+            if (!currentConfig) return;
+            readForm();
+            Dashboard.showLoadingMsg();
+            var serverCfg = configToServer(currentConfig);
+            ApiClient.updatePluginConfiguration(RadioOnlinePluginId, serverCfg).then(function (result) {
+                Dashboard.hideLoadingMsg();
+                Dashboard.processPluginConfigurationUpdateResult(result);
+            }).catch(function (error) {
+                console.error('[RadioOnline] Error saving config:', error);
+                Dashboard.hideLoadingMsg();
+                Dashboard.alert({ title: 'Error', message: 'No se pudo guardar la configuracion.' });
+            });
+        }
+
+        // --- Load status ---
+        function loadStatus() {
+            var url = ApiClient.getUrl('Plugins/RadioOnline/Status');
+            fetch(url, { headers: ApiClient.getRequestHeaders() })
+                .then(function (r) { return r.json(); })
+                .then(function (status) { updateStatusUI(status); })
+                .catch(function () { updateStatusUI(null); });
+        }
+
+        // --- Update status UI ---
+        function updateStatusUI(status) {
+            var enabledEl = document.getElementById('statusEnabled');
+            var icecastEl = document.getElementById('statusIcecast');
+            var streamingEl = document.getElementById('statusStreaming');
+            var formatEl = document.getElementById('statusFormat');
+            var countEl = document.getElementById('statusScheduleCount');
+
+            if (status) {
+                enabledEl.innerHTML = status.isEnabled ? '<span class="statusActive">Activado</span>' : '<span class="statusInactive">Desactivado</span>';
+                icecastEl.textContent = status.icecastUrl ? 'Configurado' : 'Sin configurar';
+                icecastEl.style.color = status.icecastUrl ? '#52b54b' : '#888';
+                streamingEl.innerHTML = status.isStreaming ? '<span class="statusStreaming">En Vivo</span>' : '<span class="statusInactive">Inactivo</span>';
+                formatEl.textContent = (status.audioFormat || '--').toUpperCase() + ' / ' + (status.audioBitrate || '--') + 'kbps';
+                countEl.textContent = status.scheduleEntriesCount || 0;
+            } else {
+                enabledEl.innerHTML = '<span class="statusInactive">--</span>';
+                icecastEl.textContent = '--';
+                streamingEl.innerHTML = '<span class="statusInactive">--</span>';
+                formatEl.textContent = '--';
+                countEl.textContent = '--';
+            }
+        }
+
+        // --- Load users ---
+        function loadUsers() {
+            ApiClient.getUsers().then(function (users) {
+                var select = document.getElementById('jellyfinUserId');
+                while (select.options.length > 1) { select.remove(1); }
+                users.forEach(function (user) {
+                    var opt = document.createElement('option');
+                    opt.value = user.Id;
+                    opt.textContent = user.Name;
+                    select.appendChild(opt);
+                });
+                // Set selected user
+                var userId = currentConfig.jellyfinUserId || currentConfig.JellyfinUserId || '';
+                if (userId) { select.value = userId; }
+            }).catch(function (err) {
+                console.error('[RadioOnline] Error loading users:', err);
+            });
+        }
+
+        // --- Load playlists ---
+        function loadPlaylists() {
+            var url = ApiClient.getUrl('Plugins/RadioOnline/Playlists');
+            fetch(url, { headers: ApiClient.getRequestHeaders() })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    playlists = data || [];
+                    populatePlaylistSelect(playlists);
+                })
+                .catch(function (err) {
+                    console.error('[RadioOnline] Error loading playlists:', err);
+                });
+        }
+
+        // --- Populate playlist dropdown ---
+        function populatePlaylistSelect(items) {
+            var select = document.getElementById('newPlaylist');
+            while (select.options.length > 1) { select.remove(1); }
+            var noMsg = document.getElementById('noPlaylistsMsg');
+            if (items.length === 0) {
+                noMsg.style.display = 'block';
+            } else {
+                noMsg.style.display = 'none';
+                items.forEach(function (item) {
+                    var opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    select.appendChild(opt);
+                });
+            }
+            // Also update in-table selects
+            updateInTablePlaylistOptions(items);
+        }
+
+        // --- Update playlist options in table rows ---
+        function updateInTablePlaylistOptions(items) {
+            document.querySelectorAll('.tbl-playlist-select').forEach(function (sel) {
+                var currentVal = sel.value;
+                while (sel.options.length > 1) { sel.remove(1); }
+                items.forEach(function (item) {
+                    var opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    if (item.id === currentVal) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            });
+        }
+
+        // --- Build day options HTML ---
+        function buildDayOptions(selectedDay) {
+            var days = [
+                { value: 1, label: 'Lunes' }, { value: 2, label: 'Martes' },
+                { value: 3, label: 'Miercoles' }, { value: 4, label: 'Jueves' },
+                { value: 5, label: 'Viernes' }
+            ];
+            return days.map(function (d) {
+                return '<option value="' + d.value + '"' + (d.value === selectedDay ? ' selected' : '') + '>' + d.label + '</option>';
+            }).join('');
+        }
+
+        // --- Build playlist options HTML ---
+        function buildPlaylistOptionsHtml(selectedId) {
+            return playlists.map(function (p) {
+                return '<option value="' + p.id + '"' + (p.id === selectedId ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>';
+            }).join('');
+        }
+
+        // --- Render schedule ---
+        function renderSchedule() {
+            var entries = currentConfig.scheduleEntries || currentConfig.ScheduleEntries || [];
+            var body = document.getElementById('scheduleBody');
+            var table = document.getElementById('scheduleTable');
+            var emptyMsg = document.getElementById('emptyScheduleMsg');
+            var countEl = document.getElementById('statusScheduleCount');
+
+            body.innerHTML = '';
+
+            if (!entries || entries.length === 0) {
+                table.style.display = 'none';
+                emptyMsg.style.display = 'block';
+                countEl.textContent = '0';
+                return;
+            }
+
+            table.style.display = 'table';
+            emptyMsg.style.display = 'none';
+            countEl.textContent = String(entries.length);
+
+            // Sort by day then start time
+            var sorted = entries.map(function (e, i) { return { entry: e, index: i }; })
+                .sort(function (a, b) {
+                    var dA = a.entry.dayOfWeek !== undefined ? a.entry.dayOfWeek : (a.entry.DayOfWeek || 1);
+                    var dB = b.entry.dayOfWeek !== undefined ? b.entry.dayOfWeek : (b.entry.DayOfWeek || 1);
+                    if (dA !== dB) return dA - dB;
+                    var sA = a.entry.startTime || a.entry.StartTime || '00:00';
+                    var sB = b.entry.startTime || b.entry.StartTime || '00:00';
+                    return sA.localeCompare(sB);
+                });
+
+            sorted.forEach(function (item) {
+                var entry = item.entry;
+                var idx = item.index;
+                var day = entry.dayOfWeek !== undefined ? entry.dayOfWeek : entry.DayOfWeek;
+                var startTime = entry.startTime || entry.StartTime || '';
+                var endTime = entry.endTime || entry.EndTime || '';
+                var playlistId = entry.playlistId || entry.PlaylistId || '';
+                var displayName = entry.displayName || entry.DisplayName || '';
+                var isEnabled = entry.isEnabled !== undefined ? entry.isEnabled : (entry.IsEnabled !== undefined ? entry.IsEnabled : true);
+
+                var playlistName = '-- Musica Aleatoria --';
+                if (playlistId) {
+                    var found = playlists.find(function (p) { return p.id === playlistId; });
+                    playlistName = found ? found.name : playlistId;
+                }
+
+                var tr = document.createElement('tr');
+                if (!isEnabled) { tr.className = 'disabled-row'; }
+
+                tr.innerHTML =
+                    '<td>' + (idx + 1) + '</td>' +
+                    '<td><select class="tbl-day-select" data-idx="' + idx + '" data-field="dayOfWeek">' + buildDayOptions(day) + '</select></td>' +
+                    '<td><input type="text" value="' + escapeHtml(startTime) + '" class="tbl-time-input" data-idx="' + idx + '" data-field="startTime" placeholder="HH:mm" /></td>' +
+                    '<td><input type="text" value="' + escapeHtml(endTime) + '" class="tbl-time-input" data-idx="' + idx + '" data-field="endTime" placeholder="HH:mm" /></td>' +
+                    '<td><select class="tbl-playlist-select tbl-playlist" data-idx="' + idx + '" data-field="playlistId"><option value="">-- Musica Aleatoria --</option>' + buildPlaylistOptionsHtml(playlistId) + '</select></td>' +
+                    '<td><input type="text" value="' + escapeHtml(displayName) + '" class="tbl-name-input" data-idx="' + idx + '" data-field="displayName" /></td>' +
+                    '<td style="text-align:center;"><input type="checkbox" ' + (isEnabled ? 'checked' : '') + ' class="tbl-enabled-check" data-idx="' + idx + '" /></td>' +
+                    '<td><button type="button" is="emby-button" class="raised btn-danger tbl-remove-btn" data-idx="' + idx + '"><span>Borrar</span></button></td>';
+
+                body.appendChild(tr);
+            });
+        }
+
+        // --- Schedule management ---
+        function toggleAddForm() {
+            var form = document.getElementById('addScheduleForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+            hideValidationMsg();
+        }
+
+        function hideValidationMsg() {
+            document.getElementById('scheduleValidationMsg').style.display = 'none';
+        }
+
+        function showValidationMsg(msg) {
+            var el = document.getElementById('scheduleValidationMsg');
+            el.style.display = 'block';
+            el.textContent = msg;
+        }
+
+        function addScheduleEntry() {
+            hideValidationMsg();
+            var day = parseInt(document.getElementById('newDay').value, 10);
+            var startTime = document.getElementById('newStartTime').value.trim();
+            var endTime = document.getElementById('newEndTime').value.trim();
+            var playlistId = document.getElementById('newPlaylist').value;
+            var displayName = document.getElementById('newDisplayName').value.trim();
+
+            if (!startTime || !endTime) { showValidationMsg('Las horas de inicio y fin son requeridas (HH:mm).'); return; }
+            if (!isValidTime(startTime)) { showValidationMsg('Hora de inicio invalida. Usa formato HH:mm.'); return; }
+            if (!isValidTime(endTime)) { showValidationMsg('Hora de fin invalida. Usa formato HH:mm.'); return; }
+            if (startTime >= endTime) { showValidationMsg('La hora de fin debe ser despues de la hora de inicio.'); return; }
+
+            var name = displayName || (dayNames[day] + ' ' + startTime + '-' + endTime);
+
+            var entry = {
+                dayOfWeek: day, DayOfWeek: day,
+                startTime: startTime, StartTime: startTime,
+                endTime: endTime, EndTime: endTime,
+                playlistId: playlistId || '', PlaylistId: playlistId || '',
+                displayName: name, DisplayName: name,
+                isEnabled: true, IsEnabled: true
+            };
+
+            if (!currentConfig.scheduleEntries) currentConfig.scheduleEntries = [];
+            if (!currentConfig.ScheduleEntries) currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
+            currentConfig.scheduleEntries.push(entry);
+            currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
+
+            renderSchedule();
+            toggleAddForm();
+
+            // Clear form
+            document.getElementById('newStartTime').value = '';
+            document.getElementById('newEndTime').value = '';
+            document.getElementById('newDisplayName').value = '';
+            document.getElementById('newPlaylist').value = '';
+        }
+
+        // --- Event delegation for schedule table ---
+        document.getElementById('scheduleBody').addEventListener('change', function (e) {
+            var target = e.target;
+            var idx = parseInt(target.getAttribute('data-idx'), 10);
+            var field = target.getAttribute('data-field');
+            if (isNaN(idx) || !field || !currentConfig.scheduleEntries || !currentConfig.scheduleEntries[idx]) return;
+
+            var entry = currentConfig.scheduleEntries[idx];
+
+            if (field === 'dayOfWeek') {
+                var val = parseInt(target.value, 10);
+                entry.dayOfWeek = val;
+                entry.DayOfWeek = val;
+            } else if (field === 'playlistId') {
+                entry.playlistId = target.value;
+                entry.PlaylistId = target.value;
+            }
+
+            // Update dual keys
+            currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
+        });
+
+        document.getElementById('scheduleBody').addEventListener('input', function (e) {
+            var target = e.target;
+            var idx = parseInt(target.getAttribute('data-idx'), 10);
+            var field = target.getAttribute('data-field');
+            if (isNaN(idx) || !field || !currentConfig.scheduleEntries || !currentConfig.scheduleEntries[idx]) return;
+
+            var entry = currentConfig.scheduleEntries[idx];
+            var val = target.value;
+
+            if (field === 'startTime') { entry.startTime = val; entry.StartTime = val; }
+            else if (field === 'endTime') { entry.endTime = val; entry.EndTime = val; }
+            else if (field === 'displayName') { entry.displayName = val; entry.DisplayName = val; }
+
+            currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
+        });
+
+        document.getElementById('scheduleBody').addEventListener('click', function (e) {
+            var target = e.target;
+            // Remove button
+            var removeBtn = target.closest('.tbl-remove-btn');
+            if (removeBtn) {
+                var idx = parseInt(removeBtn.getAttribute('data-idx'), 10);
+                if (!isNaN(idx) && currentConfig.scheduleEntries) {
+                    currentConfig.scheduleEntries.splice(idx, 1);
+                    currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
+                    renderSchedule();
+                }
+                return;
+            }
+            // Enable checkbox
+            if (target.classList.contains('tbl-enabled-check')) {
+                var idx2 = parseInt(target.getAttribute('data-idx'), 10);
+                if (!isNaN(idx2) && currentConfig.scheduleEntries && currentConfig.scheduleEntries[idx2]) {
+                    var checked = target.checked;
+                    currentConfig.scheduleEntries[idx2].isEnabled = checked;
+                    currentConfig.scheduleEntries[idx2].IsEnabled = checked;
+                    currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
+                    renderSchedule();
+                }
+            }
+        });
+
+        // --- Static button event bindings ---
+        document.getElementById('btnSave').addEventListener('click', function () { saveConfig(); });
+        document.getElementById('btnReload').addEventListener('click', function () { loadConfig(); loadStatus(); });
+        document.getElementById('btnAddSchedule').addEventListener('click', function () { toggleAddForm(); });
+        document.getElementById('btnCancelSchedule').addEventListener('click', function () { toggleAddForm(); });
+        document.getElementById('btnSaveSchedule').addEventListener('click', function () { addScheduleEntry(); });
+
+        // --- Load config when page is shown ---
+        document.querySelector('#radioOnlineConfigPage').addEventListener('pageshow', function () {
+            loadConfig();
+        });
+
+    </script>
+</div>

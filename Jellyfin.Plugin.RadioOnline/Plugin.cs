@@ -66,14 +66,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                     "{0}.Configuration.configPage.html",
                     GetType().Namespace),
             },
-            new PluginPageInfo
-            {
-                Name = Name + "JS",
-                EmbeddedResourcePath = string.Format(
-                    CultureInfo.InvariantCulture,
-                    "{0}.Configuration.configPage.js",
-                    GetType().Namespace),
-            },
         ];
     }
 }
