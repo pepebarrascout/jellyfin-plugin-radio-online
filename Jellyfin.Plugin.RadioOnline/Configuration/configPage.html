@@ -208,30 +208,30 @@
 
             <div class="inputContainer">
                 <label class="inputLabel" for="icecastUrl">URL del Servidor</label>
-                <input type="text" id="icecastUrl" class="emby-input" is="emby-input" placeholder="http://tu-servidor:8000" />
+                <input type="text" id="icecastUrl" is="emby-input" placeholder="http://tu-servidor:8000" />
                 <div class="fieldDescription">URL completa del servidor Icecast (sin barra final). Ejemplo: http://192.168.1.100:8000</div>
             </div>
 
             <div class="inputContainer">
                 <label class="inputLabel" for="icecastUsername">Usuario</label>
-                <input type="text" id="icecastUsername" class="emby-input" is="emby-input" placeholder="source" />
+                <input type="text" id="icecastUsername" is="emby-input" placeholder="source" />
                 <div class="fieldDescription">Usuario de fuente Icecast (generalmente "source")</div>
             </div>
 
             <div class="inputContainer">
                 <label class="inputLabel" for="icecastPassword">Contrasena</label>
-                <input type="password" id="icecastPassword" class="emby-input" is="emby-input" />
+                <input type="password" id="icecastPassword" is="emby-input" />
             </div>
 
             <div class="inputContainer">
                 <label class="inputLabel" for="icecastMountPoint">Punto de Montaje</label>
-                <input type="text" id="icecastMountPoint" class="emby-input" is="emby-input" placeholder="/radio" />
+                <input type="text" id="icecastMountPoint" is="emby-input" placeholder="/radio" />
                 <div class="fieldDescription">Debe comenzar con /. Ejemplo: /radio, /stream</div>
             </div>
 
             <div class="selectContainer">
                 <label class="selectLabel" for="audioFormat">Formato de Audio</label>
-                <select id="audioFormat" class="emby-select" is="emby-select">
+                <select id="audioFormat" is="emby-select">
                     <option value="ogg">OGG (Vorbis)</option>
                     <option value="m4a">M4A (AAC)</option>
                 </select>
@@ -239,23 +239,23 @@
 
             <div class="inputContainer">
                 <label class="inputLabel" for="audioBitrate">Bitrate (kbps)</label>
-                <input type="number" id="audioBitrate" class="emby-input" is="emby-input" min="32" max="320" step="16" value="128" />
+                <input type="number" id="audioBitrate" is="emby-input" min="32" max="320" step="16" value="128" />
                 <div class="fieldDescription">Recomendado: 96-192 kbps</div>
             </div>
 
             <div class="inputContainer">
                 <label class="inputLabel" for="streamName">Nombre del Stream</label>
-                <input type="text" id="streamName" class="emby-input" is="emby-input" placeholder="Mi Radio" />
+                <input type="text" id="streamName" is="emby-input" placeholder="Mi Radio" />
             </div>
 
             <div class="inputContainer">
                 <label class="inputLabel" for="streamDescription">Descripcion del Stream</label>
-                <input type="text" id="streamDescription" class="emby-input" is="emby-input" placeholder="Radio automatizada por Jellyfin" />
+                <input type="text" id="streamDescription" is="emby-input" placeholder="Radio automatizada por Jellyfin" />
             </div>
 
             <div class="inputContainer">
                 <label class="inputLabel" for="streamGenre">Genero</label>
-                <input type="text" id="streamGenre" class="emby-input" is="emby-input" placeholder="Variado" />
+                <input type="text" id="streamGenre" is="emby-input" placeholder="Variado" />
             </div>
 
             <div class="checkboxContainer checkboxContainer-withDescription">
@@ -270,7 +270,7 @@
 
             <div class="selectContainer">
                 <label class="selectLabel" for="jellyfinUserId">Usuario de Biblioteca</label>
-                <select id="jellyfinUserId" class="emby-select" is="emby-select">
+                <select id="jellyfinUserId" is="emby-select">
                     <option value="">-- Seleccionar usuario --</option>
                 </select>
                 <div class="fieldDescription">Usuario con acceso a las bibliotecas de musica y playlists que se usaran en la programacion.</div>
@@ -322,7 +322,7 @@
 
                 <div class="selectContainer">
                     <label class="selectLabel" for="newDay">Dia</label>
-                    <select id="newDay" class="emby-select" is="emby-select">
+                    <select id="newDay" is="emby-select">
                         <option value="1">Lunes</option>
                         <option value="2">Martes</option>
                         <option value="3">Miercoles</option>
@@ -333,19 +333,19 @@
 
                 <div class="inputContainer">
                     <label class="inputLabel" for="newStartTime">Hora de Inicio</label>
-                    <input type="text" id="newStartTime" class="emby-input" is="emby-input" placeholder="08:00" />
+                    <input type="text" id="newStartTime" is="emby-input" placeholder="08:00" />
                     <div class="fieldDescription">Formato 24 horas (HH:mm)</div>
                 </div>
 
                 <div class="inputContainer">
                     <label class="inputLabel" for="newEndTime">Hora de Fin</label>
-                    <input type="text" id="newEndTime" class="emby-input" is="emby-input" placeholder="12:00" />
+                    <input type="text" id="newEndTime" is="emby-input" placeholder="12:00" />
                     <div class="fieldDescription">Formato 24 horas (HH:mm). Debe ser despues de la hora de inicio.</div>
                 </div>
 
                 <div class="selectContainer">
                     <label class="selectLabel" for="newPlaylist">Playlist</label>
-                    <select id="newPlaylist" class="emby-select" is="emby-select">
+                    <select id="newPlaylist" is="emby-select">
                         <option value="">-- Musica Aleatoria --</option>
                     </select>
                     <div id="noPlaylistsMsg" class="fieldDescription" style="color: #f5a623; display: none;">No se encontraron playlists. Crea playlists en Jellyfin primero.</div>
@@ -353,7 +353,7 @@
 
                 <div class="inputContainer">
                     <label class="inputLabel" for="newDisplayName">Nombre del Programa</label>
-                    <input type="text" id="newDisplayName" class="emby-input" is="emby-input" placeholder="Morning Show" />
+                    <input type="text" id="newDisplayName" is="emby-input" placeholder="Morning Show" />
                 </div>
 
                 <div id="scheduleValidationMsg" class="inlineMsg error" style="display: none;"></div>
@@ -381,7 +381,7 @@
     <script type="text/javascript">
 
         var RadioOnlinePluginId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-        var currentConfig = null;
+        var serverConfig = {};
         var playlists = [];
 
         // --- Enum display names ---
@@ -399,40 +399,26 @@
             return /^([01]\d|2[0-3]):([0-5]\d)$/.test(str);
         }
 
-        // --- Normalize config (camelCase + PascalCase from server) ---
-        function normalizeConfig(raw) {
-            if (!raw) return {};
-            var cfg = {};
-            for (var key in raw) {
-                if (raw.hasOwnProperty(key)) {
-                    var camelKey = key.charAt(0).toLowerCase() + key.slice(1);
-                    cfg[key] = raw[key];
-                    cfg[camelKey] = raw[key];
-                }
-            }
-            // Ensure arrays exist
-            if (!cfg.scheduleEntries && !cfg.ScheduleEntries) { cfg.scheduleEntries = []; cfg.ScheduleEntries = []; }
-            return cfg;
+        // --- Get a config value safely (supports both PascalCase and camelCase) ---
+        function cfgVal(key) {
+            if (serverConfig[key] !== undefined) return serverConfig[key];
+            var camel = key.charAt(0).toLowerCase() + key.slice(1);
+            if (serverConfig[camel] !== undefined) return serverConfig[camel];
+            return undefined;
         }
 
-        // --- Build full config to send to server ---
-        function configToServer(cfg) {
-            var serverCfg = {};
-            for (var key in cfg) {
-                if (cfg.hasOwnProperty(key)) {
-                    var pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
-                    serverCfg[key] = cfg[key];
-                    serverCfg[pascalKey] = cfg[key];
-                }
-            }
-            return serverCfg;
+        // --- Set a config value (both PascalCase and camelCase) ---
+        function cfgSet(key, value) {
+            serverConfig[key] = value;
+            var camel = key.charAt(0).toLowerCase() + key.slice(1);
+            serverConfig[camel] = value;
         }
 
         // --- Load plugin configuration ---
         function loadConfig() {
             Dashboard.showLoadingMsg();
-            ApiClient.getPluginConfiguration(RadioOnlinePluginId).then(function (raw) {
-                currentConfig = normalizeConfig(raw);
+            ApiClient.getPluginConfiguration(RadioOnlinePluginId).then(function (config) {
+                serverConfig = config || {};
                 populateForm();
                 loadUsers();
                 loadPlaylists();
@@ -448,57 +434,41 @@
 
         // --- Populate form from config ---
         function populateForm() {
-            if (!currentConfig) return;
-            document.getElementById('icecastUrl').value = currentConfig.icecastUrl || currentConfig.IcecastUrl || '';
-            document.getElementById('icecastUsername').value = currentConfig.icecastUsername || currentConfig.IcecastUsername || 'source';
-            document.getElementById('icecastPassword').value = currentConfig.icecastPassword || currentConfig.IcecastPassword || '';
-            document.getElementById('icecastMountPoint').value = currentConfig.icecastMountPoint || currentConfig.IcecastMountPoint || '/radio';
-            document.getElementById('audioFormat').value = currentConfig.audioFormat || currentConfig.AudioFormat || 'ogg';
-            document.getElementById('audioBitrate').value = currentConfig.audioBitrate || currentConfig.AudioBitrate || 128;
-            document.getElementById('streamName').value = currentConfig.streamName || currentConfig.StreamName || '';
-            document.getElementById('streamDescription').value = currentConfig.streamDescription || currentConfig.StreamDescription || '';
-            document.getElementById('streamGenre').value = currentConfig.streamGenre || currentConfig.StreamGenre || '';
-            document.getElementById('streamPublic').checked = !!(currentConfig.streamPublic || currentConfig.StreamPublic);
-            document.getElementById('isEnabled').checked = !!(currentConfig.isEnabled || currentConfig.IsEnabled);
-            document.getElementById('jellyfinUserId').value = currentConfig.jellyfinUserId || currentConfig.JellyfinUserId || '';
+            document.getElementById('icecastUrl').value = cfgVal('IcecastUrl') || '';
+            document.getElementById('icecastUsername').value = cfgVal('IcecastUsername') || 'source';
+            document.getElementById('icecastPassword').value = cfgVal('IcecastPassword') || '';
+            document.getElementById('icecastMountPoint').value = cfgVal('IcecastMountPoint') || '/radio';
+            document.getElementById('audioFormat').value = cfgVal('AudioFormat') || 'ogg';
+            document.getElementById('audioBitrate').value = cfgVal('AudioBitrate') || 128;
+            document.getElementById('streamName').value = cfgVal('StreamName') || '';
+            document.getElementById('streamDescription').value = cfgVal('StreamDescription') || '';
+            document.getElementById('streamGenre').value = cfgVal('StreamGenre') || '';
+            document.getElementById('streamPublic').checked = !!(cfgVal('StreamPublic'));
+            document.getElementById('isEnabled').checked = !!(cfgVal('IsEnabled'));
+            document.getElementById('jellyfinUserId').value = cfgVal('JellyfinUserId') || '';
         }
 
         // --- Read form into config ---
         function readForm() {
-            if (!currentConfig) return;
-            currentConfig.icecastUrl = document.getElementById('icecastUrl').value.trim();
-            currentConfig.IcecastUrl = currentConfig.icecastUrl;
-            currentConfig.icecastUsername = document.getElementById('icecastUsername').value.trim() || 'source';
-            currentConfig.IcecastUsername = currentConfig.icecastUsername;
-            currentConfig.icecastPassword = document.getElementById('icecastPassword').value;
-            currentConfig.IcecastPassword = currentConfig.icecastPassword;
-            currentConfig.icecastMountPoint = document.getElementById('icecastMountPoint').value.trim() || '/radio';
-            currentConfig.IcecastMountPoint = currentConfig.icecastMountPoint;
-            currentConfig.audioFormat = document.getElementById('audioFormat').value;
-            currentConfig.AudioFormat = currentConfig.audioFormat;
-            currentConfig.audioBitrate = parseInt(document.getElementById('audioBitrate').value, 10) || 128;
-            currentConfig.AudioBitrate = currentConfig.audioBitrate;
-            currentConfig.streamName = document.getElementById('streamName').value.trim();
-            currentConfig.StreamName = currentConfig.streamName;
-            currentConfig.streamDescription = document.getElementById('streamDescription').value.trim();
-            currentConfig.StreamDescription = currentConfig.streamDescription;
-            currentConfig.streamGenre = document.getElementById('streamGenre').value.trim();
-            currentConfig.StreamGenre = currentConfig.streamGenre;
-            currentConfig.streamPublic = document.getElementById('streamPublic').checked;
-            currentConfig.StreamPublic = currentConfig.streamPublic;
-            currentConfig.isEnabled = document.getElementById('isEnabled').checked;
-            currentConfig.IsEnabled = currentConfig.isEnabled;
-            currentConfig.jellyfinUserId = document.getElementById('jellyfinUserId').value;
-            currentConfig.JellyfinUserId = currentConfig.jellyfinUserId;
+            cfgSet('IcecastUrl', document.getElementById('icecastUrl').value.trim());
+            cfgSet('IcecastUsername', document.getElementById('icecastUsername').value.trim() || 'source');
+            cfgSet('IcecastPassword', document.getElementById('icecastPassword').value);
+            cfgSet('IcecastMountPoint', document.getElementById('icecastMountPoint').value.trim() || '/radio');
+            cfgSet('AudioFormat', document.getElementById('audioFormat').value);
+            cfgSet('AudioBitrate', parseInt(document.getElementById('audioBitrate').value, 10) || 128);
+            cfgSet('StreamName', document.getElementById('streamName').value.trim());
+            cfgSet('StreamDescription', document.getElementById('streamDescription').value.trim());
+            cfgSet('StreamGenre', document.getElementById('streamGenre').value.trim());
+            cfgSet('StreamPublic', document.getElementById('streamPublic').checked);
+            cfgSet('IsEnabled', document.getElementById('isEnabled').checked);
+            cfgSet('JellyfinUserId', document.getElementById('jellyfinUserId').value);
         }
 
         // --- Save plugin configuration ---
         function saveConfig() {
-            if (!currentConfig) return;
             readForm();
             Dashboard.showLoadingMsg();
-            var serverCfg = configToServer(currentConfig);
-            ApiClient.updatePluginConfiguration(RadioOnlinePluginId, serverCfg).then(function (result) {
+            ApiClient.updatePluginConfiguration(RadioOnlinePluginId, serverConfig).then(function (result) {
                 Dashboard.hideLoadingMsg();
                 Dashboard.processPluginConfigurationUpdateResult(result);
             }).catch(function (error) {
@@ -511,10 +481,12 @@
         // --- Load status ---
         function loadStatus() {
             var url = ApiClient.getUrl('Plugins/RadioOnline/Status');
-            fetch(url, { headers: ApiClient.getRequestHeaders() })
-                .then(function (r) { return r.json(); })
-                .then(function (status) { updateStatusUI(status); })
-                .catch(function () { updateStatusUI(null); });
+            fetch(url, {
+                headers: { 'X-Emby-Token': ApiClient.accessToken() }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (status) { updateStatusUI(status); })
+            .catch(function () { updateStatusUI(null); });
         }
 
         // --- Update status UI ---
@@ -552,8 +524,7 @@
                     opt.textContent = user.Name;
                     select.appendChild(opt);
                 });
-                // Set selected user
-                var userId = currentConfig.jellyfinUserId || currentConfig.JellyfinUserId || '';
+                var userId = cfgVal('JellyfinUserId') || '';
                 if (userId) { select.value = userId; }
             }).catch(function (err) {
                 console.error('[RadioOnline] Error loading users:', err);
@@ -563,15 +534,17 @@
         // --- Load playlists ---
         function loadPlaylists() {
             var url = ApiClient.getUrl('Plugins/RadioOnline/Playlists');
-            fetch(url, { headers: ApiClient.getRequestHeaders() })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    playlists = data || [];
-                    populatePlaylistSelect(playlists);
-                })
-                .catch(function (err) {
-                    console.error('[RadioOnline] Error loading playlists:', err);
-                });
+            fetch(url, {
+                headers: { 'X-Emby-Token': ApiClient.accessToken() }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                playlists = data || [];
+                populatePlaylistSelect(playlists);
+            })
+            .catch(function (err) {
+                console.error('[RadioOnline] Error loading playlists:', err);
+            });
         }
 
         // --- Populate playlist dropdown ---
@@ -590,23 +563,24 @@
                     select.appendChild(opt);
                 });
             }
-            // Also update in-table selects
             updateInTablePlaylistOptions(items);
         }
 
         // --- Update playlist options in table rows ---
         function updateInTablePlaylistOptions(items) {
-            document.querySelectorAll('.tbl-playlist-select').forEach(function (sel) {
+            var selects = document.querySelectorAll('.tbl-playlist-select');
+            for (var i = 0; i < selects.length; i++) {
+                var sel = selects[i];
                 var currentVal = sel.value;
                 while (sel.options.length > 1) { sel.remove(1); }
-                items.forEach(function (item) {
+                for (var j = 0; j < items.length; j++) {
                     var opt = document.createElement('option');
-                    opt.value = item.id;
-                    opt.textContent = item.name;
-                    if (item.id === currentVal) opt.selected = true;
+                    opt.value = items[j].id;
+                    opt.textContent = items[j].name;
+                    if (items[j].id === currentVal) opt.selected = true;
                     sel.appendChild(opt);
-                });
-            });
+                }
+            }
         }
 
         // --- Build day options HTML ---
@@ -616,21 +590,37 @@
                 { value: 3, label: 'Miercoles' }, { value: 4, label: 'Jueves' },
                 { value: 5, label: 'Viernes' }
             ];
-            return days.map(function (d) {
-                return '<option value="' + d.value + '"' + (d.value === selectedDay ? ' selected' : '') + '>' + d.label + '</option>';
-            }).join('');
+            var html = '';
+            for (var i = 0; i < days.length; i++) {
+                var d = days[i];
+                html += '<option value="' + d.value + '"' + (d.value === selectedDay ? ' selected' : '') + '>' + d.label + '</option>';
+            }
+            return html;
         }
 
         // --- Build playlist options HTML ---
         function buildPlaylistOptionsHtml(selectedId) {
-            return playlists.map(function (p) {
-                return '<option value="' + p.id + '"' + (p.id === selectedId ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>';
-            }).join('');
+            var html = '';
+            for (var i = 0; i < playlists.length; i++) {
+                var p = playlists[i];
+                html += '<option value="' + p.id + '"' + (p.id === selectedId ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>';
+            }
+            return html;
+        }
+
+        // --- Get schedule entries ---
+        function getScheduleEntries() {
+            return cfgVal('ScheduleEntries') || [];
+        }
+
+        // --- Set schedule entries ---
+        function setScheduleEntries(entries) {
+            cfgSet('ScheduleEntries', entries);
         }
 
         // --- Render schedule ---
         function renderSchedule() {
-            var entries = currentConfig.scheduleEntries || currentConfig.ScheduleEntries || [];
+            var entries = getScheduleEntries();
             var body = document.getElementById('scheduleBody');
             var table = document.getElementById('scheduleTable');
             var emptyMsg = document.getElementById('emptyScheduleMsg');
@@ -650,47 +640,45 @@
             countEl.textContent = String(entries.length);
 
             // Sort by day then start time
-            var sorted = entries.map(function (e, i) { return { entry: e, index: i }; })
-                .sort(function (a, b) {
-                    var dA = a.entry.dayOfWeek !== undefined ? a.entry.dayOfWeek : (a.entry.DayOfWeek || 1);
-                    var dB = b.entry.dayOfWeek !== undefined ? b.entry.dayOfWeek : (b.entry.DayOfWeek || 1);
-                    if (dA !== dB) return dA - dB;
-                    var sA = a.entry.startTime || a.entry.StartTime || '00:00';
-                    var sB = b.entry.startTime || b.entry.StartTime || '00:00';
-                    return sA.localeCompare(sB);
-                });
+            var sorted = [];
+            for (var i = 0; i < entries.length; i++) {
+                sorted.push({ entry: entries[i], index: i });
+            }
+            sorted.sort(function (a, b) {
+                var dA = a.entry.DayOfWeek !== undefined ? a.entry.DayOfWeek : (a.entry.dayOfWeek || 1);
+                var dB = b.entry.DayOfWeek !== undefined ? b.entry.DayOfWeek : (b.entry.dayOfWeek || 1);
+                if (dA !== dB) return dA - dB;
+                var sA = a.entry.StartTime || a.entry.startTime || '00:00';
+                var sB = b.entry.StartTime || b.entry.startTime || '00:00';
+                return sA.localeCompare(sB);
+            });
 
-            sorted.forEach(function (item) {
+            for (var s = 0; s < sorted.length; s++) {
+                var item = sorted[s];
                 var entry = item.entry;
                 var idx = item.index;
-                var day = entry.dayOfWeek !== undefined ? entry.dayOfWeek : entry.DayOfWeek;
-                var startTime = entry.startTime || entry.StartTime || '';
-                var endTime = entry.endTime || entry.EndTime || '';
-                var playlistId = entry.playlistId || entry.PlaylistId || '';
-                var displayName = entry.displayName || entry.DisplayName || '';
-                var isEnabled = entry.isEnabled !== undefined ? entry.isEnabled : (entry.IsEnabled !== undefined ? entry.IsEnabled : true);
-
-                var playlistName = '-- Musica Aleatoria --';
-                if (playlistId) {
-                    var found = playlists.find(function (p) { return p.id === playlistId; });
-                    playlistName = found ? found.name : playlistId;
-                }
+                var day = entry.DayOfWeek !== undefined ? entry.DayOfWeek : entry.dayOfWeek;
+                var startTime = entry.StartTime || entry.startTime || '';
+                var endTime = entry.EndTime || entry.endTime || '';
+                var playlistId = entry.PlaylistId || entry.playlistId || '';
+                var displayName = entry.DisplayName || entry.displayName || '';
+                var isEnabled = entry.IsEnabled !== undefined ? entry.IsEnabled : (entry.isEnabled !== undefined ? entry.isEnabled : true);
 
                 var tr = document.createElement('tr');
                 if (!isEnabled) { tr.className = 'disabled-row'; }
 
                 tr.innerHTML =
                     '<td>' + (idx + 1) + '</td>' +
-                    '<td><select class="tbl-day-select" data-idx="' + idx + '" data-field="dayOfWeek">' + buildDayOptions(day) + '</select></td>' +
-                    '<td><input type="text" value="' + escapeHtml(startTime) + '" class="tbl-time-input" data-idx="' + idx + '" data-field="startTime" placeholder="HH:mm" /></td>' +
-                    '<td><input type="text" value="' + escapeHtml(endTime) + '" class="tbl-time-input" data-idx="' + idx + '" data-field="endTime" placeholder="HH:mm" /></td>' +
-                    '<td><select class="tbl-playlist-select tbl-playlist" data-idx="' + idx + '" data-field="playlistId"><option value="">-- Musica Aleatoria --</option>' + buildPlaylistOptionsHtml(playlistId) + '</select></td>' +
-                    '<td><input type="text" value="' + escapeHtml(displayName) + '" class="tbl-name-input" data-idx="' + idx + '" data-field="displayName" /></td>' +
+                    '<td><select class="tbl-day-select" data-idx="' + idx + '" data-field="DayOfWeek">' + buildDayOptions(day) + '</select></td>' +
+                    '<td><input type="text" value="' + escapeHtml(startTime) + '" class="tbl-time-input" data-idx="' + idx + '" data-field="StartTime" placeholder="HH:mm" /></td>' +
+                    '<td><input type="text" value="' + escapeHtml(endTime) + '" class="tbl-time-input" data-idx="' + idx + '" data-field="EndTime" placeholder="HH:mm" /></td>' +
+                    '<td><select class="tbl-playlist-select tbl-playlist" data-idx="' + idx + '" data-field="PlaylistId"><option value="">-- Musica Aleatoria --</option>' + buildPlaylistOptionsHtml(playlistId) + '</select></td>' +
+                    '<td><input type="text" value="' + escapeHtml(displayName) + '" class="tbl-name-input" data-idx="' + idx + '" data-field="DisplayName" /></td>' +
                     '<td style="text-align:center;"><input type="checkbox" ' + (isEnabled ? 'checked' : '') + ' class="tbl-enabled-check" data-idx="' + idx + '" /></td>' +
                     '<td><button type="button" is="emby-button" class="raised btn-danger tbl-remove-btn" data-idx="' + idx + '"><span>Borrar</span></button></td>';
 
                 body.appendChild(tr);
-            });
+            }
         }
 
         // --- Schedule management ---
@@ -726,18 +714,17 @@
             var name = displayName || (dayNames[day] + ' ' + startTime + '-' + endTime);
 
             var entry = {
-                dayOfWeek: day, DayOfWeek: day,
-                startTime: startTime, StartTime: startTime,
-                endTime: endTime, EndTime: endTime,
-                playlistId: playlistId || '', PlaylistId: playlistId || '',
-                displayName: name, DisplayName: name,
-                isEnabled: true, IsEnabled: true
+                DayOfWeek: day, dayOfWeek: day,
+                StartTime: startTime, startTime: startTime,
+                EndTime: endTime, endTime: endTime,
+                PlaylistId: playlistId || '', playlistId: playlistId || '',
+                DisplayName: name, displayName: name,
+                IsEnabled: true, isEnabled: true
             };
 
-            if (!currentConfig.scheduleEntries) currentConfig.scheduleEntries = [];
-            if (!currentConfig.ScheduleEntries) currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
-            currentConfig.scheduleEntries.push(entry);
-            currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
+            var entries = getScheduleEntries();
+            entries.push(entry);
+            setScheduleEntries(entries);
 
             renderSchedule();
             toggleAddForm();
@@ -749,79 +736,89 @@
             document.getElementById('newPlaylist').value = '';
         }
 
-        // --- Event delegation for schedule table ---
-        document.getElementById('scheduleBody').addEventListener('change', function (e) {
-            var target = e.target;
-            var idx = parseInt(target.getAttribute('data-idx'), 10);
-            var field = target.getAttribute('data-field');
-            if (isNaN(idx) || !field || !currentConfig.scheduleEntries || !currentConfig.scheduleEntries[idx]) return;
+        // --- Bind all events (called once on page init) ---
+        function bindEvents() {
+            // Schedule table: change events (selects)
+            document.getElementById('scheduleBody').addEventListener('change', function (e) {
+                var target = e.target;
+                var idx = parseInt(target.getAttribute('data-idx'), 10);
+                var field = target.getAttribute('data-field');
+                if (isNaN(idx) || !field) return;
 
-            var entry = currentConfig.scheduleEntries[idx];
+                var entries = getScheduleEntries();
+                if (!entries[idx]) return;
+                var entry = entries[idx];
 
-            if (field === 'dayOfWeek') {
-                var val = parseInt(target.value, 10);
-                entry.dayOfWeek = val;
-                entry.DayOfWeek = val;
-            } else if (field === 'playlistId') {
-                entry.playlistId = target.value;
-                entry.PlaylistId = target.value;
-            }
-
-            // Update dual keys
-            currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
-        });
-
-        document.getElementById('scheduleBody').addEventListener('input', function (e) {
-            var target = e.target;
-            var idx = parseInt(target.getAttribute('data-idx'), 10);
-            var field = target.getAttribute('data-field');
-            if (isNaN(idx) || !field || !currentConfig.scheduleEntries || !currentConfig.scheduleEntries[idx]) return;
-
-            var entry = currentConfig.scheduleEntries[idx];
-            var val = target.value;
-
-            if (field === 'startTime') { entry.startTime = val; entry.StartTime = val; }
-            else if (field === 'endTime') { entry.endTime = val; entry.EndTime = val; }
-            else if (field === 'displayName') { entry.displayName = val; entry.DisplayName = val; }
-
-            currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
-        });
-
-        document.getElementById('scheduleBody').addEventListener('click', function (e) {
-            var target = e.target;
-            // Remove button
-            var removeBtn = target.closest('.tbl-remove-btn');
-            if (removeBtn) {
-                var idx = parseInt(removeBtn.getAttribute('data-idx'), 10);
-                if (!isNaN(idx) && currentConfig.scheduleEntries) {
-                    currentConfig.scheduleEntries.splice(idx, 1);
-                    currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
-                    renderSchedule();
+                if (field === 'DayOfWeek') {
+                    var val = parseInt(target.value, 10);
+                    entry.DayOfWeek = val;
+                    entry.dayOfWeek = val;
+                } else if (field === 'PlaylistId') {
+                    entry.PlaylistId = target.value;
+                    entry.playlistId = target.value;
                 }
-                return;
-            }
-            // Enable checkbox
-            if (target.classList.contains('tbl-enabled-check')) {
-                var idx2 = parseInt(target.getAttribute('data-idx'), 10);
-                if (!isNaN(idx2) && currentConfig.scheduleEntries && currentConfig.scheduleEntries[idx2]) {
-                    var checked = target.checked;
-                    currentConfig.scheduleEntries[idx2].isEnabled = checked;
-                    currentConfig.scheduleEntries[idx2].IsEnabled = checked;
-                    currentConfig.ScheduleEntries = currentConfig.scheduleEntries;
-                    renderSchedule();
+                setScheduleEntries(entries);
+            });
+
+            // Schedule table: input events (text inputs)
+            document.getElementById('scheduleBody').addEventListener('input', function (e) {
+                var target = e.target;
+                var idx = parseInt(target.getAttribute('data-idx'), 10);
+                var field = target.getAttribute('data-field');
+                if (isNaN(idx) || !field) return;
+
+                var entries = getScheduleEntries();
+                if (!entries[idx]) return;
+                var entry = entries[idx];
+
+                if (field === 'StartTime') { entry.StartTime = target.value; entry.startTime = target.value; }
+                else if (field === 'EndTime') { entry.EndTime = target.value; entry.endTime = target.value; }
+                else if (field === 'DisplayName') { entry.DisplayName = target.value; entry.displayName = target.value; }
+
+                setScheduleEntries(entries);
+            });
+
+            // Schedule table: click events (remove button, enable checkbox)
+            document.getElementById('scheduleBody').addEventListener('click', function (e) {
+                var target = e.target;
+                // Remove button
+                var removeBtn = target.closest('.tbl-remove-btn');
+                if (removeBtn) {
+                    var idx = parseInt(removeBtn.getAttribute('data-idx'), 10);
+                    if (!isNaN(idx)) {
+                        var entries = getScheduleEntries();
+                        entries.splice(idx, 1);
+                        setScheduleEntries(entries);
+                        renderSchedule();
+                    }
+                    return;
                 }
-            }
-        });
+                // Enable checkbox
+                if (target.classList && target.classList.contains('tbl-enabled-check')) {
+                    var idx2 = parseInt(target.getAttribute('data-idx'), 10);
+                    if (!isNaN(idx2)) {
+                        var entries = getScheduleEntries();
+                        if (entries[idx2]) {
+                            entries[idx2].IsEnabled = target.checked;
+                            entries[idx2].isEnabled = target.checked;
+                            setScheduleEntries(entries);
+                            renderSchedule();
+                        }
+                    }
+                }
+            });
 
-        // --- Static button event bindings ---
-        document.getElementById('btnSave').addEventListener('click', function () { saveConfig(); });
-        document.getElementById('btnReload').addEventListener('click', function () { loadConfig(); loadStatus(); });
-        document.getElementById('btnAddSchedule').addEventListener('click', function () { toggleAddForm(); });
-        document.getElementById('btnCancelSchedule').addEventListener('click', function () { toggleAddForm(); });
-        document.getElementById('btnSaveSchedule').addEventListener('click', function () { addScheduleEntry(); });
+            // Static buttons
+            document.getElementById('btnSave').addEventListener('click', function () { saveConfig(); });
+            document.getElementById('btnReload').addEventListener('click', function () { loadConfig(); });
+            document.getElementById('btnAddSchedule').addEventListener('click', function () { toggleAddForm(); });
+            document.getElementById('btnCancelSchedule').addEventListener('click', function () { toggleAddForm(); });
+            document.getElementById('btnSaveSchedule').addEventListener('click', function () { addScheduleEntry(); });
+        }
 
-        // --- Load config when page is shown ---
+        // --- Initialize on pageshow ---
         document.querySelector('#radioOnlineConfigPage').addEventListener('pageshow', function () {
+            bindEvents();
             loadConfig();
         });
 

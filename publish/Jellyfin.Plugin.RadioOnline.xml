@@ -1,0 +1,498 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Jellyfin.Plugin.RadioOnline</name>
+    </assembly>
+    <members>
+        <member name="T:Jellyfin.Plugin.RadioOnline.Api.RadioOnlineController">
+            <summary>
+            API controller for the Radio Online plugin.
+            Provides endpoints for managing the radio streaming configuration,
+            schedule entries, and runtime status.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Api.RadioOnlineController.#ctor(Jellyfin.Plugin.RadioOnline.Services.AudioProviderService,Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.RadioOnline.Api.RadioOnlineController"/> class.
+            </summary>
+            <param name="audioProvider">The audio provider service.</param>
+            <param name="icecastService">The Icecast streaming service.</param>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Api.RadioOnlineController.GetStatus">
+            <summary>
+            Gets the current streaming status.
+            </summary>
+            <returns>The current streaming status.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Api.RadioOnlineController.GetPlaylists">
+            <summary>
+            Gets all available playlists from Jellyfin.
+            </summary>
+            <returns>A list of playlist IDs and names.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Api.RadioOnlineController.ValidateSchedule(Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry)">
+            <summary>
+            Validates a schedule entry.
+            </summary>
+            <param name="entry">The schedule entry to validate.</param>
+            <returns>A list of validation errors (empty if valid).</returns>
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration">
+            <summary>
+            Configuration model for the Radio Online plugin.
+            Contains Icecast server settings and weekly schedule programming.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.IcecastUrl">
+            <summary>
+            Gets or sets the Icecast server URL (e.g., http://your-server:8000).
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.IcecastUsername">
+            <summary>
+            Gets or sets the Icecast source username (typically "source").
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.IcecastPassword">
+            <summary>
+            Gets or sets the Icecast source password.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.IcecastMountPoint">
+            <summary>
+            Gets or sets the Icecast mount point (e.g., /radio or /stream).
+            Must start with a forward slash.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.AudioFormat">
+            <summary>
+            Gets or sets the audio format to send to Icecast.
+            Supported values: "m4a" (AAC in MPEG-4 container) or "ogg" (Ogg Vorbis/Opus).
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.AudioBitrate">
+            <summary>
+            Gets or sets the audio bitrate in kbps.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.StreamName">
+            <summary>
+            Gets or sets the stream name metadata sent to Icecast listeners.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.StreamDescription">
+            <summary>
+            Gets or sets the stream description metadata sent to Icecast listeners.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.StreamGenre">
+            <summary>
+            Gets or sets the stream genre metadata sent to Icecast listeners.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.StreamPublic">
+            <summary>
+            Gets or sets the public flag for the Icecast stream (true = listed in directory).
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.IsEnabled">
+            <summary>
+            Gets or sets whether the radio automation is enabled.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.ScheduleEntries">
+            <summary>
+            Gets or sets the weekly schedule entries.
+            Each entry maps a specific day and time slot to a playlist.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.JellyfinUserId">
+            <summary>
+            Gets or sets the Jellyfin user ID used for library access.
+            This user must have access to all relevant media libraries.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration.RandomFillLimit">
+            <summary>
+            Gets or sets the maximum number of random songs to queue when filling
+            unscheduled time slots or when a playlist ends before the time slot.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry">
+            <summary>
+            Represents a single schedule entry in the weekly radio programming.
+            Maps a specific day-of-week and time slot to a Jellyfin playlist.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry.DayOfWeek">
+            <summary>
+            Gets or sets the day of the week (Monday through Friday).
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry.StartTime">
+            <summary>
+            Gets or sets the start time of the schedule slot in "HH:mm" format (24-hour).
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry.EndTime">
+            <summary>
+            Gets or sets the end time of the schedule slot in "HH:mm" format (24-hour).
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry.PlaylistId">
+            <summary>
+            Gets or sets the Jellyfin playlist ID to play during this slot.
+            If empty or null, random music from the library will be used instead.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry.DisplayName">
+            <summary>
+            Gets or sets a friendly display name for this schedule entry.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry.IsEnabled">
+            <summary>
+            Gets or sets whether this schedule entry is active.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry.GetStartTimeSpan">
+            <summary>
+            Parses the StartTime string into a TimeSpan.
+            </summary>
+            <returns>The parsed TimeSpan, or TimeSpan.Zero if parsing fails.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry.GetEndTimeSpan">
+            <summary>
+            Parses the EndTime string into a TimeSpan.
+            </summary>
+            <returns>The parsed TimeSpan, or TimeSpan.FromHours(23.9833) if parsing fails.</returns>
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.Plugin">
+            <summary>
+            Main entry point for the Jellyfin Radio Online plugin.
+            Provides automated online radio streaming to Icecast servers with
+            weekly playlist scheduling capabilities.
+            </summary>
+        </member>
+        <member name="F:Jellyfin.Plugin.RadioOnline.Plugin.PluginGuid">
+            <summary>
+            The unique identifier for this plugin.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Plugin.Instance">
+            <summary>
+            Singleton instance of the plugin for access by services.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Plugin.#ctor(MediaBrowser.Common.Configuration.IApplicationPaths,MediaBrowser.Model.Serialization.IXmlSerializer)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.RadioOnline.Plugin"/> class.
+            </summary>
+            <param name="applicationPaths">The application paths service.</param>
+            <param name="xmlSerializer">The XML serialization service.</param>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Plugin.Name">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Plugin.Id">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Plugin.Description">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Plugin.GetPages">
+            <summary>
+            Gets the plugin web pages (configuration dashboard).
+            </summary>
+            <returns>An enumerable of plugin page info objects.</returns>
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask">
+            <summary>
+            Scheduled task for the Radio Online plugin.
+            Provides dashboard visibility and manual trigger capability for the radio streaming service.
+            This task primarily serves as a health check and status reporter for the radio automation.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask},MediaBrowser.Model.Globalization.ILocalizationManager)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask"/> class.
+            </summary>
+            <param name="logger">The logger instance.</param>
+            <param name="localizationManager">The localization manager.</param>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.Name">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.Key">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.Description">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.Category">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.IsHidden">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.IsEnabled">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.IsLogged">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.ExecuteAsync(System.IProgress{System.Double},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.ScheduledTasks.RadioSchedulerTask.GetDefaultTriggers">
+            <inheritdoc />
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.ServiceRegistrator">
+            <summary>
+            Registers services for the Radio Online plugin with Jellyfin's DI container.
+            This class is automatically discovered by Jellyfin via reflection.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.ServiceRegistrator.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,MediaBrowser.Controller.IServerApplicationHost)">
+            <summary>
+            Registers all plugin services, scheduled tasks, and hosted services.
+            </summary>
+            <param name="serviceCollection">The service collection to register services with.</param>
+            <param name="applicationHost">The server application host.</param>
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService">
+            <summary>
+            Provides audio items from Jellyfin's library and playlists.
+            Handles retrieving playlist items, random music selection, and item metadata.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.RadioOnline.Services.AudioProviderService},MediaBrowser.Controller.Library.ILibraryManager,MediaBrowser.Controller.Playlists.IPlaylistManager,MediaBrowser.Controller.Library.IUserManager)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService"/> class.
+            </summary>
+            <param name="logger">The logger instance.</param>
+            <param name="libraryManager">The Jellyfin library manager.</param>
+            <param name="playlistManager">The Jellyfin playlist manager.</param>
+            <param name="userManager">The Jellyfin user manager.</param>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.GetPlaylistItems(System.String,System.String)">
+            <summary>
+            Gets all audio items from a specific playlist.
+            </summary>
+            <param name="playlistId">The GUID of the playlist.</param>
+            <param name="userId">The user ID for access validation.</param>
+            <returns>An ordered list of audio items from the playlist, or an empty list if not found.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.GetRandomMusic(System.String,System.Int32)">
+            <summary>
+            Gets a shuffled list of random audio items from the entire Jellyfin library.
+            </summary>
+            <param name="userId">The user ID for library access.</param>
+            <param name="maxItems">Maximum number of items to return.</param>
+            <returns>A shuffled list of random audio items.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.GetAvailablePlaylists(System.String)">
+            <summary>
+            Gets all available playlists in Jellyfin for a user.
+            </summary>
+            <param name="userId">The user ID for access validation.</param>
+            <returns>A list of playlist info tuples (id, name).</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.CalculateTotalDuration(System.Collections.Generic.List{MediaBrowser.Controller.Entities.Audio.Audio})">
+            <summary>
+            Calculates the total duration of a list of audio items.
+            </summary>
+            <param name="audioItems">The audio items to calculate duration for.</param>
+            <returns>The total duration as a TimeSpan.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.ShuffleItems(System.Collections.Generic.List{MediaBrowser.Controller.Entities.Audio.Audio})">
+            <summary>
+            Shuffles a list of audio items using Fisher-Yates algorithm.
+            </summary>
+            <param name="items">The items to shuffle.</param>
+            <returns>A new shuffled list.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.GetAudioFilePath(MediaBrowser.Controller.Entities.Audio.Audio)">
+            <summary>
+            Gets the filesystem path for an audio item.
+            </summary>
+            <param name="audioItem">The audio item.</param>
+            <returns>The filesystem path, or null if unavailable.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.AudioProviderService.TryGetUser(System.String,System.Guid@)">
+            <summary>
+            Validates that a user exists by their ID string.
+            </summary>
+            <param name="userId">The user ID string.</param>
+            <param name="userGuid">The parsed user GUID if valid.</param>
+            <returns>True if the user exists, false otherwise.</returns>
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService">
+            <summary>
+            Handles the actual streaming of audio data to an Icecast server.
+            Uses FFmpeg to encode audio and sends it via HTTP PUT to the Icecast mount point.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService},MediaBrowser.Controller.MediaEncoding.IMediaEncoder)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService"/> class.
+            </summary>
+            <param name="logger">The logger instance.</param>
+            <param name="mediaEncoder">The media encoder service (FFmpeg access).</param>
+        </member>
+        <member name="P:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.IsStreaming">
+            <summary>
+            Gets whether the service is currently streaming audio.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.StreamFileAsync(System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Starts streaming a single audio file to the configured Icecast server.
+            </summary>
+            <param name="filePath">The absolute path to the audio file to stream.</param>
+            <param name="icecastUrl">The Icecast server URL.</param>
+            <param name="icecastUsername">The Icecast source username.</param>
+            <param name="icecastPassword">The Icecast source password.</param>
+            <param name="icecastMountPoint">The Icecast mount point.</param>
+            <param name="audioFormat">The target audio format ("m4a" or "ogg").</param>
+            <param name="audioBitrate">The target audio bitrate in kbps.</param>
+            <param name="streamName">The stream name metadata.</param>
+            <param name="streamGenre">The stream genre metadata.</param>
+            <param name="cancellationToken">Cancellation token to stop streaming.</param>
+            <returns>A task representing the async operation. Returns true if completed normally.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.BuildIcecastSourceUrl(System.String,System.String)">
+            <summary>
+            Builds the Icecast source URL from server URL and mount point.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.BuildFFmpegArguments(System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.String,System.String)">
+            <summary>
+            Builds the FFmpeg process start info with the correct encoding arguments.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.EscapeMetadata(System.String)">
+            <summary>
+            Escapes metadata string values for FFmpeg.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.StopStreaming">
+            <summary>
+            Stops the current streaming session.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.StopStreamingInternal">
+            <summary>
+            Internal method to stop streaming (caller must hold _lock).
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.CleanupProcess">
+            <summary>
+            Cleans up the FFmpeg process resources.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService.Dispose">
+            <summary>
+            Disposes of the streaming service resources.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService">
+            <summary>
+            Background hosted service that manages the continuous radio streaming loop.
+            This service runs continuously while the plugin is enabled, managing the
+            schedule-aware playback cycle: checking the schedule, selecting playlists
+            or random music, streaming to Icecast, and handling transitions between slots.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService},Jellyfin.Plugin.RadioOnline.Services.IcecastStreamingService,Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService,Jellyfin.Plugin.RadioOnline.Services.AudioProviderService)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService"/> class.
+            </summary>
+            <param name="logger">The logger instance.</param>
+            <param name="icecastService">The Icecast streaming service.</param>
+            <param name="scheduleManager">The schedule manager service.</param>
+            <param name="audioProvider">The audio provider service.</param>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService.ExecuteAsync(System.Threading.CancellationToken)">
+            <summary>
+            Executes the main radio streaming loop.
+            Continuously checks the schedule and streams appropriate audio to Icecast.
+            </summary>
+            <param name="stoppingToken">The cancellation token for service shutdown.</param>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService.RunStreamingCycle(Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration,System.Threading.CancellationToken)">
+            <summary>
+            Runs a single streaming cycle: determines what to play and streams it.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService.TrimAudioToDuration(System.Collections.Generic.List{MediaBrowser.Controller.Entities.Audio.Audio},System.TimeSpan)">
+            <summary>
+            Trims a list of audio items to fit within a maximum duration.
+            Items are included sequentially until the time limit would be exceeded.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService.ValidateConfig(Jellyfin.Plugin.RadioOnline.Configuration.PluginConfiguration)">
+            <summary>
+            Validates that the plugin configuration is complete and correct.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.RadioStreamingHostedService.StopAsync(System.Threading.CancellationToken)">
+            <summary>
+            Stops the streaming service gracefully.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService">
+            <summary>
+            Manages the weekly radio schedule by determining which playlist should play
+            at any given time based on the configured schedule entries.
+            Handles time slot matching, playlist duration management, and fallback logic.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService"/> class.
+            </summary>
+            <param name="logger">The logger instance.</param>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService.GetActiveScheduleEntry(System.Collections.Generic.List{Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry},System.Nullable{System.DateTime})">
+            <summary>
+            Gets the active schedule entry for the current time (or a specific time).
+            If no schedule entry matches, returns null (indicating random fill mode).
+            </summary>
+            <param name="scheduleEntries">The configured schedule entries.</param>
+            <param name="dateTime">The date/time to check. Defaults to now.</param>
+            <returns>The matching schedule entry, or null if unscheduled.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService.GetRemainingTimeInSlot(Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry)">
+            <summary>
+            Calculates the remaining time in the current schedule slot.
+            </summary>
+            <param name="entry">The active schedule entry.</param>
+            <returns>The remaining duration in the current time slot.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService.GetTimeUntilNextScheduleEntry(System.Collections.Generic.List{Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry})">
+            <summary>
+            Calculates the time until the next schedule entry begins.
+            Useful for determining how long to play random music before a scheduled slot.
+            </summary>
+            <param name="scheduleEntries">All configured schedule entries.</param>
+            <returns>The time until the next scheduled entry, or null if none exists today.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService.GetNextScheduleChange(System.Collections.Generic.List{Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry})">
+            <summary>
+            Gets the next schedule change information (when current state ends).
+            </summary>
+            <param name="scheduleEntries">All configured schedule entries.</param>
+            <returns>A tuple with the next change time and whether it's a scheduled playlist.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.RadioOnline.Services.ScheduleManagerService.ValidateScheduleEntry(Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry,System.Collections.Generic.List{Jellyfin.Plugin.RadioOnline.Configuration.ScheduleEntry})">
+            <summary>
+            Validates a schedule entry for correctness.
+            Checks that times are valid and do not conflict with existing entries.
+            </summary>
+            <param name="entry">The schedule entry to validate.</param>
+            <param name="allEntries">All existing schedule entries for conflict checking.</param>
+            <returns>A list of validation error messages. Empty if valid.</returns>
+        </member>
+    </members>
+</doc>
