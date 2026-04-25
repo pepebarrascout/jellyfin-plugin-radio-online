@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.10",
+        "changelog": "- CRITICAL FIX: FFmpeg is now the default streaming engine (works inside Docker containers)\n- NEW: Dual engine support - choose between FFmpeg (default) and Liquidsoap in plugin config\n- FIX: Liquidsoap didn't work because Jellyfin runs in Docker but Liquidsoap was on the host\n- FIX: Audio file paths inside Docker container are different from host paths\n- Reduced log spam: removed repetitive schedule check logs and config validation logs\n- Status tab now shows the active streaming engine\n- Better error message when Liquidsoap is not found (suggests switching to FFmpeg)\n- Schedule overlap log reduced to single warning line",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.10-alpha/jellyfin-plugin-radio-online_0.0.0.10.zip",
+        "checksum": "221f42c770f86ca32d13702ffb4af175",
+        "timestamp": "2026-04-26T18:00:00Z"
+      },
+      {
         "version": "0.0.0.9",
         "changelog": "- FIX: Liquidsoap binary now found via absolute paths (/usr/bin, /usr/local/bin) instead of relying on systemd PATH\n- FIX: Liquidsoap startup errors now captured and logged at ERROR level (before they were invisible at DEBUG level)\n- FIX: Removed -v flag from Liquidsoap launch that caused extra noise\n- FIX: Simplified crossfade syntax for Liquidsoap 2.x compatibility\n- Reduced log spam: only important messages logged (schedule changes, Liquidsoap start/stop, errors)\n- Liquidsoap stderr captured and reported on startup failure\n- Removed all LogDebug calls that flooded Jellyfin logs",
         "targetAbi": "10.11.8.0",
