@@ -55,3 +55,27 @@ Stage Summary:
 - Checksum corrected: fe032139b596dbad1913aa7d50f1ba4d matches the actual ZIP
 - Release: https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/tag/v0.0.0.1-alpha
 - Files in /home/z/my-project/download/: DLL + ZIP
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix checkbox overlap and Jellyfin native styling in config.html
+
+Work Log:
+- Analyzed uploaded screenshots with VLM to identify exact issues
+- Issue 1: Checkbox overlapping text - CSS `.checkboxContainer label { display:flex; align-items:center; gap:0.6em }` conflicts with Jellyfin's `emby-checkbox` web component absolute positioning
+- Issue 2: Form elements not matching Jellyfin styles - custom CSS with `!important` overrides on `.selectContainer select`, `.checkboxContainer input[type="checkbox"]`, and `button[is="emby-button"]` were fighting Jellyfin's native component styles
+- Removed ALL custom CSS overrides for emby-* components (checkboxes, selects, buttons, inputs)
+- Removed inline hardcoded colors from add form (`background:#1a1a1a`, `border:1px solid #333`)
+- Removed inline border from empty schedule state div
+- Changed error message div to use Jellyfin's `notification-bar` class
+- Kept only minimal custom CSS for plugin-specific elements (status grid, schedule table, disabled rows)
+- Recompiled with version 0.0.0.3, created ZIP, calculated MD5 checksum `473e4d3944f359d91190a7b1291d4b3e`
+- Updated manifest.json with v0.0.0.3 entry
+- Committed, pushed, created GitHub release v0.0.0.3-alpha with ZIP asset
+
+Stage Summary:
+- Fixed checkbox overlap by removing flex display override on `.checkboxContainer label`
+- Fixed form styling by removing all `!important` CSS overrides for emby-* components
+- Jellyfin's native `emby-input`, `emby-select`, `emby-checkbox`, `emby-button` now control their own styling
+- Release v0.0.0.3-alpha published: https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/tag/v0.0.0.3-alpha
+- Checksum: 473e4d3944f359d91190a7b1291d4b3e
