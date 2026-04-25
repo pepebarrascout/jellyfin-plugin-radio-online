@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Radio Online</title>
+</head>
+<body>
+
+<div data-role="page" class="page type-interior pluginConfigurationPage RadioOnlineConfigPage">
+    <div data-role="content">
+        <div class="content-primary">
+
+            <h1>Radio Online</h1>
+            <p>Transmite audio a un servidor Icecast con programacion semanal de playlists. Los horarios sin programar se llenan con musica aleatoria de tu biblioteca de Jellyfin.</p>
+
+            <!-- Tab Navigation -->
+            <div data-role="controlgroup" data-type="horizontal" class="localnav">
+                <a class="emby-button" href="#" data-role="button" data-tab="config">Configuracion</a>
+                <a class="emby-button" href="#" data-role="button" data-tab="schedule">Programacion</a>
+                <a class="emby-button" href="#" data-role="button" data-tab="status">Estado</a>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════ -->
+            <!-- TAB: Configuracion (Icecast + Jellyfin Settings)   -->
+            <!-- ════════════════════════════════════════════════════ -->
+            <div id="config-tab" class="page-content hide" data-tab-content="config">
+                <form style="margin-top:2em;">
+
+                    <h2 class="sectionHeader">Servidor Icecast</h2>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="icecastUrl">URL del Servidor</label>
+                        <input type="text" id="icecastUrl" is="emby-input" placeholder="http://tu-servidor:8000" />
+                        <div class="fieldDescription">URL completa del servidor Icecast (sin barra final). Ejemplo: http://192.168.1.100:8000</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="icecastUsername">Usuario</label>
+                        <input type="text" id="icecastUsername" is="emby-input" placeholder="source" />
+                        <div class="fieldDescription">Usuario de fuente Icecast (generalmente "source")</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="icecastPassword">Contrasena</label>
+                        <input type="password" id="icecastPassword" is="emby-input" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="icecastMountPoint">Punto de Montaje</label>
+                        <input type="text" id="icecastMountPoint" is="emby-input" placeholder="/radio" />
+                        <div class="fieldDescription">Debe comenzar con /. Ejemplo: /radio, /stream</div>
+                    </div>
+
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="audioFormat">Formato de Audio</label>
+                        <select id="audioFormat" is="emby-select">
+                            <option value="ogg">OGG (Vorbis)</option>
+                            <option value="m4a">M4A (AAC)</option>
+                        </select>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="audioBitrate">Bitrate (kbps)</label>
+                        <input type="number" id="audioBitrate" is="emby-input" min="32" max="320" step="16" value="128" />
+                        <div class="fieldDescription">Recomendado: 96-192 kbps</div>
+                    </div>
+
+                    <h2 class="sectionHeader">Metadatos del Stream</h2>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="streamName">Nombre del Stream</label>
+                        <input type="text" id="streamName" is="emby-input" placeholder="Mi Radio" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="streamDescription">Descripcion del Stream</label>
+                        <input type="text" id="streamDescription" is="emby-input" placeholder="Radio automatizada por Jellyfin" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="streamGenre">Genero</label>
+                        <input type="text" id="streamGenre" is="emby-input" placeholder="Variado" />
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" id="streamPublic" is="emby-checkbox" />
+                            <span>Stream publico (listar en directorios Icecast)</span>
+                        </label>
+                    </div>
+
+                    <h2 class="sectionHeader">Configuracion de Jellyfin</h2>
+
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="jellyfinUserId">Usuario de Biblioteca</label>
+                        <select id="jellyfinUserId" is="emby-select">
+                            <option value="">-- Seleccionar usuario --</option>
+                        </select>
+                        <div class="fieldDescription">Usuario con acceso a las bibliotecas de musica y playlists que se usaran en la programacion.</div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" id="isEnabled" is="emby-checkbox" />
+                            <span>Activar radio automatizada</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            Al activar, el plugin comenzara a transmitir audio al servidor Icecast segun la programacion configurada.
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2em;">
+                        <button type="button" is="emby-button" class="raised button-submit" id="btnSaveConfig">
+                            <span>Guardar Configuracion</span>
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════ -->
+            <!-- TAB: Programacion (Weekly Schedule)                 -->
+            <!-- ════════════════════════════════════════════════════ -->
+            <div id="schedule-tab" class="page-content hide" data-tab-content="schedule">
+                <form style="margin-top:2em;">
+
+                    <h2 class="sectionHeader">Programacion Semanal (Lunes a Viernes)</h2>
+                    <p style="color: #888; font-size: 0.9em;">Asigna playlists a dias y horarios especificos. Los horarios sin programar se llenan con musica aleatoria. Todas las programaciones se repiten semanalmente.</p>
+
+                    <div id="emptyScheduleMsg" style="padding: 1.5em; text-align: center; color: #888; border: 1px dashed #444; border-radius: 4px;">
+                        <p style="margin:0;">No hay programacion configurada.</p>
+                        <p style="margin:0.5em 0 0;">Haz clic en "Agregar Programa" para comenzar.</p>
+                    </div>
+
+                    <table class="scheduleTable" id="scheduleTable" style="display:none;">
+                        <thead>
+                            <tr>
+                                <th style="width:35px;">#</th>
+                                <th style="width:110px;">Dia</th>
+                                <th style="width:80px;">Inicio</th>
+                                <th style="width:80px;">Fin</th>
+                                <th>Playlist</th>
+                                <th style="width:130px;">Nombre</th>
+                                <th style="width:60px;">Act.</th>
+                                <th style="width:65px;">Accion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduleBody"></tbody>
+                    </table>
+
+                    <div style="margin-top: 1em;">
+                        <button type="button" is="emby-button" class="raised button-submit" id="btnAddSchedule">
+                            <span>Agregar Programa</span>
+                        </button>
+                    </div>
+
+                    <!-- Add Schedule Form -->
+                    <div id="addScheduleForm" class="add-schedule-form">
+                        <h3>Nuevo Programa</h3>
+
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="newDay">Dia</label>
+                            <select id="newDay" is="emby-select">
+                                <option value="1">Lunes</option>
+                                <option value="2">Martes</option>
+                                <option value="3">Miercoles</option>
+                                <option value="4">Jueves</option>
+                                <option value="5">Viernes</option>
+                            </select>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="newStartTime">Hora de Inicio</label>
+                            <input type="text" id="newStartTime" is="emby-input" placeholder="08:00" />
+                            <div class="fieldDescription">Formato 24 horas (HH:mm)</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="newEndTime">Hora de Fin</label>
+                            <input type="text" id="newEndTime" is="emby-input" placeholder="12:00" />
+                            <div class="fieldDescription">Formato 24 horas (HH:mm). Debe ser despues de la hora de inicio.</div>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="newPlaylist">Playlist</label>
+                            <select id="newPlaylist" is="emby-select">
+                                <option value="">-- Musica Aleatoria --</option>
+                            </select>
+                            <div id="noPlaylistsMsg" class="fieldDescription" style="color: #f5a623; display: none;">No se encontraron playlists. Crea playlists en Jellyfin primero.</div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="newDisplayName">Nombre del Programa</label>
+                            <input type="text" id="newDisplayName" is="emby-input" placeholder="Morning Show" />
+                        </div>
+
+                        <div id="scheduleValidationMsg" class="inlineMsg error" style="display: none;"></div>
+
+                        <div style="margin-top: 1em; display: flex; gap: 0.8em;">
+                            <button type="button" is="emby-button" class="raised button-submit" id="btnSaveSchedule">
+                                <span>Guardar Programa</span>
+                            </button>
+                            <button type="button" is="emby-button" class="raised" id="btnCancelSchedule">
+                                <span>Cancelar</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2em;">
+                        <button type="button" is="emby-button" class="raised button-submit" id="btnSaveScheduleConfig">
+                            <span>Guardar Programacion</span>
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════ -->
+            <!-- TAB: Estado (Status)                               -->
+            <!-- ════════════════════════════════════════════════════ -->
+            <div id="status-tab" class="page-content hide" data-tab-content="status">
+                <form style="margin-top:2em;">
+
+                    <h2 class="sectionHeader">Estado del Streaming</h2>
+
+                    <div class="statusGrid">
+                        <div class="statusCard">
+                            <div class="statusCardLabel">Plugin</div>
+                            <div class="statusCardValue" id="statusEnabled"><span class="statusInactive">--</span></div>
+                        </div>
+                        <div class="statusCard">
+                            <div class="statusCardLabel">Icecast</div>
+                            <div class="statusCardValue" id="statusIcecast">--</div>
+                        </div>
+                        <div class="statusCard">
+                            <div class="statusCardLabel">Streaming</div>
+                            <div class="statusCardValue" id="statusStreaming"><span class="statusInactive">--</span></div>
+                        </div>
+                        <div class="statusCard">
+                            <div class="statusCardLabel">Formato</div>
+                            <div class="statusCardValue" id="statusFormat">--</div>
+                        </div>
+                        <div class="statusCard">
+                            <div class="statusCardLabel">Programas</div>
+                            <div class="statusCardValue" id="statusScheduleCount">--</div>
+                        </div>
+                    </div>
+
+                    <div id="radioStatusBanner" class="inlineMsg info" style="display: none;"></div>
+
+                    <div style="margin-top: 1.5em;">
+                        <button type="button" is="emby-button" class="raised" id="btnRefreshStatus">
+                            <span>Actualizar Estado</span>
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+
+            <!-- Support link -->
+            <div style="margin-top: 2em; text-align: center; color: #666; font-size: 0.85em;">
+                <a href="https://github.com/pepebarrascout/jellyfin-plugin-radio-online" target="_blank" rel="noopener noreferrer" style="color: #00a4dc; text-decoration: none;">Radio Online Plugin por PepeBarrascout</a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Load external JavaScript -->
+<script src="configurationpage?name=config-init.js"></script>
+
+</body>
+</html>
