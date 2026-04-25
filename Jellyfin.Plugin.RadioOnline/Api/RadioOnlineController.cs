@@ -22,17 +22,27 @@ namespace Jellyfin.Plugin.RadioOnline.Api;
 public class RadioOnlineController : ControllerBase
 {
     private readonly AudioProviderService _audioProvider;
+    private readonly IcecastStreamingService _icecastService;
     private readonly LiquidsoapStreamingService _liquidsoapService;
+    private readonly RadioStreamingHostedService _hostedService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RadioOnlineController"/> class.
     /// </summary>
     /// <param name="audioProvider">The audio provider service.</param>
+    /// <param name="icecastService">The FFmpeg streaming service.</param>
     /// <param name="liquidsoapService">The Liquidsoap streaming service.</param>
-    public RadioOnlineController(AudioProviderService audioProvider, LiquidsoapStreamingService liquidsoapService)
+    /// <param name="hostedService">The hosted streaming service.</param>
+    public RadioOnlineController(
+        AudioProviderService audioProvider,
+        IcecastStreamingService icecastService,
+        LiquidsoapStreamingService liquidsoapService,
+        RadioStreamingHostedService hostedService)
     {
         _audioProvider = audioProvider;
+        _icecastService = icecastService;
         _liquidsoapService = liquidsoapService;
+        _hostedService = hostedService;
     }
 
     /// <summary>
@@ -51,7 +61,9 @@ public class RadioOnlineController : ControllerBase
         return Ok(new
         {
             isEnabled = config.IsEnabled,
-            isStreaming = _liquidsoapService.IsStreaming,
+            isStreaming = _hostedService.IsStreaming,
+            activeEngine = _hostedService.ActiveEngine,
+            configuredEngine = config.StreamingEngine ?? "ffmpeg",
             icecastUrl = config.IcecastUrl,
             mountPoint = config.IcecastMountPoint,
             audioFormat = config.AudioFormat,
@@ -92,7 +104,6 @@ public class RadioOnlineController : ControllerBase
             return Ok(new List<string> { "Plugin not configured" });
         }
 
-        // Use a simple validation - supports all 7 days of the week
         var errors = new List<string>();
 
         if (!TimeSpan.TryParse(entry.StartTime, out var start))

@@ -64,6 +64,15 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public bool StreamPublic { get; set; } = false;
 
+    // ── Streaming Engine ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Gets or sets the streaming engine to use.
+    /// "ffmpeg" (default): Uses Jellyfin's bundled FFmpeg. Works in Docker containers.
+    /// "liquidsoap": Requires Liquidsoap installed INSIDE the Jellyfin container.
+    /// </summary>
+    public string StreamingEngine { get; set; } = "ffmpeg";
+
     // ── Scheduling Settings ──────────────────────────────────────────────
 
     /// <summary>

@@ -65,10 +65,7 @@ public class ScheduleManagerService
 
         if (activeEntries.Count == 1)
         {
-            var entry = activeEntries[0];
-            _logger.LogInformation("Active: \"{Name}\" ({Day} {Start}-{End})",
-                entry.DisplayName, entry.DayOfWeek, entry.StartTime, entry.EndTime);
-            return entry;
+            return activeEntries[0];
         }
 
         // Multiple entries overlap - the one with the LATEST start time wins
@@ -78,9 +75,9 @@ public class ScheduleManagerService
             .OrderByDescending(e => e.GetStartTimeSpan())
             .First();
 
-        _logger.LogInformation(
-            "Schedule overlap detected at {Time}: {Count} entries active. Selected \"{Name}\" ({Start}-{End}) as it starts latest.",
-            currentTime, activeEntries.Count, winner.DisplayName, winner.StartTime, winner.EndTime);
+        _logger.LogWarning(
+            "Schedule overlap: {Count} entries at {Time}. Selected \"{Name}\" (latest start).",
+            activeEntries.Count, currentTime, winner.DisplayName);
 
         return winner;
     }

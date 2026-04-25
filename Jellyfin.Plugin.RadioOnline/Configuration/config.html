@@ -55,6 +55,17 @@
                         <div class="fieldDescription">Recomendado: 96-192 kbps</div>
                     </div>
 
+                    <div class="sectionHeader">Motor de Streaming</div>
+
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="roEngine">Motor de Streaming</label>
+                        <select id="roEngine" is="emby-select">
+                            <option value="ffmpeg">FFmpeg (recomendado para Docker)</option>
+                            <option value="liquidsoap">Liquidsoap (requiere instalacion en el contenedor)</option>
+                        </select>
+                        <div class="fieldDescription">FFmpeg usa el binario incluido en Jellyfin y funciona en contenedores Docker. Liquidsoap requiere instalarse manualmente dentro del contenedor de Jellyfin.</div>
+                    </div>
+
                     <div class="sectionHeader">Metadatos del Stream</div>
 
                     <div class="inputContainer">
@@ -181,9 +192,10 @@
 
                     <div class="ro-status-grid">
                         <div class="ro-status-card"><div class="ro-status-label">Plugin</div><div class="ro-status-val" id="roStPlugin">--</div></div>
-                        <div class="ro-status-card"><div class="ro-status-label">Icecast</div><div class="ro-status-val" id="roStIcecast">--</div></div>
+                        <div class="ro-status-card"><div class="ro-status-label">Motor</div><div class="ro-status-val" id="roStEngine">--</div></div>
                         <div class="ro-status-card"><div class="ro-status-label">Streaming</div><div class="ro-status-val" id="roStStream">--</div></div>
                         <div class="ro-status-card"><div class="ro-status-label">Formato</div><div class="ro-status-val" id="roStFormat">--</div></div>
+                        <div class="ro-status-card"><div class="ro-status-label">Icecast</div><div class="ro-status-val" id="roStIcecast">--</div></div>
                         <div class="ro-status-card"><div class="ro-status-label">Programas</div><div class="ro-status-val" id="roStCount">--</div></div>
                     </div>
 
@@ -339,6 +351,7 @@
             s('roIcecastUser', gv('IcecastUsername')||'source');
             s('roIcecastPass', gv('IcecastPassword')||'');
             s('roMountPoint', gv('IcecastMountPoint')||'/radio');
+            s('roEngine', gv('StreamingEngine')||'ffmpeg');
             s('roAudioFormat', gv('AudioFormat')||'ogg');
             s('roBitrate', gv('AudioBitrate')||128);
             s('roStreamName', gv('StreamName')||'');
@@ -351,6 +364,7 @@
 
         function readForm(){
             var g=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+            sv('StreamingEngine', document.getElementById('roEngine')?document.getElementById('roEngine').value:'ffmpeg');
             sv('IcecastUrl', g('roIcecastUrl'));
             sv('IcecastUsername', g('roIcecastUser')||'source');
             sv('IcecastPassword', document.getElementById('roIcecastPass')?document.getElementById('roIcecastPass').value:'');
@@ -400,9 +414,17 @@
                 var ec=document.getElementById('roStCount');
                 if(ec) ec.textContent=schedCount;
 
+                var eng = st.StreamingEngine || st.streamingEngine || 'ffmpeg';
+                var ee2=document.getElementById('roStEngine');
+                if(ee2) ee2.textContent = eng==='liquidsoap'?'Liquidsoap':'FFmpeg';
+
                 apiGet('Plugins/RadioOnline/Status').then(function(apiSt){
                     var es=document.getElementById('roStStream');
                     if(es) es.innerHTML=(apiSt && apiSt.isStreaming)?'<span class="ro-st-live">En Vivo</span>':'<span class="ro-st-off">Inactivo</span>';
+                    if(apiSt && apiSt.activeEngine){
+                        var ae=document.getElementById('roStEngine');
+                        if(ae) ae.textContent=apiSt.activeEngine==='liquidsoap'?'Liquidsoap (activo)':'FFmpeg (activo)';
+                    }
                     Dashboard.hideLoadingMsg();
                 }).catch(function(){
                     var es=document.getElementById('roStStream');
