@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.MediaEncoding;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.RadioOnline.Services;
@@ -18,7 +19,7 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 public class IcecastStreamingService : IDisposable
 {
     private readonly ILogger<IcecastStreamingService> _logger;
-    private readonly IMediaEncoder _mediaEncoder;
+    private readonly IServiceProvider _serviceProvider;
     private Process? _ffmpegProcess;
     private bool _isStreaming;
     private readonly object _lock = new();
@@ -29,11 +30,15 @@ public class IcecastStreamingService : IDisposable
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IcecastStreamingService"/> class.
+    /// Uses IServiceProvider to lazily resolve IMediaEncoder at runtime,
+    /// avoiding DI failures if IMediaEncoder isn't ready during plugin initialization.
     /// </summary>
-    public IcecastStreamingService(ILogger<IcecastStreamingService> logger, IMediaEncoder mediaEncoder)
+    public IcecastStreamingService(
+        ILogger<IcecastStreamingService> logger,
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
-        _mediaEncoder = mediaEncoder;
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>
@@ -51,20 +56,55 @@ public class IcecastStreamingService : IDisposable
     }
 
     /// <summary>
+    /// Gets the FFmpeg binary path by resolving IMediaEncoder from Jellyfin,
+    /// with fallback to common installation paths.
+    /// </summary>
+    private string GetFFmpegPath()
+    {
+        // Try Jellyfin's media encoder first
+        try
+        {
+            var mediaEncoder = _serviceProvider.GetService<IMediaEncoder>();
+            if (mediaEncoder != null && !string.IsNullOrEmpty(mediaEncoder.EncoderPath))
+            {
+                if (File.Exists(mediaEncoder.EncoderPath))
+                {
+                    return mediaEncoder.EncoderPath;
+                }
+                _logger.LogWarning("IMediaEncoder returned non-existent path: {Path}", mediaEncoder.EncoderPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not resolve IMediaEncoder from DI");
+        }
+
+        // Fallback: common Jellyfin ffmpeg locations
+        var fallbackPaths = new[]
+        {
+            "/usr/lib/jellyfin-ffmpeg/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
+            "/jellyfin/jellyfin-ffmpeg/ffmpeg",
+        };
+
+        foreach (var path in fallbackPaths)
+        {
+            if (File.Exists(path))
+            {
+                _logger.LogInformation("Using fallback FFmpeg path: {Path}", path);
+                return path;
+            }
+        }
+
+        _logger.LogError("FFmpeg not found. Streaming will not work.");
+        return string.Empty;
+    }
+
+    /// <summary>
     /// Writes an FFmpeg concat playlist file and starts streaming it to Icecast.
     /// Uses -f concat with -safe 0 and -stream_loop -1 for continuous gapless playback.
     /// </summary>
-    /// <param name="filePaths">Absolute paths to audio files in playlist order.</param>
-    /// <param name="icecastUrl">Icecast server URL (e.g., http://server:8000).</param>
-    /// <param name="icecastUsername">Icecast source username.</param>
-    /// <param name="icecastPassword">Icecast source password.</param>
-    /// <param name="icecastMountPoint">Icecast mount point (e.g., /radio).</param>
-    /// <param name="audioFormat">Audio format: "ogg" or "m4a".</param>
-    /// <param name="audioBitrate">Audio bitrate in kbps.</param>
-    /// <param name="streamName">Stream name metadata.</param>
-    /// <param name="streamGenre">Stream genre metadata.</param>
-    /// <param name="cancellationToken">Token to cancel streaming.</param>
-    /// <returns>True if streaming started successfully.</returns>
     public async Task<bool> StreamPlaylistAsync(
         List<string> filePaths,
         string icecastUrl,
@@ -92,18 +132,15 @@ public class IcecastStreamingService : IDisposable
         // Write concat playlist file
         WriteConcatPlaylist(filePaths);
 
-        // Get FFmpeg path from Jellyfin
-        var ffmpegPath = _mediaEncoder.EncoderPath;
-        if (string.IsNullOrEmpty(ffmpegPath) || !File.Exists(ffmpegPath))
+        // Get FFmpeg path (lazy resolution)
+        var ffmpegPath = GetFFmpegPath();
+        if (string.IsNullOrEmpty(ffmpegPath))
         {
-            _logger.LogError("FFmpeg not found at path: {FFmpegPath}", ffmpegPath);
+            _logger.LogError("FFmpeg not found, cannot stream");
             return false;
         }
 
-        // Build FFmpeg command:
-        // -re: real-time pacing (critical for synchronized listening)
-        // -stream_loop -1: loop the entire playlist infinitely
-        // -f concat -safe 0: use concat demuxer with absolute paths
+        // Build FFmpeg command
         var arguments = BuildConcatArguments(
             icecastUrl,
             icecastUsername,
@@ -147,7 +184,6 @@ public class IcecastStreamingService : IDisposable
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    // Only log actual warnings/errors, not stats
                     if (e.Data.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
                         e.Data.Contains("warn", StringComparison.OrdinalIgnoreCase) ||
                         e.Data.Contains("failed", StringComparison.OrdinalIgnoreCase))
@@ -194,7 +230,6 @@ public class IcecastStreamingService : IDisposable
                 return true;
             }
 
-            // Process exited on its own - log it
             _logger.LogWarning("FFmpeg concat stream exited with code {ExitCode}", process.ExitCode);
             return false;
         }
@@ -244,8 +279,6 @@ public class IcecastStreamingService : IDisposable
 
     /// <summary>
     /// Writes an FFmpeg concat playlist file from the given file paths.
-    /// Each line has the format: file '/absolute/path/to/audio.m4a'
-    /// Single quotes within paths are properly escaped.
     /// </summary>
     private void WriteConcatPlaylist(List<string> filePaths)
     {
@@ -254,12 +287,10 @@ public class IcecastStreamingService : IDisposable
 
         foreach (var path in filePaths)
         {
-            // Escape single quotes in the path for the concat format
             var escapedPath = path.Replace("'", "'\\''");
             sb.AppendLine($"file '{escapedPath}'");
         }
 
-        // Atomic write: write to temp file, then move
         File.WriteAllText(PlaylistTempFile, sb.ToString());
         File.Move(PlaylistTempFile, PlaylistFile, overwrite: true);
 
@@ -281,26 +312,16 @@ public class IcecastStreamingService : IDisposable
     {
         var args = new StringBuilder();
 
-        // Global options
         args.Append("-hide_banner -loglevel warning ");
-
-        // -re: real-time pacing - read input at native frame rate
-        // Critical for radio: without this, FFmpeg floods Icecast with data
         args.Append("-re ");
-
-        // -stream_loop -1: loop the concat playlist infinitely
         args.Append("-stream_loop -1 ");
-
-        // Input: concat demuxer with safe 0 (allows absolute paths)
         args.Append("-f concat -safe 0 ");
         args.Append($"-i \"{PlaylistFile}\" ");
 
-        // Metadata for Icecast
         args.Append($"-metadata title=\"{EscapeMetadata(streamName)}\" ");
         args.Append($"-metadata genre=\"{EscapeMetadata(streamGenre)}\" ");
         args.Append("-metadata artist=\"Jellyfin Radio Online\" ");
 
-        // Audio encoding
         if (audioFormat.Equals("m4a", StringComparison.OrdinalIgnoreCase))
         {
             args.Append("-c:a aac ");
@@ -312,7 +333,6 @@ public class IcecastStreamingService : IDisposable
         }
         else
         {
-            // OGG Vorbis (default)
             args.Append("-c:a libvorbis ");
             args.Append($"-b:a {audioBitrate}k ");
             args.Append("-ar 44100 ");
@@ -320,7 +340,6 @@ public class IcecastStreamingService : IDisposable
             args.Append("-f ogg ");
         }
 
-        // Output: Icecast via icecast:// protocol
         var escapedPassword = icecastPassword.Replace("\\", "\\\\").Replace("\"", "\\\"");
         var cleanUrl = icecastUrl.Replace("http://", string.Empty).Replace("https://", string.Empty);
         var mount = icecastMountPoint;
@@ -332,17 +351,11 @@ public class IcecastStreamingService : IDisposable
         return args.ToString();
     }
 
-    /// <summary>
-    /// Escapes metadata string values for FFmpeg.
-    /// </summary>
     private static string EscapeMetadata(string value)
     {
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
-    /// <summary>
-    /// Cleans up process event handlers.
-    /// </summary>
     private void CleanupProcess(Process? process)
     {
         if (process != null)
@@ -353,9 +366,7 @@ public class IcecastStreamingService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Disposes of all resources.
-    /// </summary>
+    /// <inheritdoc />
     public void Dispose()
     {
         lock (_lock)
