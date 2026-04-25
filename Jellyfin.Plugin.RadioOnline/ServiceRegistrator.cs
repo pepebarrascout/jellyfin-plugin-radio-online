@@ -17,9 +17,6 @@ public class ServiceRegistrator : IPluginServiceRegistrator
     /// </summary>
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
-        // Radio streaming background service (runs continuously)
-        serviceCollection.AddHostedService<RadioStreamingHostedService>();
-
         // FFmpeg streaming service (uses Jellyfin's bundled FFmpeg)
         serviceCollection.AddSingleton<IcecastStreamingService>();
 
@@ -28,6 +25,11 @@ public class ServiceRegistrator : IPluginServiceRegistrator
 
         // Audio provider (retrieves playlists from Jellyfin library)
         serviceCollection.AddSingleton<AudioProviderService>();
+
+        // Radio streaming background service - register as Singleton first so the
+        // controller can inject it, then register as HostedService using the same instance
+        serviceCollection.AddSingleton<RadioStreamingHostedService>();
+        serviceCollection.AddHostedService(sp => sp.GetRequiredService<RadioStreamingHostedService>());
 
         // Scheduled task (dashboard visibility)
         serviceCollection.AddSingleton<IScheduledTask, RadioSchedulerTask>();
