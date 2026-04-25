@@ -11,50 +11,66 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.RadioOnline.Services;
 
 /// <summary>
-/// Background hosted service that manages the continuous radio streaming loop.
-/// Streams audio to Icecast ONLY when a scheduled playlist is active.
-/// When no schedule is active or the playlist ends, the Icecast connection is stopped.
-/// When schedules overlap, the later-starting entry takes priority and interrupts the earlier one.
+/// Background hosted service that manages the radio streaming loop using Liquidsoap.
+/// Liquidsoap runs as a persistent process, maintaining a continuous connection to Icecast.
+/// This eliminates the 1-2 second gap between tracks that occurred with FFmpeg.
 ///
-/// Architecture: Each track in the playlist is streamed as a SEPARATE FFmpeg process
-/// with the -re flag (real-time pacing). Between each track, the schedule is re-evaluated.
-/// This design ensures:
-/// 1. Correct playback order (tracks are processed sequentially in playlist order)
-/// 2. Schedule overlap detection works (check happens between tracks)
-/// 3. All listeners hear synchronized audio (-re flag prevents buffer flooding)
+/// How it works:
+/// 1. When a schedule activates, the service starts Liquidsoap (if not already running)
+///    and writes the playlist M3U file that Liquidsoap watches via inotify.
+/// 2. Liquidsoap plays tracks in order with crossfade transitions (no gaps).
+/// 3. Every 5 seconds, the service checks if the schedule is still active.
+/// 4. If a schedule overlap is detected (later schedule starts), the service writes
+///    the new playlist file and sends a "skip" command to Liquidsoap.
+/// 5. When no schedule is active, the service clears the playlist and stops Liquidsoap.
 /// </summary>
 public class RadioStreamingHostedService : BackgroundService
 {
     private readonly ILogger<RadioStreamingHostedService> _logger;
-    private readonly IcecastStreamingService _icecastService;
+    private readonly LiquidsoapStreamingService _liquidsoapService;
     private readonly ScheduleManagerService _scheduleManager;
     private readonly AudioProviderService _audioProvider;
+
+    /// <summary>
+    /// How often (seconds) to check schedule status during active streaming.
+    /// </summary>
+    private const int ScheduleCheckIntervalSeconds = 5;
+
+    /// <summary>
+    /// Delay after writing playlist before sending skip command (ms).
+    /// Ensures inotify has time to fire before Liquidsoap needs to reload.
+    /// </summary>
+    private const int PlaylistWriteSettleMs = 200;
+
+    /// <summary>
+    /// Delay before killing Liquidsoap after playlist is cleared (seconds).
+    /// Gives Liquidsoap time to finish the current track's fade-out.
+    /// </summary>
+    private const int GracefulStopDelaySeconds = 3;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RadioStreamingHostedService"/> class.
     /// </summary>
     public RadioStreamingHostedService(
         ILogger<RadioStreamingHostedService> logger,
-        IcecastStreamingService icecastService,
+        LiquidsoapStreamingService liquidsoapService,
         ScheduleManagerService scheduleManager,
         AudioProviderService audioProvider)
     {
         _logger = logger;
-        _icecastService = icecastService;
+        _liquidsoapService = liquidsoapService;
         _scheduleManager = scheduleManager;
         _audioProvider = audioProvider;
     }
 
     /// <summary>
     /// Executes the main radio streaming loop.
-    /// Only streams when a scheduled playlist is active.
-    /// Stops Icecast when no schedule is active or the playlist ends.
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online streaming service started (track-by-track mode with -re real-time pacing)");
+        _logger.LogInformation("Radio Online streaming service started (Liquidsoap mode)");
 
-        // Wait for Jellyfin to fully initialize before starting
+        // Wait for Jellyfin to fully initialize
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -72,10 +88,10 @@ public class RadioStreamingHostedService : BackgroundService
 
                 if (config == null || !config.IsEnabled)
                 {
-                    if (_icecastService.IsStreaming)
+                    if (_liquidsoapService.IsStreaming)
                     {
-                        _logger.LogInformation("Plugin disabled, stopping Icecast stream");
-                        _icecastService.StopStreaming();
+                        _logger.LogInformation("Plugin disabled, stopping Liquidsoap");
+                        await StopLiquidsoapGracefullyAsync(stoppingToken).ConfigureAwait(false);
                     }
 
                     await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
@@ -84,9 +100,9 @@ public class RadioStreamingHostedService : BackgroundService
 
                 if (!ValidateConfig(config))
                 {
-                    if (_icecastService.IsStreaming)
+                    if (_liquidsoapService.IsStreaming)
                     {
-                        _icecastService.StopStreaming();
+                        await StopLiquidsoapGracefullyAsync(stoppingToken).ConfigureAwait(false);
                     }
 
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
@@ -113,13 +129,18 @@ public class RadioStreamingHostedService : BackgroundService
             }
         }
 
-        _icecastService.StopStreaming();
+        // Ensure clean shutdown
+        if (_liquidsoapService.IsStreaming)
+        {
+            await StopLiquidsoapGracefullyAsync(stoppingToken).ConfigureAwait(false);
+        }
+
         _logger.LogInformation("Radio Online streaming service stopped");
     }
 
     /// <summary>
-    /// Runs a single streaming cycle: checks schedule, retrieves playlist files,
-    /// and streams them track-by-track with schedule monitoring between each track.
+    /// Runs a single streaming cycle: checks schedule, starts/stops Liquidsoap,
+    /// and manages the playlist based on the active schedule entry.
     /// </summary>
     private async Task RunStreamingCycle(PluginConfiguration config, CancellationToken cancellationToken)
     {
@@ -128,14 +149,14 @@ public class RadioStreamingHostedService : BackgroundService
 
         if (activeEntry == null || string.IsNullOrEmpty(activeEntry.PlaylistId))
         {
-            // No active schedule - ensure streaming is stopped and wait
-            if (_icecastService.IsStreaming)
+            // No active schedule - stop Liquidsoap if running
+            if (_liquidsoapService.IsStreaming)
             {
-                _logger.LogInformation("No active schedule, stopping Icecast stream");
-                _icecastService.StopStreaming();
+                _logger.LogInformation("No active schedule, stopping Liquidsoap");
+                await StopLiquidsoapGracefullyAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            // Wait until next schedule starts or re-check interval
+            // Wait until next schedule starts
             var timeUntilNext = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
             if (timeUntilNext.HasValue && timeUntilNext.Value < TimeSpan.FromMinutes(5))
             {
@@ -150,7 +171,19 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
-        // We have an active schedule entry - get its playlist items in order
+        // We have an active schedule - start Liquidsoap and set the playlist
+        if (!_liquidsoapService.IsStreaming)
+        {
+            var started = await _liquidsoapService.StartStreamingAsync(config, cancellationToken).ConfigureAwait(false);
+            if (!started)
+            {
+                _logger.LogError("Failed to start Liquidsoap, will retry");
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                return;
+            }
+        }
+
+        // Get playlist items in order
         var playlistItems = _audioProvider.GetPlaylistItems(activeEntry.PlaylistId, config.JellyfinUserId);
 
         if (playlistItems.Count == 0)
@@ -183,110 +216,110 @@ public class RadioStreamingHostedService : BackgroundService
         }
 
         _logger.LogInformation(
-            "Starting track-by-track stream for \"{Name}\" ({Day} {Start}-{End}) with {FileCount} tracks",
+            "Activating schedule \"{Name}\" ({Day} {Start}-{End}) with {Count} tracks via Liquidsoap",
             activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime, filePaths.Count);
 
-        // Stream each track individually, checking schedule between tracks
-        await StreamTrackByTrack(
-            filePaths,
-            activeEntry,
-            config,
-            cancellationToken).ConfigureAwait(false);
+        // Write the playlist file - Liquidsoap will detect the change and start playing
+        await _liquidsoapService.SetPlaylistAsync(filePaths, cancellationToken).ConfigureAwait(false);
+
+        // Monitor the schedule while Liquidsoap plays
+        await MonitorScheduleWhileStreamingAsync(activeEntry, filePaths.Count, config, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Streams a playlist to Icecast one track at a time, with schedule verification
-    /// between each track. This approach solves three critical problems:
+    /// Monitors the schedule while Liquidsoap is streaming.
+    /// Checks every few seconds for:
+    /// - Plugin being disabled
+    /// - Current schedule slot ending
+    /// - Schedule overlap (later schedule taking priority)
     ///
-    /// 1. PLAYBACK ORDER: Each track is processed sequentially in playlist order.
-    ///    The AudioProviderService preserves order via LinkedChildren, and we iterate
-    ///    the file list from index 0 to the end without any reordering.
-    ///
-    /// 2. SCHEDULE OVERLAP: Before each track starts, we re-evaluate the active schedule.
-    ///    If the current time slot has ended, or a later schedule has taken over, we stop
-    ///    immediately. This makes overlap priority work correctly - the new schedule's
-    ///    streaming cycle will start on the next iteration of the main loop.
-    ///
-    /// 3. CLIENT SYNCHRONIZATION: Each FFmpeg process uses the -re flag to pace output
-    ///    in real-time. All listeners connecting during a track hear the same audio,
-    ///    with only normal latency differences (1-2 seconds) like any internet radio.
-    ///
-    /// There is a brief silence (1-2 seconds) between tracks while FFmpeg starts up
-    /// and reconnects to Icecast. This is acceptable for scheduled radio programming.
+    /// For overlap handling:
+    /// 1. Write the new playlist file (atomic rename triggers inotify instantly)
+    /// 2. Wait briefly for inotify to propagate
+    /// 3. Send skip command to Liquidsoap (advances to next track from new playlist)
     /// </summary>
-    private async Task StreamTrackByTrack(
-        List<string> filePaths,
+    private async Task MonitorScheduleWhileStreamingAsync(
         ScheduleEntry activeEntry,
+        int trackCount,
         PluginConfiguration config,
         CancellationToken cancellationToken)
     {
-        for (int i = 0; i < filePaths.Count; i++)
+        while (!cancellationToken.IsCancellationRequested)
         {
-            // ── Pre-track schedule verification ──────────────────────────
+            await Task.Delay(TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds), cancellationToken).ConfigureAwait(false);
 
-            // Re-read config in case it was updated while streaming previous track
+            if (!_liquidsoapService.IsStreaming)
+            {
+                _logger.LogWarning("Liquidsoap process died unexpectedly during monitoring");
+                break;
+            }
+
+            // Re-read config (may have been updated)
             var currentConfig = Plugin.Instance?.Configuration as PluginConfiguration;
             if (currentConfig == null || !currentConfig.IsEnabled)
             {
-                _logger.LogInformation("Plugin disabled, stopping before track {Index}/{Total}", i + 1, filePaths.Count);
+                _logger.LogInformation("Plugin disabled during streaming, stopping Liquidsoap");
+                await StopLiquidsoapGracefullyAsync(cancellationToken).ConfigureAwait(false);
                 break;
             }
 
-            // Check if the schedule time slot is still active
+            // Check if the schedule slot is still active
             var currentEntry = _scheduleManager.GetActiveScheduleEntry(currentConfig.ScheduleEntries);
+
             if (currentEntry == null)
             {
+                // Schedule slot ended - clear playlist and stop
                 _logger.LogInformation(
-                    "Schedule slot ended before track {Index}/{Total} - stopping transmission",
-                    i + 1, filePaths.Count);
+                    "Schedule slot ended for \"{Name}\", stopping transmission",
+                    activeEntry.DisplayName);
+                await StopLiquidsoapGracefullyAsync(cancellationToken).ConfigureAwait(false);
                 break;
             }
 
-            // Check if a different (later-starting) schedule has taken over due to overlap
+            // Check for schedule overlap (different playlist taking over)
             if (!string.Equals(currentEntry.PlaylistId, activeEntry.PlaylistId, StringComparison.Ordinal) ||
                 !string.Equals(currentEntry.StartTime, activeEntry.StartTime, StringComparison.Ordinal))
             {
                 _logger.LogInformation(
-                    "Schedule overlap detected before track {Index}/{Total}: " +
-                    "\"{NewName}\" ({NewStart}-{NewEnd}) takes priority over \"{OldName}\" ({OldStart}-{OldEnd})",
-                    i + 1, filePaths.Count,
+                    "Schedule overlap: \"{NewName}\" ({NewStart}-{NewEnd}) takes priority over \"{OldName}\" ({OldStart}-{OldEnd})",
                     currentEntry.DisplayName, currentEntry.StartTime, currentEntry.EndTime,
                     activeEntry.DisplayName, activeEntry.StartTime, activeEntry.EndTime);
+
+                // The new schedule will be picked up on the next cycle of RunStreamingCycle.
+                // For now, just clear the playlist and stop so the new cycle can start fresh.
+                // This avoids potential playlist conflicts.
+                _logger.LogInformation("Clearing playlist and stopping Liquidsoap for schedule transition");
+                await StopLiquidsoapGracefullyAsync(cancellationToken).ConfigureAwait(false);
                 break;
             }
 
-            // ── Stream the track ─────────────────────────────────────────
-
-            var fileName = Path.GetFileName(filePaths[i]);
-            _logger.LogInformation(
-                "Streaming track {Index}/{Total}: {FileName}",
-                i + 1, filePaths.Count, fileName);
-
-            var success = await _icecastService.StreamSingleFileAsync(
-                filePaths[i],
-                currentConfig.IcecastUrl,
-                currentConfig.IcecastUsername,
-                currentConfig.IcecastPassword,
-                currentConfig.IcecastMountPoint,
-                currentConfig.AudioFormat,
-                currentConfig.AudioBitrate,
-                currentConfig.StreamName,
-                currentConfig.StreamGenre,
-                cancellationToken);
-
-            if (!success && !cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogWarning(
-                    "Track {Index}/{Total} ({FileName}) failed, continuing to next track",
-                    i + 1, filePaths.Count, fileName);
-                // Continue to next track instead of breaking - a single bad file
-                // shouldn't stop the entire playlist
-            }
+            // Schedule is still active and unchanged - continue monitoring
+            // Liquidsoap handles the actual playback, crossfade, and track transitions
         }
 
-        _logger.LogInformation(
-            "Stream cycle completed for \"{Name}\" ({Total} tracks processed)",
-            activeEntry.DisplayName, filePaths.Count);
+        _logger.LogInformation("Monitor ended for schedule \"{Name}\" ({Tracks} tracks)", activeEntry.DisplayName, trackCount);
+    }
+
+    /// <summary>
+    /// Gracefully stops Liquidsoap by clearing the playlist, waiting for the current
+    /// track to finish its fade-out, then killing the process.
+    /// </summary>
+    private async Task StopLiquidsoapGracefullyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Clear playlist so Liquidsoap stops after current track
+            await _liquidsoapService.ClearPlaylistAsync(cancellationToken).ConfigureAwait(false);
+
+            // Give Liquidsoap time to finish current track's crossfade/fade-out
+            await Task.Delay(TimeSpan.FromSeconds(GracefulStopDelaySeconds), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error during graceful stop, forcing immediate stop");
+        }
+
+        _liquidsoapService.StopStreaming();
     }
 
     /// <summary>
@@ -334,7 +367,11 @@ public class RadioStreamingHostedService : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping Radio Online streaming service");
-        _icecastService.StopStreaming();
+        if (_liquidsoapService.IsStreaming)
+        {
+            _liquidsoapService.StopStreaming();
+        }
+
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 }

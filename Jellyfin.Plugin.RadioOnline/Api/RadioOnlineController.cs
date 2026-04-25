@@ -22,17 +22,17 @@ namespace Jellyfin.Plugin.RadioOnline.Api;
 public class RadioOnlineController : ControllerBase
 {
     private readonly AudioProviderService _audioProvider;
-    private readonly IcecastStreamingService _icecastService;
+    private readonly LiquidsoapStreamingService _liquidsoapService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RadioOnlineController"/> class.
     /// </summary>
     /// <param name="audioProvider">The audio provider service.</param>
-    /// <param name="icecastService">The Icecast streaming service.</param>
-    public RadioOnlineController(AudioProviderService audioProvider, IcecastStreamingService icecastService)
+    /// <param name="liquidsoapService">The Liquidsoap streaming service.</param>
+    public RadioOnlineController(AudioProviderService audioProvider, LiquidsoapStreamingService liquidsoapService)
     {
         _audioProvider = audioProvider;
-        _icecastService = icecastService;
+        _liquidsoapService = liquidsoapService;
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public class RadioOnlineController : ControllerBase
         return Ok(new
         {
             isEnabled = config.IsEnabled,
-            isStreaming = _icecastService.IsStreaming,
+            isStreaming = _liquidsoapService.IsStreaming,
             icecastUrl = config.IcecastUrl,
             mountPoint = config.IcecastMountPoint,
             audioFormat = config.AudioFormat,

@@ -23,8 +23,8 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         // Register the radio streaming background service (runs continuously)
         serviceCollection.AddHostedService<RadioStreamingHostedService>();
 
-        // Register the Icecast streaming service
-        serviceCollection.AddSingleton<IcecastStreamingService>();
+        // Register the Liquidsoap streaming service (persistent Liquidsoap process)
+        serviceCollection.AddSingleton<LiquidsoapStreamingService>();
 
         // Register the schedule manager service
         serviceCollection.AddSingleton<ScheduleManagerService>();
