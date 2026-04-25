@@ -111,3 +111,25 @@ Stage Summary:
 - All 8 issues addressed in v0.0.0.4
 - Release: https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/tag/v0.0.0.4-alpha
 - Checksum: 178c21e83d53091774d6391a55a9646d
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix 4 reported issues in v0.0.0.4 and compile v0.0.0.5
+
+Work Log:
+- Read and analyzed all source files from the project
+- Analyzed 2 uploaded screenshots showing style and status issues
+- Identified root causes for all 4 reported issues
+- Rewrote config.html with fixes: added is="emby-select"/is="emby-checkbox"/is="emby-input" to rendered schedule elements, removed conflicting CSS, rewrote loadStatus() to use getPluginConfiguration() as primary source, rewrote loadPlaylists() to use robust fetch API with proper auth headers, added auto-reload of playlists after config save
+- Added StreamPlaylistAsync() to IcecastStreamingService using FFmpeg concat demuxer for gapless continuous streaming
+- Rewrote RadioStreamingHostedService.RunStreamingCycle() to use gapless playlist streaming instead of per-file streaming
+- Compiled v0.0.0.5 successfully
+- Created GitHub release v0.0.0.5-alpha with ZIP asset
+- Updated manifest.json with new version entry and MD5 checksum
+- Pushed all changes to GitHub
+
+Stage Summary:
+- All 4 issues fixed: native styles, status section, playlist selection, transmission interruption
+- New FFmpeg concat demuxer approach eliminates connection drops between songs
+- Robust API helper function using native fetch with Jellyfin auth
+- Released as v0.0.0.5 Alpha on GitHub
