@@ -18,17 +18,17 @@ namespace Jellyfin.Plugin.RadioOnline.Api;
 public class RadioOnlineController : ControllerBase
 {
     private readonly AudioProviderService _audioProvider;
-    private readonly RadioStreamingHostedService _hostedService;
+    private readonly IcecastStreamingService _icecastService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RadioOnlineController"/> class.
     /// </summary>
     public RadioOnlineController(
         AudioProviderService audioProvider,
-        RadioStreamingHostedService hostedService)
+        IcecastStreamingService icecastService)
     {
         _audioProvider = audioProvider;
-        _hostedService = hostedService;
+        _icecastService = icecastService;
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ public class RadioOnlineController : ControllerBase
         return Ok(new
         {
             isEnabled = config.IsEnabled,
-            isStreaming = _hostedService.IsStreaming,
+            isStreaming = _icecastService.IsStreaming,
             icecastUrl = config.IcecastUrl,
             mountPoint = config.IcecastMountPoint,
             audioFormat = config.AudioFormat,

@@ -13,7 +13,7 @@
         "changelog": "- Fixed playlist selection in schedule programming\n- Improved API communication using native ApiClient (more reliable authentication)\n- Added visible error messages when playlists cannot be loaded\n- Continuous gapless playback using FFmpeg concat demuxer with -stream_loop -1\n- Schedule monitoring every 5 seconds - kills and restarts FFmpeg when schedule changes\n- Removed all Liquidsoap code (not compatible with Docker containers)\n- Simplified architecture: FFmpeg concat playlist instead of track-by-track approach",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.8/jellyfin-plugin-radio-online_0.0.0.8.zip",
-        "checksum": "364597c8da41628eeef4905e925ba63e",
+        "checksum": "a77c886e50094523c59ff98c7c1adb60",
         "timestamp": "2026-04-26T21:00:00Z"
       },
       {
