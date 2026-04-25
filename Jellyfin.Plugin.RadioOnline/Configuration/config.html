@@ -152,6 +152,7 @@
                             <select id="roNewPlaylist" is="emby-select">
                                 <option value="">-- Seleccionar --</option>
                             </select>
+                            <div id="roPlaylistError" class="fieldDescription" style="color:#ff6b6b;display:none;margin-top:0.3em;"></div>
                         </div>
 
                         <div class="inputContainer">
@@ -244,20 +245,12 @@
         }
         function sv(k,v){ cfg[k]=v; cfg[k.charAt(0).toLowerCase()+k.slice(1)]=v; }
 
+        // Use ApiClient for all API calls - handles auth, headers, and error parsing properly
         function apiGet(path){
-            var serverAddr = ApiClient.serverAddress() || '';
-            var token = ApiClient.accessToken() || '';
-            var url = serverAddr.replace(/\/+$/,'') + '/' + path.replace(/^\/+/,'');
-            return fetch(url, {
-                method: 'GET',
-                headers: {
-                    'X-Emby-Token': token,
-                    'Authorization': 'MediaBrowser Token="' + token + '"',
-                    'Accept': 'application/json'
-                }
-            }).then(function(r){
-                if(!r.ok) throw new Error('HTTP ' + r.status);
-                return r.json();
+            return ApiClient.ajax({
+                type: 'GET',
+                url: ApiClient.getUrl(path),
+                dataType: 'json'
             });
         }
 
@@ -311,7 +304,7 @@
                 else tabs[j].style.display='none';
             }
             if(id==='status') loadStatus();
-            if(id==='schedule'){ loadPlaylists(); }
+            if(id==='schedule') loadPlaylists();
         }
 
         // --- Config ---
@@ -437,19 +430,35 @@
                 playlists=d||[];
                 playlistsLoaded=true;
                 fillPlaylistSelect();
-                tryRenderSchedule();
+                renderSchedule();
             }).catch(function(e){
                 console.warn('[RadioOnline] Playlists API failed',e);
                 playlistsLoaded=true;
                 playlists=[];
                 fillPlaylistSelect();
-                tryRenderSchedule();
+                renderSchedule();
+                showPlaylistError('No se pudieron cargar las playlists. Verifica que el usuario de biblioteca este configurado.');
             });
+        }
+
+        function showPlaylistError(msg){
+            var el=document.getElementById('roPlaylistError');
+            if(el){ el.textContent=msg; el.style.display=''; }
+        }
+
+        function hidePlaylistError(){
+            var el=document.getElementById('roPlaylistError');
+            if(el){ el.style.display='none'; }
         }
 
         function fillPlaylistSelect(){
             var sel=document.getElementById('roNewPlaylist'); if(!sel) return;
             while(sel.options.length>1) sel.remove(1);
+            hidePlaylistError();
+            if(playlists.length===0){
+                showPlaylistError('No se encontraron playlists. Verifica que el usuario de biblioteca tenga acceso a playlists.');
+                return;
+            }
             for(var i=0;i<playlists.length;i++){
                 var o=document.createElement('option');
                 o.value=playlists[i].id; o.textContent=playlists[i].name;
@@ -621,6 +630,10 @@
         function init(){
             if(inited) return;
             inited = true;
+            configLoaded = false;
+            playlistsLoaded = false;
+            playlists = [];
+            cfg = {};
             populateDropdowns();
             loadConfig();
             loadUsers();
