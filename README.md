@@ -280,5 +280,3 @@ Este plugin es un proyecto independiente y no esta afiliado, respaldado ni patro
 ## 📄 Licencia
 
 Este proyecto esta bajo la licencia [MIT](LICENSE).
-
-**Autor:** [PepeBarrascout](https://github.com/pepebarrascout)
