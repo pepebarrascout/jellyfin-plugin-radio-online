@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.5",
+        "changelog": "- Fixed native Jellyfin styles in schedule list (all selects now use is=\"emby-select\", checkbox uses is=\"emby-checkbox\")\n- Fixed Estado tab now shows correct status using getPluginConfiguration (reads from disk)\n- Fixed playlist loading: now loads after config is ready, auto-reloads after save, handles API errors gracefully\n- Fixed transmission interruption between songs: now uses FFmpeg concat demuxer for gapless continuous streaming\n- Improved API calls using native fetch with Jellyfin auth headers instead of ApiClient.ajax\n- Removed conflicting custom CSS for schedule form elements\n- Better error handling throughout config page",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.5-alpha/jellyfin-plugin-radio-online_v0.0.0.5-alpha.zip",
+        "checksum": "026d52d07680e0be4fec5191cd781477",
+        "timestamp": "2026-04-25T15:00:00Z"
+      },
+      {
         "version": "0.0.0.4",
         "changelog": "- Fixed status refresh button now uses ApiClient.ajax\n- Added Saturday and Sunday to schedule programming\n- Time selectors are now dropdown lists (hours 0-23, minutes in 5-min intervals)\n- Fixed playlist order now preserved using LinkedChildren\n- Fixed Icecast connection not stopping when plugin is disabled\n- Fixed transmission lost between tracks (better reconnection + 1s gap)\n- Schedule entries now use Jellyfin listItem style instead of raw table\n- Fixed day and playlist selection persistence after save/reload\n- Removed weekend restriction from backend schedule manager",
         "targetAbi": "10.11.8.0",

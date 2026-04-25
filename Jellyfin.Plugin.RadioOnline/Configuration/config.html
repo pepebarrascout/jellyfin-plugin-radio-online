@@ -210,7 +210,6 @@
         .ro-sched-row { display:flex;align-items:center;gap:0.5em;flex:1;min-width:200px;flex-wrap:wrap; }
         .ro-sched-field { display:flex;align-items:center;gap:0.3em; }
         .ro-sched-field label { font-size:0.8em;color:rgba(255,255,255,0.5);min-width:32px; }
-        .ro-sched-field select, .ro-sched-field input[type="text"] { font-size:0.85em;min-width:60px; }
         .ro-sched-actions { display:flex;gap:0.5em;align-items:center; }
         .ro-sched-time-sep { font-size:1.1em;color:rgba(255,255,255,0.4); }
         .ro-disabled-item { opacity:0.4; }
@@ -223,6 +222,7 @@
         var playlists = [];
         var configLoaded = false;
         var playlistsLoaded = false;
+        var inited = false;
 
         // UI day values: 1=Lunes ... 6=Sabado, 7=Domingo
         // C# DayOfWeek: Sunday=0, Monday=1 ... Saturday=6
@@ -231,7 +231,6 @@
 
         function esc(t){ var d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
-        // Convert any DayOfWeek value to UI day (1-7)
         function normalizeDay(d){
             if(d==null) return 1;
             if(typeof d==='number') return d===0?7:d;
@@ -243,7 +242,6 @@
             return 1;
         }
 
-        // Convert UI day (1-7) to C# DayOfWeek value (0-6)
         function toCSharpDay(uiDay){ return uiDay===7?0:uiDay; }
 
         function gv(k){
@@ -253,12 +251,30 @@
         }
         function sv(k,v){ cfg[k]=v; cfg[k.charAt(0).toLowerCase()+k.slice(1)]=v; }
 
+        // --- Robust API helper using fetch with Jellyfin auth ---
+        function apiGet(path){
+            var serverAddr = ApiClient.serverAddress() || '';
+            var token = ApiClient.accessToken() || '';
+            var url = serverAddr.replace(/\/+$/,'') + '/' + path.replace(/^\/+/,'');
+            return fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-Emby-Token': token,
+                    'Authorization': 'MediaBrowser Token="' + token + '"',
+                    'Accept': 'application/json'
+                }
+            }).then(function(r){
+                if(!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            });
+        }
+
         // --- Generate time dropdown options ---
         function hourOpts(sel){
             var html='';
             for(var h=0;h<24;h++){
                 var v=(h<10?'0':'')+h;
-                html+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+v+'</option>';
+                html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>';
             }
             return html;
         }
@@ -266,21 +282,21 @@
             var html='';
             for(var m=0;m<60;m+=5){
                 var v=(m<10?'0':'')+m;
-                html+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+v+'</option>';
+                html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>';
             }
             return html;
         }
         function dayOpts(sel){
             var html='';
             for(var d=1;d<=7;d++){
-                html+='<option value="'+d+'"'+(d===sel?' selected':'')+'>'+dayNames[d]+'</option>';
+                html+='<option value="'+d+'"'+(String(sel)===String(d)?' selected':'')+'>'+dayNames[d]+'</option>';
             }
             return html;
         }
         function plOpts(sel){
             var html='';
             for(var i=0;i<playlists.length;i++){
-                html+='<option value="'+playlists[i].id+'"'+(playlists[i].id===sel?' selected':'')+'>'+esc(playlists[i].name)+'</option>';
+                html+='<option value="'+playlists[i].id+'"'+(String(playlists[i].id)===String(sel)?' selected':'')+'>'+esc(playlists[i].name)+'</option>';
             }
             return html;
         }
@@ -304,7 +320,7 @@
                 else tabs[j].style.display='none';
             }
             if(id==='status') loadStatus();
-            if(id==='schedule') loadPlaylists();
+            if(id==='schedule'){ loadPlaylists(); }
         }
 
         // --- Config ---
@@ -316,8 +332,13 @@
                 fillForm();
                 tryRenderSchedule();
                 Dashboard.hideLoadingMsg();
+                // After config is loaded, load playlists (needs JellyfinUserId)
+                loadPlaylists();
             }).catch(function(e){
-                console.error('[RadioOnline]',e);
+                console.error('[RadioOnline] Config load error',e);
+                configLoaded=true; // Allow schedule to render even without config
+                playlistsLoaded=true;
+                tryRenderSchedule();
                 Dashboard.hideLoadingMsg();
             });
         }
@@ -360,6 +381,9 @@
             ApiClient.updatePluginConfiguration(PLUGIN_ID, cfg).then(function(r){
                 Dashboard.hideLoadingMsg();
                 Dashboard.processPluginConfigurationUpdateResult(r);
+                // Reload playlists after save (in case userId changed)
+                playlistsLoaded=false;
+                loadPlaylists();
             }).catch(function(e){
                 console.error('[RadioOnline]',e);
                 Dashboard.hideLoadingMsg();
@@ -368,26 +392,44 @@
         }
 
         // --- Status ---
+        // Uses getPluginConfiguration (always reads from disk) as primary source
+        // Falls back to custom API endpoint for isStreaming
         function loadStatus(){
             Dashboard.showLoadingMsg();
-            ApiClient.ajax({
-                type:'GET',
-                url:ApiClient.getUrl('Plugins/RadioOnline/Status')
-            }).then(function(result){
-                var st=result;
+
+            // Primary: read config from disk via getPluginConfiguration
+            ApiClient.getPluginConfiguration(PLUGIN_ID).then(function(c){
+                var st = c || {};
+                var isEnabled = st.IsEnabled || st.isEnabled || false;
+                var iceUrl = st.IcecastUrl || st.icecastUrl || '';
+                var schedCount = (st.ScheduleEntries || st.scheduleEntries || []).length;
+                var fmt = st.AudioFormat || st.audioFormat || '--';
+                var br = st.AudioBitrate || st.audioBitrate || '--';
+
+                // Update DOM from config
                 var ep=document.getElementById('roStPlugin');
-                if(ep) ep.innerHTML=st.isEnabled?'<span class="ro-st-on">Activado</span>':'<span class="ro-st-off">Desactivado</span>';
+                if(ep) ep.innerHTML=isEnabled?'<span class="ro-st-on">Activado</span>':'<span class="ro-st-off">Desactivado</span>';
                 var ei=document.getElementById('roStIcecast');
-                if(ei){ ei.textContent=st.icecastUrl?'Configurado':'Sin configurar'; ei.style.color=st.icecastUrl?'#52b54b':'#888'; }
-                var es=document.getElementById('roStStream');
-                if(es) es.innerHTML=st.isStreaming?'<span class="ro-st-live">En Vivo</span>':'<span class="ro-st-off">Inactivo</span>';
+                if(ei){ ei.textContent=iceUrl?'Configurado':'Sin configurar'; ei.style.color=iceUrl?'#52b54b':'#888'; }
                 var ef=document.getElementById('roStFormat');
-                if(ef) ef.textContent=(st.audioFormat||'--').toUpperCase()+' / '+(st.audioBitrate||'--')+'kbps';
+                if(ef) ef.textContent=(fmt||'--').toUpperCase()+' / '+(br||'--')+'kbps';
                 var ec=document.getElementById('roStCount');
-                if(ec) ec.textContent=st.scheduleEntriesCount||0;
-                Dashboard.hideLoadingMsg();
+                if(ec) ec.textContent=schedCount;
+
+                // Secondary: get live streaming status from custom API
+                apiGet('Plugins/RadioOnline/Status').then(function(apiSt){
+                    var es=document.getElementById('roStStream');
+                    if(es) es.innerHTML=(apiSt && apiSt.isStreaming)?'<span class="ro-st-live">En Vivo</span>':'<span class="ro-st-off">Inactivo</span>';
+                    Dashboard.hideLoadingMsg();
+                }).catch(function(){
+                    // Custom API failed - show streaming as unknown from config
+                    var es=document.getElementById('roStStream');
+                    if(es) es.innerHTML=isEnabled?'<span class="ro-st-off">Inactivo</span>':'<span class="ro-st-off">Inactivo</span>';
+                    Dashboard.hideLoadingMsg();
+                });
+
             }).catch(function(e){
-                console.error('[RadioOnline] Status error',e);
+                console.error('[RadioOnline] Status config error',e);
                 Dashboard.hideLoadingMsg();
             });
         }
@@ -409,15 +451,21 @@
 
         // --- Playlists ---
         function loadPlaylists(){
-            ApiClient.ajax({
-                type:'GET',
-                url:ApiClient.getUrl('Plugins/RadioOnline/Playlists')
-            }).then(function(d){
+            // Avoid duplicate calls
+            if(playlistsLoaded) { tryRenderSchedule(); return; }
+
+            apiGet('Plugins/RadioOnline/Playlists').then(function(d){
                 playlists=d||[];
                 playlistsLoaded=true;
                 fillPlaylistSelect();
                 tryRenderSchedule();
-            }).catch(function(e){ console.error('[RadioOnline]',e); });
+            }).catch(function(e){
+                console.warn('[RadioOnline] Playlists API failed, trying direct playlist query',e);
+                playlistsLoaded=true; // Don't block schedule rendering
+                playlists=[];
+                fillPlaylistSelect();
+                tryRenderSchedule();
+            });
         }
 
         function fillPlaylistSelect(){
@@ -431,7 +479,6 @@
         }
 
         // --- Schedule ---
-        // Only render when both config and playlists are loaded
         function tryRenderSchedule(){
             if(configLoaded && playlistsLoaded) renderSchedule();
         }
@@ -479,21 +526,17 @@
                 div.className='listItem listItem-narrow ro-sched-item'+(ac?'':' ro-disabled-item');
                 div.setAttribute('data-i',idx);
 
-                var plName='-- Aleatoria --';
-                for(var p=0;p<playlists.length;p++){
-                    if(playlists[p].id===pl){ plName=playlists[p].name; break; }
-                }
-
+                // Build innerHTML with is="emby-select" on all selects
                 div.innerHTML=
                     '<div class="ro-sched-row">'+
-                        '<div class="ro-sched-field"><label>Dia</label><select data-i="'+idx+'" data-f="DayOfWeek">'+dayOpts(day)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>De</label><select data-i="'+idx+'" data-f="StartTimeH">'+hourOpts(stHM.h)+'</select><span class="ro-sched-time-sep">:</span><select data-i="'+idx+'" data-f="StartTimeM">'+minOpts(stHM.m)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>A</label><select data-i="'+idx+'" data-f="EndTimeH">'+hourOpts(etHM.h)+'</select><span class="ro-sched-time-sep">:</span><select data-i="'+idx+'" data-f="EndTimeM">'+minOpts(etHM.m)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>Lista</label><select data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Aleatoria --</option>'+plOpts(pl)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>Nombre</label><input type="text" data-i="'+idx+'" data-f="DisplayName" value="'+esc(nm)+'" /></div>'+
+                        '<div class="ro-sched-field"><label>Dia</label><select is="emby-select" data-i="'+idx+'" data-f="DayOfWeek">'+dayOpts(day)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>De</label><select is="emby-select" data-i="'+idx+'" data-f="StartTimeH">'+hourOpts(stHM.h)+'</select><span class="ro-sched-time-sep">:</span><select is="emby-select" data-i="'+idx+'" data-f="StartTimeM">'+minOpts(stHM.m)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>A</label><select is="emby-select" data-i="'+idx+'" data-f="EndTimeH">'+hourOpts(etHM.h)+'</select><span class="ro-sched-time-sep">:</span><select is="emby-select" data-i="'+idx+'" data-f="EndTimeM">'+minOpts(etHM.m)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>Lista</label><select is="emby-select" data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Aleatoria --</option>'+plOpts(pl)+'</select></div>'+
+                        '<div class="ro-sched-field"><label>Nombre</label><input type="text" is="emby-input" data-i="'+idx+'" data-f="DisplayName" value="'+esc(nm)+'" /></div>'+
                     '</div>'+
                     '<div class="ro-sched-actions">'+
-                        '<input type="checkbox" '+(ac?'checked':'')+' data-i="'+idx+'" data-f="IsEnabled" title="Activar/Desactivar" />'+
+                        '<input type="checkbox" is="emby-checkbox" '+(ac?'checked':'')+' data-i="'+idx+'" data-f="IsEnabled" title="Activar/Desactivar" />'+
                         '<button type="button" is="emby-button" class="raised btn-danger" data-i="'+idx+'" data-act="del"><span>Borrar</span></button>'+
                     '</div>';
 
@@ -531,7 +574,6 @@
                 en.DisplayName=t.value; en.displayName=t.value;
             } else if(field==='IsEnabled'){
                 en.IsEnabled=t.checked; en.isEnabled=t.checked;
-                // Re-render to update disabled style
                 setEntries(entries);
                 renderSchedule();
                 return;
@@ -603,10 +645,12 @@
 
         // --- Init ---
         function init(){
+            if(inited) return; // Prevent double init from pageshow
+            inited = true;
             populateDropdowns();
             loadConfig();
             loadUsers();
-            loadPlaylists();
+            // loadPlaylists is called inside loadConfig's .then() after config is loaded
 
             // Tab clicks
             var nav=document.querySelectorAll('#roTabNav a[data-tab]');
@@ -631,7 +675,7 @@
             var bn=document.getElementById('roBtnSaveNew');
             if(bn) bn.addEventListener('click',addEntry);
 
-            // Refresh button - use event delegation for reliability
+            // Refresh button - event delegation
             document.getElementById('roTabStatus').addEventListener('click',function(e){
                 var btn=e.target.closest('#roBtnRefresh');
                 if(btn) loadStatus();
@@ -648,8 +692,9 @@
             switchTab('config');
         }
 
-        // Multiple init listeners for Jellyfin SPA
+        // Jellyfin SPA pageshow listener
         document.querySelector('#radioOnlineConfigPage').addEventListener('pageshow', function(){
+            inited = false; // Allow re-init on page re-show
             init();
         });
     })();

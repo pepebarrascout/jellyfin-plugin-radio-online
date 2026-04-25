@@ -15,7 +15,8 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 /// Background hosted service that manages the continuous radio streaming loop.
 /// This service runs continuously while the plugin is enabled, managing the
 /// schedule-aware playback cycle: checking the schedule, selecting playlists
-/// or random music, streaming to Icecast, and handling transitions between slots.
+/// or random music, streaming to Icecast via gapless concat demuxer, and handling
+/// transitions between slots.
 /// </summary>
 public class RadioStreamingHostedService : BackgroundService
 {
@@ -54,7 +55,7 @@ public class RadioStreamingHostedService : BackgroundService
     {
         _logger.LogInformation("Radio Online streaming service started");
 
-        // Wait a bit for Jellyfin to fully initialize before starting
+        // Wait for Jellyfin to fully initialize before starting
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -118,6 +119,8 @@ public class RadioStreamingHostedService : BackgroundService
 
     /// <summary>
     /// Runs a single streaming cycle: determines what to play and streams it continuously.
+    /// Uses FFmpeg's concat demuxer for gapless playback of the entire audio queue as a
+    /// single continuous Icecast stream, eliminating interruptions between tracks.
     /// After the audio queue is exhausted, re-evaluates the schedule for the next cycle.
     /// </summary>
     private async Task RunStreamingCycle(PluginConfiguration config, CancellationToken cancellationToken)
@@ -178,90 +181,62 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
-        _logger.LogInformation("Streaming cycle starting with {Count} audio items", audioQueue.Count);
+        _logger.LogInformation("Streaming cycle starting with {Count} audio items (gapless concat mode)", audioQueue.Count);
 
-        // Stream each audio file in sequence
-        var trackIndex = 0;
+        // Collect all valid file paths for gapless streaming
+        var filePaths = new List<string>();
         foreach (var audioItem in audioQueue)
         {
-            trackIndex++;
-
-            if (cancellationToken.IsCancellationRequested)
-            {
-                break;
-            }
-
-            // Re-read config to check if plugin was disabled while streaming
-            var currentConfig = Plugin.Instance?.Configuration as PluginConfiguration;
-            if (currentConfig == null || !currentConfig.IsEnabled)
-            {
-                _logger.LogInformation("Plugin was disabled during streaming, stopping immediately");
-                _icecastService.StopStreaming();
-                return;
-            }
-
-            // Re-check the schedule before each track
-            var currentEntry = _scheduleManager.GetActiveScheduleEntry(currentConfig.ScheduleEntries);
-            if (currentEntry == null && activeEntry != null)
-            {
-                // We were in a scheduled slot but it ended
-                _logger.LogInformation("Schedule slot ended, switching to new programming");
-                break;
-            }
-
-            // If we're in a different slot now, break to re-evaluate
-            if (currentEntry != null && activeEntry != null && currentEntry.PlaylistId != activeEntry.PlaylistId)
-            {
-                _logger.LogInformation("Schedule changed, switching to new playlist");
-                break;
-            }
-
             var filePath = _audioProvider.GetAudioFilePath(audioItem);
-            if (filePath == null)
+            if (filePath != null)
+            {
+                filePaths.Add(filePath);
+            }
+            else
             {
                 _logger.LogWarning("Skipping item with no valid path: {Name}", audioItem.Name);
-                continue;
-            }
-
-            _logger.LogInformation("Streaming track {Index}/{Total}: {Name}", trackIndex, audioQueue.Count, audioItem.Name);
-
-            var success = await _icecastService.StreamFileAsync(
-                filePath,
-                currentConfig.IcecastUrl,
-                currentConfig.IcecastUsername,
-                currentConfig.IcecastPassword,
-                currentConfig.IcecastMountPoint,
-                currentConfig.AudioFormat,
-                currentConfig.AudioBitrate,
-                currentConfig.StreamName,
-                currentConfig.StreamGenre,
-                cancellationToken).ConfigureAwait(false);
-
-            if (!success)
-            {
-                _logger.LogWarning("Failed to stream: {Name}. Retrying in 3 seconds...", audioItem.Name);
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-            }
-
-            // Brief delay between tracks to allow Icecast to sync
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
             }
         }
 
-        _logger.LogInformation("Streaming cycle completed ({Count} tracks processed)", trackIndex);
+        if (filePaths.Count == 0)
+        {
+            _logger.LogWarning("No valid audio files to stream after validation. Waiting 30 seconds.");
+            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        _logger.LogInformation(
+            "Starting gapless Icecast stream with {FileCount} files (from {TotalItems} queue items)",
+            filePaths.Count, audioQueue.Count);
+
+        // Stream the entire playlist as one continuous gapless stream via FFmpeg concat demuxer.
+        // This eliminates the connection drop between tracks that occurred with per-file streaming.
+        var success = await _icecastService.StreamPlaylistAsync(
+            filePaths,
+            config.IcecastUrl,
+            config.IcecastUsername,
+            config.IcecastPassword,
+            config.IcecastMountPoint,
+            config.AudioFormat,
+            config.AudioBitrate,
+            config.StreamName,
+            config.StreamGenre,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!success && !cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Gapless streaming failed. Retrying in 5 seconds...");
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Service is stopping, exit gracefully
+            }
+        }
+
+        _logger.LogInformation("Streaming cycle completed ({FileCount} files processed)", filePaths.Count);
     }
 
     /// <summary>
