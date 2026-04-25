@@ -203,7 +203,6 @@
         <member name="M:Jellyfin.Plugin.RadioOnline.Plugin.GetPages">
             <summary>
             Gets the plugin web pages (configuration dashboard).
-            The HTML page and all JavaScript files must each be registered individually.
             </summary>
             <returns>An enumerable of plugin page info objects.</returns>
         </member>

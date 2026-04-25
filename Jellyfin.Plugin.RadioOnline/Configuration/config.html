@@ -1,165 +1,146 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Radio Online</title>
-</head>
-<body>
+<div id="radioOnlineConfigPage" data-role="page" class="page type-interior pluginConfigurationPage radioOnlinePage">
 
-<div data-role="page" class="page type-interior pluginConfigurationPage RadioOnlineConfigPage">
     <div data-role="content">
         <div class="content-primary">
 
             <h1>Radio Online</h1>
             <p>Transmite audio a un servidor Icecast con programacion semanal de playlists. Los horarios sin programar se llenan con musica aleatoria de tu biblioteca de Jellyfin.</p>
 
-            <!-- Tab Navigation -->
-            <div data-role="controlgroup" data-type="horizontal" class="localnav">
-                <a class="emby-button" href="#" data-role="button" data-tab="config">Configuracion</a>
+            <div data-role="controlgroup" data-type="horizontal" class="localnav" id="roTabNav">
+                <a class="emby-button ui-btn-active" href="#" data-role="button" data-tab="config">Configuracion</a>
                 <a class="emby-button" href="#" data-role="button" data-tab="schedule">Programacion</a>
                 <a class="emby-button" href="#" data-role="button" data-tab="status">Estado</a>
             </div>
 
-            <!-- ════════════════════════════════════════════════════ -->
-            <!-- TAB: Configuracion (Icecast + Jellyfin Settings)   -->
-            <!-- ════════════════════════════════════════════════════ -->
-            <div id="config-tab" class="page-content hide" data-tab-content="config">
-                <form style="margin-top:2em;">
+            <!-- TAB: Configuracion -->
+            <div id="roTabConfig" class="ro-tab-content" data-tab-content="config">
+                <div style="margin-top:2em;">
 
-                    <h2 class="sectionHeader">Servidor Icecast</h2>
+                    <div class="sectionHeader">Servidor Icecast</div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="icecastUrl">URL del Servidor</label>
-                        <input type="text" id="icecastUrl" is="emby-input" placeholder="http://tu-servidor:8000" />
+                        <label class="inputLabel" for="roIcecastUrl">URL del Servidor</label>
+                        <input type="text" id="roIcecastUrl" is="emby-input" placeholder="http://tu-servidor:8000" />
                         <div class="fieldDescription">URL completa del servidor Icecast (sin barra final). Ejemplo: http://192.168.1.100:8000</div>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="icecastUsername">Usuario</label>
-                        <input type="text" id="icecastUsername" is="emby-input" placeholder="source" />
+                        <label class="inputLabel" for="roIcecastUser">Usuario</label>
+                        <input type="text" id="roIcecastUser" is="emby-input" placeholder="source" />
                         <div class="fieldDescription">Usuario de fuente Icecast (generalmente "source")</div>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="icecastPassword">Contrasena</label>
-                        <input type="password" id="icecastPassword" is="emby-input" />
+                        <label class="inputLabel" for="roIcecastPass">Contrasena</label>
+                        <input type="password" id="roIcecastPass" is="emby-input" />
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="icecastMountPoint">Punto de Montaje</label>
-                        <input type="text" id="icecastMountPoint" is="emby-input" placeholder="/radio" />
+                        <label class="inputLabel" for="roMountPoint">Punto de Montaje</label>
+                        <input type="text" id="roMountPoint" is="emby-input" placeholder="/radio" />
                         <div class="fieldDescription">Debe comenzar con /. Ejemplo: /radio, /stream</div>
                     </div>
 
                     <div class="selectContainer">
-                        <label class="selectLabel" for="audioFormat">Formato de Audio</label>
-                        <select id="audioFormat" is="emby-select">
+                        <label class="selectLabel" for="roAudioFormat">Formato de Audio</label>
+                        <select id="roAudioFormat" is="emby-select">
                             <option value="ogg">OGG (Vorbis)</option>
                             <option value="m4a">M4A (AAC)</option>
                         </select>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="audioBitrate">Bitrate (kbps)</label>
-                        <input type="number" id="audioBitrate" is="emby-input" min="32" max="320" step="16" value="128" />
+                        <label class="inputLabel" for="roBitrate">Bitrate (kbps)</label>
+                        <input type="number" id="roBitrate" is="emby-input" min="32" max="320" step="16" value="128" />
                         <div class="fieldDescription">Recomendado: 96-192 kbps</div>
                     </div>
 
-                    <h2 class="sectionHeader">Metadatos del Stream</h2>
+                    <div class="sectionHeader">Metadatos del Stream</div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="streamName">Nombre del Stream</label>
-                        <input type="text" id="streamName" is="emby-input" placeholder="Mi Radio" />
+                        <label class="inputLabel" for="roStreamName">Nombre del Stream</label>
+                        <input type="text" id="roStreamName" is="emby-input" placeholder="Mi Radio" />
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="streamDescription">Descripcion del Stream</label>
-                        <input type="text" id="streamDescription" is="emby-input" placeholder="Radio automatizada por Jellyfin" />
+                        <label class="inputLabel" for="roStreamDesc">Descripcion</label>
+                        <input type="text" id="roStreamDesc" is="emby-input" placeholder="Radio automatizada por Jellyfin" />
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="streamGenre">Genero</label>
-                        <input type="text" id="streamGenre" is="emby-input" placeholder="Variado" />
+                        <label class="inputLabel" for="roStreamGenre">Genero</label>
+                        <input type="text" id="roStreamGenre" is="emby-input" placeholder="Variado" />
                     </div>
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label>
-                            <input type="checkbox" id="streamPublic" is="emby-checkbox" />
+                            <input type="checkbox" id="roStreamPublic" is="emby-checkbox" />
                             <span>Stream publico (listar en directorios Icecast)</span>
                         </label>
                     </div>
 
-                    <h2 class="sectionHeader">Configuracion de Jellyfin</h2>
+                    <div class="sectionHeader">Configuracion de Jellyfin</div>
 
                     <div class="selectContainer">
-                        <label class="selectLabel" for="jellyfinUserId">Usuario de Biblioteca</label>
-                        <select id="jellyfinUserId" is="emby-select">
+                        <label class="selectLabel" for="roUserId">Usuario de Biblioteca</label>
+                        <select id="roUserId" is="emby-select">
                             <option value="">-- Seleccionar usuario --</option>
                         </select>
-                        <div class="fieldDescription">Usuario con acceso a las bibliotecas de musica y playlists que se usaran en la programacion.</div>
+                        <div class="fieldDescription">Usuario con acceso a las bibliotecas de musica y playlists.</div>
                     </div>
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label>
-                            <input type="checkbox" id="isEnabled" is="emby-checkbox" />
+                            <input type="checkbox" id="roEnabled" is="emby-checkbox" />
                             <span>Activar radio automatizada</span>
                         </label>
                         <div class="fieldDescription checkboxFieldDescription">
-                            Al activar, el plugin comenzara a transmitir audio al servidor Icecast segun la programacion configurada.
+                            Al activar, el plugin comenzara a transmitir audio al servidor Icecast segun la programacion.
                         </div>
                     </div>
 
-                    <div style="margin-top: 2em;">
-                        <button type="button" is="emby-button" class="raised button-submit" id="btnSaveConfig">
-                            <span>Guardar Configuracion</span>
-                        </button>
-                    </div>
-
-                </form>
+                    <button type="button" is="emby-button" class="raised button-submit" id="roBtnSave"><span>Guardar Configuracion</span></button>
+                </div>
             </div>
 
-            <!-- ════════════════════════════════════════════════════ -->
-            <!-- TAB: Programacion (Weekly Schedule)                 -->
-            <!-- ════════════════════════════════════════════════════ -->
-            <div id="schedule-tab" class="page-content hide" data-tab-content="schedule">
-                <form style="margin-top:2em;">
+            <!-- TAB: Programacion -->
+            <div id="roTabSchedule" class="ro-tab-content" data-tab-content="schedule" style="display:none;">
+                <div style="margin-top:2em;">
 
-                    <h2 class="sectionHeader">Programacion Semanal (Lunes a Viernes)</h2>
-                    <p style="color: #888; font-size: 0.9em;">Asigna playlists a dias y horarios especificos. Los horarios sin programar se llenan con musica aleatoria. Todas las programaciones se repiten semanalmente.</p>
+                    <div class="sectionHeader">Programacion Semanal (Lunes a Viernes)</div>
+                    <p style="color:#888;font-size:0.9em;margin-bottom:1em;">Asigna playlists a dias y horarios especificos. Los horarios sin programar se llenan con musica aleatoria. Se repite semanalmente.</p>
 
-                    <div id="emptyScheduleMsg" style="padding: 1.5em; text-align: center; color: #888; border: 1px dashed #444; border-radius: 4px;">
+                    <div id="roEmptySched" style="padding:1.5em;text-align:center;color:#888;border:1px dashed #444;border-radius:4px;">
                         <p style="margin:0;">No hay programacion configurada.</p>
                         <p style="margin:0.5em 0 0;">Haz clic en "Agregar Programa" para comenzar.</p>
                     </div>
 
-                    <table class="scheduleTable" id="scheduleTable" style="display:none;">
+                    <table class="ro-sched-table" id="roSchedTable" style="display:none;">
                         <thead>
                             <tr>
-                                <th style="width:35px;">#</th>
-                                <th style="width:110px;">Dia</th>
-                                <th style="width:80px;">Inicio</th>
-                                <th style="width:80px;">Fin</th>
+                                <th style="width:35px">#</th>
+                                <th style="width:110px">Dia</th>
+                                <th style="width:80px">Inicio</th>
+                                <th style="width:80px">Fin</th>
                                 <th>Playlist</th>
-                                <th style="width:130px;">Nombre</th>
-                                <th style="width:60px;">Act.</th>
-                                <th style="width:65px;">Accion</th>
+                                <th style="width:130px">Nombre</th>
+                                <th style="width:60px">Act.</th>
+                                <th style="width:65px">Accion</th>
                             </tr>
                         </thead>
-                        <tbody id="scheduleBody"></tbody>
+                        <tbody id="roSchedBody"></tbody>
                     </table>
 
-                    <div style="margin-top: 1em;">
-                        <button type="button" is="emby-button" class="raised button-submit" id="btnAddSchedule">
-                            <span>Agregar Programa</span>
-                        </button>
+                    <div style="margin-top:1em;">
+                        <button type="button" is="emby-button" class="raised button-submit" id="roBtnAddSched"><span>Agregar Programa</span></button>
                     </div>
 
-                    <!-- Add Schedule Form -->
-                    <div id="addScheduleForm" class="add-schedule-form">
-                        <h3>Nuevo Programa</h3>
+                    <div id="roAddForm" style="display:none;background:#1a1a1a;padding:1em;border-radius:4px;margin-top:1em;border:1px solid #333;">
+                        <h3 style="margin-top:0;font-size:1.1em;">Nuevo Programa</h3>
 
                         <div class="selectContainer">
-                            <label class="selectLabel" for="newDay">Dia</label>
-                            <select id="newDay" is="emby-select">
+                            <label class="selectLabel" for="roNewDay">Dia</label>
+                            <select id="roNewDay" is="emby-select">
                                 <option value="1">Lunes</option>
                                 <option value="2">Martes</option>
                                 <option value="3">Miercoles</option>
@@ -169,104 +150,410 @@
                         </div>
 
                         <div class="inputContainer">
-                            <label class="inputLabel" for="newStartTime">Hora de Inicio</label>
-                            <input type="text" id="newStartTime" is="emby-input" placeholder="08:00" />
+                            <label class="inputLabel" for="roNewStart">Hora de Inicio</label>
+                            <input type="text" id="roNewStart" is="emby-input" placeholder="08:00" />
                             <div class="fieldDescription">Formato 24 horas (HH:mm)</div>
                         </div>
 
                         <div class="inputContainer">
-                            <label class="inputLabel" for="newEndTime">Hora de Fin</label>
-                            <input type="text" id="newEndTime" is="emby-input" placeholder="12:00" />
-                            <div class="fieldDescription">Formato 24 horas (HH:mm). Debe ser despues de la hora de inicio.</div>
+                            <label class="inputLabel" for="roNewEnd">Hora de Fin</label>
+                            <input type="text" id="roNewEnd" is="emby-input" placeholder="12:00" />
+                            <div class="fieldDescription">Formato 24 horas (HH:mm)</div>
                         </div>
 
                         <div class="selectContainer">
-                            <label class="selectLabel" for="newPlaylist">Playlist</label>
-                            <select id="newPlaylist" is="emby-select">
+                            <label class="selectLabel" for="roNewPlaylist">Playlist</label>
+                            <select id="roNewPlaylist" is="emby-select">
                                 <option value="">-- Musica Aleatoria --</option>
                             </select>
-                            <div id="noPlaylistsMsg" class="fieldDescription" style="color: #f5a623; display: none;">No se encontraron playlists. Crea playlists en Jellyfin primero.</div>
                         </div>
 
                         <div class="inputContainer">
-                            <label class="inputLabel" for="newDisplayName">Nombre del Programa</label>
-                            <input type="text" id="newDisplayName" is="emby-input" placeholder="Morning Show" />
+                            <label class="inputLabel" for="roNewName">Nombre del Programa</label>
+                            <input type="text" id="roNewName" is="emby-input" placeholder="Morning Show" />
                         </div>
 
-                        <div id="scheduleValidationMsg" class="inlineMsg error" style="display: none;"></div>
+                        <div id="roSchedMsg" style="display:none;padding:0.5em 0.8em;border-radius:4px;margin:0.5em 0;font-size:0.9em;background:#3a1a1a;border-left:4px solid #f44336;color:#ef9a9a;"></div>
 
-                        <div style="margin-top: 1em; display: flex; gap: 0.8em;">
-                            <button type="button" is="emby-button" class="raised button-submit" id="btnSaveSchedule">
-                                <span>Guardar Programa</span>
-                            </button>
-                            <button type="button" is="emby-button" class="raised" id="btnCancelSchedule">
-                                <span>Cancelar</span>
-                            </button>
+                        <div style="margin-top:1em;display:flex;gap:0.8em;">
+                            <button type="button" is="emby-button" class="raised button-submit" id="roBtnSaveNew"><span>Guardar</span></button>
+                            <button type="button" is="emby-button" class="raised" id="roBtnCancelNew"><span>Cancelar</span></button>
                         </div>
                     </div>
 
-                    <div style="margin-top: 2em;">
-                        <button type="button" is="emby-button" class="raised button-submit" id="btnSaveScheduleConfig">
-                            <span>Guardar Programacion</span>
-                        </button>
+                    <div style="margin-top:2em;">
+                        <button type="button" is="emby-button" class="raised button-submit" id="roBtnSaveSched"><span>Guardar Programacion</span></button>
                     </div>
-
-                </form>
+                </div>
             </div>
 
-            <!-- ════════════════════════════════════════════════════ -->
-            <!-- TAB: Estado (Status)                               -->
-            <!-- ════════════════════════════════════════════════════ -->
-            <div id="status-tab" class="page-content hide" data-tab-content="status">
-                <form style="margin-top:2em;">
+            <!-- TAB: Estado -->
+            <div id="roTabStatus" class="ro-tab-content" data-tab-content="status" style="display:none;">
+                <div style="margin-top:2em;">
 
-                    <h2 class="sectionHeader">Estado del Streaming</h2>
+                    <div class="sectionHeader">Estado del Streaming</div>
 
-                    <div class="statusGrid">
-                        <div class="statusCard">
-                            <div class="statusCardLabel">Plugin</div>
-                            <div class="statusCardValue" id="statusEnabled"><span class="statusInactive">--</span></div>
-                        </div>
-                        <div class="statusCard">
-                            <div class="statusCardLabel">Icecast</div>
-                            <div class="statusCardValue" id="statusIcecast">--</div>
-                        </div>
-                        <div class="statusCard">
-                            <div class="statusCardLabel">Streaming</div>
-                            <div class="statusCardValue" id="statusStreaming"><span class="statusInactive">--</span></div>
-                        </div>
-                        <div class="statusCard">
-                            <div class="statusCardLabel">Formato</div>
-                            <div class="statusCardValue" id="statusFormat">--</div>
-                        </div>
-                        <div class="statusCard">
-                            <div class="statusCardLabel">Programas</div>
-                            <div class="statusCardValue" id="statusScheduleCount">--</div>
-                        </div>
+                    <div class="ro-status-grid">
+                        <div class="ro-status-card"><div class="ro-status-label">Plugin</div><div class="ro-status-val" id="roStPlugin">--</div></div>
+                        <div class="ro-status-card"><div class="ro-status-label">Icecast</div><div class="ro-status-val" id="roStIcecast">--</div></div>
+                        <div class="ro-status-card"><div class="ro-status-label">Streaming</div><div class="ro-status-val" id="roStStream">--</div></div>
+                        <div class="ro-status-card"><div class="ro-status-label">Formato</div><div class="ro-status-val" id="roStFormat">--</div></div>
+                        <div class="ro-status-card"><div class="ro-status-label">Programas</div><div class="ro-status-val" id="roStCount">--</div></div>
                     </div>
 
-                    <div id="radioStatusBanner" class="inlineMsg info" style="display: none;"></div>
-
-                    <div style="margin-top: 1.5em;">
-                        <button type="button" is="emby-button" class="raised" id="btnRefreshStatus">
-                            <span>Actualizar Estado</span>
-                        </button>
-                    </div>
-
-                </form>
+                    <button type="button" is="emby-button" class="raised" id="roBtnRefresh"><span>Actualizar</span></button>
+                </div>
             </div>
 
-            <!-- Support link -->
-            <div style="margin-top: 2em; text-align: center; color: #666; font-size: 0.85em;">
-                <a href="https://github.com/pepebarrascout/jellyfin-plugin-radio-online" target="_blank" rel="noopener noreferrer" style="color: #00a4dc; text-decoration: none;">Radio Online Plugin por PepeBarrascout</a>
+            <div style="margin-top:2em;text-align:center;color:#666;font-size:0.85em;">
+                <a href="https://github.com/pepebarrascout/jellyfin-plugin-radio-online" target="_blank" rel="noopener noreferrer" style="color:#00a4dc;text-decoration:none;">Radio Online Plugin por PepeBarrascout</a>
             </div>
 
         </div>
     </div>
+
+    <style>
+        .radioOnlinePage .sectionHeader { font-size:1.2em;font-weight:600;margin:1.5em 0 0.8em;padding-bottom:0.5em;border-bottom:1px solid #333;color:#ddd; }
+        .radioOnlinePage button[is="emby-button"].raised { background:#303030;color:#fff;border:1px solid #444;border-radius:4px;padding:0.6em 1.2em;font-size:inherit;cursor:pointer; }
+        .radioOnlinePage button[is="emby-button"].raised:hover { background:#404040;border-color:#555; }
+        .radioOnlinePage button[is="emby-button"].raised.button-submit { background:#00a4dc;border:1px solid #00a4dc; }
+        .radioOnlinePage button[is="emby-button"].raised.button-submit:hover { background:#1db5eb; }
+        .radioOnlinePage button[is="emby-button"].raised.btn-danger { background:#c0392b;border:1px solid #e74c3c; }
+        .radioOnlinePage button[is="emby-button"].raised.btn-danger:hover { background:#e74c3c; }
+        .radioOnlinePage .selectContainer select { background:#101010!important;color:#ccc!important;border:1px solid #444;border-radius:4px;padding:0.5em 0.7em;width:100%; }
+        .radioOnlinePage .selectContainer select option { background:#1a1a1a;color:#ccc; }
+        .radioOnlinePage .checkboxContainer label { display:flex;align-items:center;gap:0.6em;cursor:pointer;padding:0.4em 0; }
+        .radioOnlinePage .checkboxContainer input[type="checkbox"] { width:20px;height:20px;min-width:20px;accent-color:#00a4dc;cursor:pointer; }
+        .ro-status-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.8em;margin-bottom:1.5em; }
+        .ro-status-card { background:#1a1a1a;padding:0.8em 1em;border-radius:4px;border:1px solid #333; }
+        .ro-status-label { font-size:0.75em;color:#888;text-transform:uppercase;letter-spacing:0.5px; }
+        .ro-status-val { font-size:1.3em;font-weight:600;margin-top:0.2em; }
+        .ro-st-on { color:#52b54b; } .ro-st-off { color:#888; } .ro-st-live { color:#00a4dc; }
+        .ro-sched-table { width:100%;border-collapse:collapse;margin-top:0.8em; }
+        .ro-sched-table th { text-align:left;padding:0.6em 0.8em;background:#1a1a1a;border:1px solid #333;font-size:0.85em;color:#888;font-weight:500; }
+        .ro-sched-table td { padding:0.5em 0.6em;border:1px solid #333;font-size:0.9em;vertical-align:middle; }
+        .ro-sched-table input,.ro-sched-table select { background:#101010;color:#ccc;border:1px solid #444;border-radius:3px;padding:0.3em 0.5em;width:100%;font-size:0.9em; }
+        .ro-disabled-row { opacity:0.4; }
+    </style>
+
+    <script type="text/javascript">
+    (function(){
+        var PLUGIN_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+        var cfg = {};
+        var playlists = [];
+        var dayNames = {1:'Lunes',2:'Martes',3:'Miercoles',4:'Jueves',5:'Viernes'};
+
+        function esc(t){ var d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+        function validTime(s){ return /^([01]\d|2[0-3]):([0-5]\d)$/.test(s); }
+        function gv(k){ if(cfg[k]!==undefined) return cfg[k]; var c=k.charAt(0).toLowerCase()+k.slice(1); return cfg[c]!==undefined?cfg[c]:undefined; }
+        function sv(k,v){ cfg[k]=v; cfg[k.charAt(0).toLowerCase()+k.slice(1)]=v; }
+
+        // --- Tabs ---
+        function switchTab(id){
+            var nav = document.querySelectorAll('#roTabNav a[data-tab]');
+            for(var i=0;i<nav.length;i++){
+                if(nav[i].getAttribute('data-tab')===id) nav[i].classList.add('ui-btn-active');
+                else nav[i].classList.remove('ui-btn-active');
+            }
+            var tabs = document.querySelectorAll('.ro-tab-content');
+            for(var j=0;j<tabs.length;j++){
+                if(tabs[j].getAttribute('data-tab-content')===id) tabs[j].style.display='';
+                else tabs[j].style.display='none';
+            }
+            if(id==='status') loadStatus();
+            if(id==='schedule') loadPlaylists();
+        }
+
+        // --- Config ---
+        function loadConfig(){
+            Dashboard.showLoadingMsg();
+            ApiClient.getPluginConfiguration(PLUGIN_ID).then(function(c){
+                cfg = c || {};
+                fillForm();
+                renderSchedule();
+                Dashboard.hideLoadingMsg();
+            }).catch(function(e){
+                console.error('[RadioOnline]',e);
+                Dashboard.hideLoadingMsg();
+            });
+        }
+
+        function fillForm(){
+            var s = function(id,val){ var el=document.getElementById(id); if(el) el.value=val; };
+            s('roIcecastUrl', gv('IcecastUrl')||'');
+            s('roIcecastUser', gv('IcecastUsername')||'source');
+            s('roIcecastPass', gv('IcecastPassword')||'');
+            s('roMountPoint', gv('IcecastMountPoint')||'/radio');
+            s('roAudioFormat', gv('AudioFormat')||'ogg');
+            s('roBitrate', gv('AudioBitrate')||128);
+            s('roStreamName', gv('StreamName')||'');
+            s('roStreamDesc', gv('StreamDescription')||'');
+            s('roStreamGenre', gv('StreamGenre')||'');
+            var ep=document.getElementById('roStreamPublic'); if(ep) ep.checked=!!gv('StreamPublic');
+            var ee=document.getElementById('roEnabled'); if(ee) ee.checked=!!gv('IsEnabled');
+            s('roUserId', gv('JellyfinUserId')||'');
+        }
+
+        function readForm(){
+            var g=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+            sv('IcecastUrl', g('roIcecastUrl'));
+            sv('IcecastUsername', g('roIcecastUser')||'source');
+            sv('IcecastPassword', document.getElementById('roIcecastPass')?document.getElementById('roIcecastPass').value:'');
+            sv('IcecastMountPoint', g('roMountPoint')||'/radio');
+            sv('AudioFormat', document.getElementById('roAudioFormat')?document.getElementById('roAudioFormat').value:'ogg');
+            sv('AudioBitrate', parseInt(document.getElementById('roBitrate')?document.getElementById('roBitrate').value:'128',10)||128);
+            sv('StreamName', g('roStreamName'));
+            sv('StreamDescription', g('roStreamDesc'));
+            sv('StreamGenre', g('roStreamGenre'));
+            sv('StreamPublic', document.getElementById('roStreamPublic')?document.getElementById('roStreamPublic').checked:false);
+            sv('IsEnabled', document.getElementById('roEnabled')?document.getElementById('roEnabled').checked:false);
+            sv('JellyfinUserId', document.getElementById('roUserId')?document.getElementById('roUserId').value:'');
+        }
+
+        function saveConfig(){
+            readForm();
+            Dashboard.showLoadingMsg();
+            ApiClient.updatePluginConfiguration(PLUGIN_ID, cfg).then(function(r){
+                Dashboard.hideLoadingMsg();
+                Dashboard.processPluginConfigurationUpdateResult(r);
+            }).catch(function(e){
+                console.error('[RadioOnline]',e);
+                Dashboard.hideLoadingMsg();
+                Dashboard.alert({title:'Error',message:'No se pudo guardar la configuracion.'});
+            });
+        }
+
+        // --- Status ---
+        function loadStatus(){
+            fetch(ApiClient.getUrl('Plugins/RadioOnline/Status'),{headers:{'X-Emby-Token':ApiClient.accessToken()}})
+            .then(function(r){return r.json();})
+            .then(function(st){
+                var ep=document.getElementById('roStPlugin');
+                if(ep) ep.innerHTML=st.isEnabled?'<span class="ro-st-on">Activado</span>':'<span class="ro-st-off">Desactivado</span>';
+                var ei=document.getElementById('roStIcecast');
+                if(ei){ ei.textContent=st.icecastUrl?'Configurado':'Sin configurar'; ei.style.color=st.icecastUrl?'#52b54b':'#888'; }
+                var es=document.getElementById('roStStream');
+                if(es) es.innerHTML=st.isStreaming?'<span class="ro-st-live">En Vivo</span>':'<span class="ro-st-off">Inactivo</span>';
+                var ef=document.getElementById('roStFormat');
+                if(ef) ef.textContent=(st.audioFormat||'--').toUpperCase()+' / '+(st.audioBitrate||'--')+'kbps';
+                var ec=document.getElementById('roStCount');
+                if(ec) ec.textContent=st.scheduleEntriesCount||0;
+            }).catch(function(){
+                ['roStPlugin','roStIcecast','roStStream','roStFormat','roStCount'].forEach(function(id){
+                    var el=document.getElementById(id); if(el) el.textContent='--';
+                });
+            });
+        }
+
+        // --- Users ---
+        function loadUsers(){
+            ApiClient.getUsers().then(function(users){
+                var sel=document.getElementById('roUserId'); if(!sel) return;
+                while(sel.options.length>1) sel.remove(1);
+                for(var i=0;i<users.length;i++){
+                    var o=document.createElement('option');
+                    o.value=users[i].Id; o.textContent=users[i].Name;
+                    sel.appendChild(o);
+                }
+                var uid=gv('JellyfinUserId')||'';
+                if(uid) sel.value=uid;
+            }).catch(function(e){ console.error('[RadioOnline]',e); });
+        }
+
+        // --- Playlists ---
+        function loadPlaylists(){
+            fetch(ApiClient.getUrl('Plugins/RadioOnline/Playlists'),{headers:{'X-Emby-Token':ApiClient.accessToken()}})
+            .then(function(r){return r.json();})
+            .then(function(d){ playlists=d|| []; fillPlaylistSelect(); })
+            .catch(function(e){ console.error('[RadioOnline]',e); });
+        }
+
+        function fillPlaylistSelect(){
+            var sel=document.getElementById('roNewPlaylist'); if(!sel) return;
+            while(sel.options.length>1) sel.remove(1);
+            for(var i=0;i<playlists.length;i++){
+                var o=document.createElement('option');
+                o.value=playlists[i].id; o.textContent=playlists[i].name;
+                sel.appendChild(o);
+            }
+        }
+
+        // --- Schedule ---
+        function getEntries(){ return gv('ScheduleEntries')||[]; }
+        function setEntries(e){ sv('ScheduleEntries',e); }
+
+        function dayOpts(sel){
+            var html='';
+            [1,2,3,4,5].forEach(function(d){ html+='<option value="'+d+'"'+(d===sel?' selected':'')+'>'+dayNames[d]+'</option>'; });
+            return html;
+        }
+
+        function plOpts(sel){
+            var html='';
+            for(var i=0;i<playlists.length;i++){
+                html+='<option value="'+playlists[i].id+'"'+(playlists[i].id===sel?' selected':'')+'>'+esc(playlists[i].name)+'</option>';
+            }
+            return html;
+        }
+
+        function renderSchedule(){
+            var entries=getEntries();
+            var body=document.getElementById('roSchedBody');
+            var table=document.getElementById('roSchedTable');
+            var empty=document.getElementById('roEmptySched');
+            if(!body) return;
+            body.innerHTML='';
+
+            if(!entries||entries.length===0){
+                if(table) table.style.display='none';
+                if(empty) empty.style.display='';
+                return;
+            }
+            if(table) table.style.display='table';
+            if(empty) empty.style.display='none';
+
+            var sorted=[];
+            for(var i=0;i<entries.length;i++) sorted.push({e:entries[i],i:i});
+            sorted.sort(function(a,b){
+                var dA=a.e.DayOfWeek!==undefined?a.e.DayOfWeek:(a.e.dayOfWeek||1);
+                var dB=b.e.DayOfWeek!==undefined?b.e.DayOfWeek:(b.e.dayOfWeek||1);
+                if(dA!==dB) return dA-dB;
+                return (a.e.StartTime||a.e.startTime||'').localeCompare(b.e.StartTime||b.e.startTime||'');
+            });
+
+            for(var s=0;s<sorted.length;s++){
+                var en=sorted[s].e, idx=sorted[s].i;
+                var day=en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek;
+                var st=en.StartTime||en.startTime||'';
+                var et=en.EndTime||en.endTime||'';
+                var pl=en.PlaylistId||en.playlistId||'';
+                var nm=en.DisplayName||en.displayName||'';
+                var ac=en.IsEnabled!==undefined?en.IsEnabled:(en.isEnabled!==undefined?en.isEnabled:true);
+
+                var tr=document.createElement('tr');
+                if(!ac) tr.className='ro-disabled-row';
+                tr.innerHTML=
+                    '<td>'+(idx+1)+'</td>'+
+                    '<td><select data-i="'+idx+'" data-f="DayOfWeek">'+dayOpts(day)+'</select></td>'+
+                    '<td><input type="text" value="'+esc(st)+'" data-i="'+idx+'" data-f="StartTime" placeholder="HH:mm" /></td>'+
+                    '<td><input type="text" value="'+esc(et)+'" data-i="'+idx+'" data-f="EndTime" placeholder="HH:mm" /></td>'+
+                    '<td><select data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Aleatoria --</option>'+plOpts(pl)+'</select></td>'+
+                    '<td><input type="text" value="'+esc(nm)+'" data-i="'+idx+'" data-f="DisplayName" /></td>'+
+                    '<td style="text-align:center"><input type="checkbox" '+(ac?'checked':'')+' data-i="'+idx+'" data-f="IsEnabled" /></td>'+
+                    '<td><button type="button" is="emby-button" class="raised btn-danger" data-i="'+idx+'" data-act="del"><span>Borrar</span></button></td>';
+                body.appendChild(tr);
+            }
+        }
+
+        // --- Init ---
+        function init(){
+            loadConfig();
+            loadUsers();
+            loadPlaylists();
+
+            // Tab clicks
+            var nav=document.querySelectorAll('#roTabNav a[data-tab]');
+            for(var i=0;i<nav.length;i++){
+                nav[i].addEventListener('click',function(e){
+                    e.preventDefault();
+                    switchTab(this.getAttribute('data-tab'));
+                });
+            }
+
+            // Save buttons
+            var bs=document.getElementById('roBtnSave');
+            if(bs) bs.addEventListener('click',saveConfig);
+            var bss=document.getElementById('roBtnSaveSched');
+            if(bss) bss.addEventListener('click',saveConfig);
+
+            // Schedule buttons
+            var ba=document.getElementById('roBtnAddSched');
+            if(ba) ba.addEventListener('click',function(){ var f=document.getElementById('roAddForm'); if(f) f.style.display=f.style.display==='none'?'':'none'; hideMsg(); });
+            var bc=document.getElementById('roBtnCancelNew');
+            if(bc) bc.addEventListener('click',function(){ var f=document.getElementById('roAddForm'); if(f) f.style.display='none'; hideMsg(); });
+            var bn=document.getElementById('roBtnSaveNew');
+            if(bn) bn.addEventListener('click',addEntry);
+
+            // Refresh
+            var br=document.getElementById('roBtnRefresh');
+            if(br) br.addEventListener('click',loadStatus);
+
+            // Schedule table delegation
+            var sb=document.getElementById('roSchedBody');
+            if(sb){
+                sb.addEventListener('change',schedChange);
+                sb.addEventListener('input',schedChange);
+                sb.addEventListener('click',schedClick);
+            }
+
+            switchTab('config');
+        }
+
+        function hideMsg(){ var m=document.getElementById('roSchedMsg'); if(m) m.style.display='none'; }
+        function showMsg(t){ var m=document.getElementById('roSchedMsg'); if(m){ m.style.display=''; m.textContent=t; } }
+
+        function addEntry(){
+            hideMsg();
+            var day=parseInt(document.getElementById('roNewDay').value,10);
+            var st=(document.getElementById('roNewStart').value||'').trim();
+            var et=(document.getElementById('roNewEnd').value||'').trim();
+            var pl=(document.getElementById('roNewPlaylist').value||'').trim();
+            var nm=(document.getElementById('roNewName').value||'').trim();
+
+            if(!st||!et){ showMsg('Las horas de inicio y fin son requeridas.'); return; }
+            if(!validTime(st)){ showMsg('Hora de inicio invalida (HH:mm).'); return; }
+            if(!validTime(et)){ showMsg('Hora de fin invalida (HH:mm).'); return; }
+            if(st>=et){ showMsg('La hora de fin debe ser despues de la hora de inicio.'); return; }
+
+            var name=nm||(dayNames[day]+' '+st+'-'+et);
+            var entries=getEntries();
+            entries.push({
+                DayOfWeek:day,dayOfWeek:day,
+                StartTime:st,startTime:st,
+                EndTime:et,endTime:et,
+                PlaylistId:pl,playlistId:pl,
+                DisplayName:name,displayName:name,
+                IsEnabled:true,isEnabled:true
+            });
+            setEntries(entries);
+            renderSchedule();
+            var f=document.getElementById('roAddForm'); if(f) f.style.display='none';
+            var e; e=document.getElementById('roNewStart'); if(e) e.value='';
+            e=document.getElementById('roNewEnd'); if(e) e.value='';
+            e=document.getElementById('roNewName'); if(e) e.value='';
+            e=document.getElementById('roNewPlaylist'); if(e) e.value='';
+        }
+
+        function schedChange(e){
+            var t=e.target;
+            var idx=parseInt(t.getAttribute('data-i'),10);
+            var field=t.getAttribute('data-f');
+            if(isNaN(idx)||!field) return;
+            var entries=getEntries();
+            if(!entries[idx]) return;
+            var en=entries[idx];
+            if(field==='DayOfWeek'){ var v=parseInt(t.value,10); en.DayOfWeek=v; en.dayOfWeek=v; }
+            else if(field==='PlaylistId'){ en.PlaylistId=t.value; en.playlistId=t.value; }
+            else if(field==='StartTime'){ en.StartTime=t.value; en.startTime=t.value; }
+            else if(field==='EndTime'){ en.EndTime=t.value; en.endTime=t.value; }
+            else if(field==='DisplayName'){ en.DisplayName=t.value; en.displayName=t.value; }
+            else if(field==='IsEnabled'){ en.IsEnabled=t.checked; en.isEnabled=t.checked; renderSchedule(); return; }
+            setEntries(entries);
+        }
+
+        function schedClick(e){
+            var t=e.target;
+            var btn=t.closest?t.closest('[data-act="del"]'):null;
+            if(btn){
+                var idx=parseInt(btn.getAttribute('data-i'),10);
+                if(!isNaN(idx)){ var entries=getEntries(); entries.splice(idx,1); setEntries(entries); renderSchedule(); }
+            }
+        }
+
+        // Multiple init listeners for Jellyfin SPA
+        document.querySelector('#radioOnlineConfigPage').addEventListener('pageshow', function(){
+            init();
+        });
+    })();
+    </script>
 </div>
-
-<!-- Load external JavaScript -->
-<script src="configurationpage?name=config-init.js"></script>
-
-</body>
-</html>

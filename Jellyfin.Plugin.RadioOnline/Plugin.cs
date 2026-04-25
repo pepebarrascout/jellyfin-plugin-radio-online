@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Jellyfin.Plugin.RadioOnline.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
@@ -51,23 +52,19 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     /// <summary>
     /// Gets the plugin web pages (configuration dashboard).
-    /// The HTML page and all JavaScript files must each be registered individually.
     /// </summary>
     /// <returns>An enumerable of plugin page info objects.</returns>
     public IEnumerable<PluginPageInfo> GetPages()
     {
-        var ns = GetType().Namespace;
         return
         [
             new PluginPageInfo
             {
                 Name = Name,
-                EmbeddedResourcePath = $"{ns}.Configuration.config.html",
-            },
-            new PluginPageInfo
-            {
-                Name = "config-init.js",
-                EmbeddedResourcePath = $"{ns}.Configuration.config-init.js",
+                EmbeddedResourcePath = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}.Configuration.config.html",
+                    GetType().Namespace),
             },
         ];
     }
