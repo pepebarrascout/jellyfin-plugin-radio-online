@@ -15,6 +15,14 @@
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.2-alpha/jellyfin-plugin-radio-online_v0.0.0.2-alpha.zip",
         "checksum": "5c7bd897d15b43a6ae76df3456b9f6cf",
         "timestamp": "2026-04-25T05:15:00Z"
+      },
+      {
+        "version": "0.0.0.1",
+        "changelog": "- Initial alpha release\n- Icecast server streaming support (OGG Vorbis / M4A AAC)\n- Weekly schedule programming (Monday-Friday)\n- Jellyfin playlist integration\n- Smart time-slot management\n- Random music fill for unscheduled slots\n- Audio bitrate configuration (32-320 kbps)\n- Stream metadata (name, description, genre)",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.1-alpha/jellyfin-plugin-radio-online_v0.0.0.1-alpha.zip",
+        "checksum": "1682dfbdb9e4170a24e8ed4799afb3a5",
+        "timestamp": "2026-04-25T04:00:00Z"
       }
     ]
   }
