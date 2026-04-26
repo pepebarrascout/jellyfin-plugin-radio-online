@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.11",
+        "changelog": "- FIX: Silence bridge now starts 60 seconds before schedule ends (was not starting early enough)\n- FIX: Robust process cleanup - Kill+WaitForExit+Dispose ensures silence FFmpeg always stops\n- FIX: Safety timeout - silence bridge auto-stops after 5 minutes if orphaned\n- FIX: Emergency silence when schedule ends without prior bridge launch\n- NEW: Shuffle playback option per schedule entry - randomize track order per program\n- Connection wait increased to 8 seconds for reliable Icecast handshake\n- Updated README with fallback-mount configuration instructions",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.11-alpha/jellyfin-plugin-radio-online_0.0.0.11-alpha.zip",
+        "checksum": "f048fce243d211c25593f25f40c9c499",
+        "timestamp": "2026-04-27T16:00:00Z"
+      },
+      {
         "version": "0.0.0.10",
         "changelog": "- NEW: Silence bridge for seamless schedule transitions - no more listener disconnection between programs\n- Starts silence FFmpeg on fallback mount 15 seconds before schedule ends\n- Icecast automatically moves listeners to silence mount via fallback-mount\n- When new program starts, listeners are moved back to main mount seamlessly\n- Silence process only runs during transitions (saves CPU vs 24/7)\n- REQUIRES: Icecast fallback-mount configuration (see README)\n- Fixed: DI resolution for controller (lazy IMediaEncoder, removed IPlaylistManager)\n- FFmpeg concat demuxer with -stream_loop -1 for continuous gapless playback",
         "targetAbi": "10.11.8.0",

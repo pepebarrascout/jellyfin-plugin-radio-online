@@ -40,6 +40,13 @@ public class ScheduleEntry
     public bool IsEnabled { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets whether to shuffle the playlist tracks.
+    /// When true, tracks are played in random order each time the schedule activates.
+    /// When false (default), tracks play in the order defined in Jellyfin.
+    /// </summary>
+    public bool ShufflePlayback { get; set; } = false;
+
+    /// <summary>
     /// Parses the StartTime string into a TimeSpan.
     /// </summary>
     /// <returns>The parsed TimeSpan, or TimeSpan.Zero if parsing fails.</returns>

@@ -155,6 +155,16 @@
                             <div id="roPlaylistError" class="fieldDescription" style="color:#ff6b6b;display:none;margin-top:0.3em;"></div>
                         </div>
 
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input type="checkbox" id="roNewShuffle" is="emby-checkbox" />
+                                <span>Reproduccion aleatoria</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                Activa para mezclar el orden de las canciones cada vez que inicia este programa.
+                            </div>
+                        </div>
+
                         <div class="inputContainer">
                             <label class="inputLabel" for="roNewName">Nombre del Programa</label>
                             <input type="text" id="roNewName" is="emby-input" placeholder="Morning Show" />
@@ -507,6 +517,7 @@
                 var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
                 var pl=en.PlaylistId||en.playlistId||'';
                 var nm=en.DisplayName||en.displayName||'';
+                var shuff=en.ShufflePlayback||en.shufflePlayback||false;
 
                 var div=document.createElement('div');
                 div.className='listItem listItem-narrow ro-sched-item';
@@ -524,6 +535,7 @@
                         '<div class="ro-sched-field"><label>A</label><select is="emby-select" data-i="'+idx+'" data-f="EndTimeH">'+hourOpts(etHM.h)+'</select><span class="ro-sched-time-sep">:</span><select is="emby-select" data-i="'+idx+'" data-f="EndTimeM">'+minOpts(etHM.m)+'</select></div>'+
                         '<div class="ro-sched-field"><label>Lista</label><select is="emby-select" data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Seleccionar --</option>'+plOpts(pl)+'</select></div>'+
                         '<div class="ro-sched-field"><label>Nombre</label><input type="text" is="emby-input" data-i="'+idx+'" data-f="DisplayName" value="'+esc(nm)+'" /></div>'+
+                        '<div class="ro-sched-field" style="align-items:center;"><label style="min-width:auto;"><input type="checkbox" is="emby-checkbox" data-i="'+idx+'" data-f="ShufflePlayback"'+(shuff?' checked':'')+' /> Aleatorio</label></div>'+
                     '</div>'+
                     '<div class="ro-sched-actions">'+
                         '<button type="button" is="emby-button" class="raised btn-danger" data-i="'+idx+'" data-act="del"><span>Borrar</span></button>'+
@@ -559,6 +571,8 @@
                 if(field==='EndTimeH') cur2.h=t.value; else cur2.m=t.value;
                 var newVal2=cur2.h+':'+cur2.m;
                 en.EndTime=newVal2; en.endTime=newVal2;
+            } else if(field==='ShufflePlayback'){
+                en.ShufflePlayback=t.checked; en.shufflePlayback=t.checked;
             } else if(field==='DisplayName'){
                 en.DisplayName=t.value; en.displayName=t.value;
             }
@@ -595,6 +609,7 @@
             if(st>=et){ showMsg('La hora de fin debe ser despues de la hora de inicio.'); return; }
             if(!pl){ showMsg('Debes seleccionar una playlist.'); return; }
 
+            var shuffle=document.getElementById('roNewShuffle')?document.getElementById('roNewShuffle').checked:false;
             var name=nm||(dayNames[day]+' '+st+'-'+et);
             var entries=getEntries();
             entries.push({
@@ -603,6 +618,7 @@
                 EndTime:et, endTime:et,
                 PlaylistId:pl, playlistId:pl,
                 DisplayName:name, displayName:name,
+                ShufflePlayback:shuffle, shufflePlayback:shuffle,
                 IsEnabled:true, isEnabled:true
             });
             setEntries(entries);
@@ -652,7 +668,7 @@
             if(bss) bss.addEventListener('click',saveConfig);
 
             var ba=document.getElementById('roBtnAddSched');
-            if(ba) ba.addEventListener('click',function(){ var f=document.getElementById('roAddForm'); if(f) f.style.display=f.style.display==='none'?'':'none'; hideMsg(); });
+            if(ba) ba.addEventListener('click',function(){ var f=document.getElementById('roAddForm'); if(f) f.style.display=f.style.display==='none'?'':'none'; hideMsg(); var sh=document.getElementById('roNewShuffle'); if(sh) sh.checked=false; });
             var bc=document.getElementById('roBtnCancelNew');
             if(bc) bc.addEventListener('click',function(){ var f=document.getElementById('roAddForm'); if(f) f.style.display='none'; hideMsg(); });
             var bn=document.getElementById('roBtnSaveNew');

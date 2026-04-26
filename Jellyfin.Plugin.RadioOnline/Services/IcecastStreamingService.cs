@@ -270,27 +270,20 @@ public class IcecastStreamingService : IDisposable
 
     /// <summary>
     /// Stops the current FFmpeg streaming process.
+    /// Kills the process tree, waits for exit, then disposes it.
     /// </summary>
     public void StopStreaming()
     {
+        Process? processToKill = null;
+
         lock (_lock)
         {
-            if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
-            {
-                try
-                {
-                    _ffmpegProcess.Kill(true);
-                    _logger.LogInformation("Stopped FFmpeg streaming process");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error stopping FFmpeg process");
-                }
-            }
-
-            _isStreaming = false;
+            processToKill = _ffmpegProcess;
             _ffmpegProcess = null;
+            _isStreaming = false;
         }
+
+        KillProcessAndWait(processToKill, "streaming");
     }
 
     /// <summary>
@@ -392,26 +385,70 @@ public class IcecastStreamingService : IDisposable
 
     /// <summary>
     /// Stops the silence bridge FFmpeg process.
+    /// Kills the process tree, waits for it to exit, then disposes it.
     /// </summary>
     public void StopSilence()
     {
+        Process? processToKill = null;
+
         lock (_lock)
         {
-            if (_silenceProcess != null && !_silenceProcess.HasExited)
+            processToKill = _silenceProcess;
+            _silenceProcess = null;
+            _isSilenceStreaming = false;
+        }
+
+        KillProcessAndWait(processToKill, "silence");
+    }
+
+    /// <summary>
+    /// Kills a process (and its tree), waits for exit, and disposes it.
+    /// </summary>
+    private void KillProcessAndWait(Process? process, string label)
+    {
+        if (process == null) return;
+
+        try
+        {
+            if (!process.HasExited)
             {
                 try
                 {
-                    _silenceProcess.Kill(true);
-                    _logger.LogInformation("Stopped silence FFmpeg process");
+                    process.Kill(true);
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error stopping silence FFmpeg");
-                }
-            }
+                catch (InvalidOperationException) { }
 
-            _isSilenceStreaming = false;
-            _silenceProcess = null;
+                try
+                {
+                    process.WaitForExit(5000);
+                }
+                catch (Exception) { }
+
+                if (!process.HasExited)
+                {
+                    _logger.LogWarning("{Label} FFmpeg did not exit in time, forcing", label);
+                    try
+                    {
+                        process.Kill();
+                        process.WaitForExit(3000);
+                    }
+                    catch (Exception) { }
+                }
+
+                _logger.LogInformation("Stopped {Label} FFmpeg process", label);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error stopping {Label} FFmpeg", label);
+        }
+        finally
+        {
+            try
+            {
+                process.Dispose();
+            }
+            catch { }
         }
     }
 
