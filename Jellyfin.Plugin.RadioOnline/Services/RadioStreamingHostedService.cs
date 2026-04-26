@@ -34,7 +34,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// <summary>
     /// Seconds to wait for FFmpeg (main or silence) to connect to Icecast.
     /// </summary>
-    private const int ConnectionWaitSeconds = 8;
+    private const int ConnectionWaitSeconds = 15;
 
     /// <summary>
     /// Interval for checking schedule changes while streaming.
@@ -169,14 +169,24 @@ public class RadioStreamingHostedService : BackgroundService
 
                     await StreamPlaylistAsync(config, activeEntry, stoppingToken).ConfigureAwait(false);
 
-                    // Wait for the new FFmpeg to connect to Icecast
-                    _logger.LogInformation("Waiting {Seconds}s for new stream to connect...", ConnectionWaitSeconds);
+                    // Wait for the new FFmpeg to connect and start streaming data to Icecast
+                    // Icecast needs time to detect the main source is back and move listeners from fallback
+                    _logger.LogInformation("Waiting {Seconds}s for new stream to connect and stabilize...", ConnectionWaitSeconds);
                     await Task.Delay(TimeSpan.FromSeconds(ConnectionWaitSeconds), stoppingToken).ConfigureAwait(false);
 
-                    // Stop silence bridge - Icecast will move listeners back to the main mount
-                    StopSilenceBridge();
+                    // Only stop silence if the main stream is confirmed running
+                    // This prevents orphan silence processes and ensures Icecast has moved listeners back
+                    if (_icecastService.IsStreaming)
+                    {
+                        _logger.LogInformation("Main stream confirmed running, stopping silence bridge");
+                        StopSilenceBridge();
+                        _logger.LogInformation("Transition complete: silence bridge stopped");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Main stream not running after {Seconds}s wait, keeping silence bridge active", ConnectionWaitSeconds);
+                    }
 
-                    _logger.LogInformation("Transition complete: silence bridge stopped");
                     continue;
                 }
 

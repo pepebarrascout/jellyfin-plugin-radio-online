@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.13",
+        "changelog": "- FIX: Complete UI redesign - schedule entries now display as native Jellyfin listItems\n- FIX: Separate edit form replaces broken inline editing - no more random save failures\n- FIX: emby-select change events now fire reliably (form-based instead of inline)\n- FIX: Robust process termination on Linux - native kill -9 fallback for FFmpeg processes\n- FIX: Icecast /radio-silence mount now properly closes after process termination\n- FIX: Connection wait increased to 15 seconds for reliable listener transfer back to main mount\n- FIX: Silence bridge only stopped AFTER main stream is confirmed running\n- Logs process PIDs for debugging process termination issues",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.13-alpha/jellyfin-plugin-radio-online_0.0.0.13-alpha.zip",
+        "checksum": "fef65034ba23730e74b6b0c9829ae72b",
+        "timestamp": "2026-04-27T18:00:00Z"
+      },
+      {
         "version": "0.0.0.12",
         "changelog": "- FIX: Restored native Jellyfin styles in configuration page\n- Removed all custom CSS that conflicted with Jellyfin theme\n- Schedule entries now use standard Jellyfin listItem layout\n- Status tab uses paperList for consistent look\n- Form elements use proper verticalSection layout\n- All controls properly themed (emby-input, emby-select, emby-checkbox)",
         "targetAbi": "10.11.8.0",

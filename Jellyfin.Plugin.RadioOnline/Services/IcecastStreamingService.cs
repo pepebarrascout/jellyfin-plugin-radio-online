@@ -403,20 +403,37 @@ public class IcecastStreamingService : IDisposable
 
     /// <summary>
     /// Kills a process (and its tree), waits for exit, and disposes it.
+    /// On Linux, uses native kill command as fallback to ensure process tree is fully terminated.
+    /// Icecast may keep mount points open if FFmpeg child processes survive the parent kill.
     /// </summary>
     private void KillProcessAndWait(Process? process, string label)
     {
         if (process == null) return;
 
+        var pid = 0;
         try
         {
-            if (!process.HasExited)
+            pid = process.Id;
+        }
+        catch { }
+
+        try
+        {
+            var hasExited = false;
+            try { hasExited = process.HasExited; } catch { }
+
+            if (!hasExited)
             {
+                // Step 1: Try .NET Kill with process tree
                 try
                 {
                     process.Kill(true);
                 }
                 catch (InvalidOperationException) { }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug("Kill(true) failed for {Label}: {Msg}", label, ex.Message);
+                }
 
                 try
                 {
@@ -424,23 +441,81 @@ public class IcecastStreamingService : IDisposable
                 }
                 catch (Exception) { }
 
-                if (!process.HasExited)
+                // Step 2: Verify exit, use native kill as fallback on Linux
+                try { hasExited = process.HasExited; } catch { }
+
+                if (!hasExited && pid > 0)
                 {
-                    _logger.LogWarning("{Label} FFmpeg did not exit in time, forcing", label);
+                    _logger.LogWarning("{Label} FFmpeg (PID {Pid}) still alive after Kill(true), using native kill", label, pid);
+
+                    // Kill the process group on Linux to catch any child processes
                     try
                     {
-                        process.Kill();
-                        process.WaitForExit(3000);
+                        if (OperatingSystem.IsLinux())
+                        {
+                            // kill -- -pid kills the entire process group
+                            var killProc = Process.Start(new ProcessStartInfo
+                            {
+                                FileName = "kill",
+                                Arguments = $"-- -{pid}",
+                                UseShellExecute = false,
+                                CreateNoWindow = true,
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                            });
+                            killProc?.WaitForExit(3000);
+                        }
                     }
-                    catch (Exception) { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug("Native kill group failed for {Label}: {Msg}", label, ex.Message);
+                    }
+
+                    // Step 3: Direct SIGKILL on the process itself
+                    try
+                    {
+                        if (OperatingSystem.IsLinux())
+                        {
+                            var killProc2 = Process.Start(new ProcessStartInfo
+                            {
+                                FileName = "kill",
+                                Arguments = $"-9 {pid}",
+                                UseShellExecute = false,
+                                CreateNoWindow = true,
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                            });
+                            killProc2?.WaitForExit(3000);
+                        }
+                        else
+                        {
+                            process.Kill();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug("Final kill failed for {Label}: {Msg}", label, ex.Message);
+                    }
+
+                    try { process.WaitForExit(3000); } catch { }
+
                 }
 
-                _logger.LogInformation("Stopped {Label} FFmpeg process", label);
+                // Final verification
+                try { hasExited = process.HasExited; } catch { }
+                if (hasExited)
+                {
+                    _logger.LogInformation("Stopped {Label} FFmpeg (PID {Pid})", label, pid);
+                }
+                else
+                {
+                    _logger.LogError("FAILED to stop {Label} FFmpeg (PID {Pid}) - process may be orphaned", label, pid);
+                }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error stopping {Label} FFmpeg", label);
+            _logger.LogWarning(ex, "Error stopping {Label} FFmpeg (PID {Pid})", label, pid);
         }
         finally
         {

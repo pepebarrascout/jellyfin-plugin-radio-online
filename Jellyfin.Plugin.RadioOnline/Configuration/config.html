@@ -123,41 +123,44 @@
                         <p style="margin-top:0.5em;">Haz clic en "Agregar Programa" para comenzar.</p>
                     </div>
 
-                    <div id="roSchedList"></div>
+                    <div class="paperList" id="roSchedList"></div>
 
                     <div style="margin-top:1em;">
                         <button type="button" is="emby-button" class="raised button-submit" id="roBtnAddSched"><span>Agregar Programa</span></button>
                     </div>
 
-                    <div id="roAddForm" class="verticalSection verticalSection-extrabottompadding" style="display:none;">
-                        <h3 class="sectionTitle">Nuevo Programa</h3>
+                    <!-- Shared Edit/Add Form (hidden by default) -->
+                    <div id="roEditForm" class="verticalSection verticalSection-extrabottompadding" style="display:none;">
+                        <div class="sectionHeader">
+                            <h3 class="sectionTitle" id="roEditTitle">Nuevo Programa</h3>
+                        </div>
 
                         <div class="selectContainer">
-                            <label class="selectLabel" for="roNewDay">Dia</label>
-                            <select id="roNewDay" is="emby-select"></select>
+                            <label class="selectLabel" for="roEditDay">Dia</label>
+                            <select id="roEditDay" is="emby-select"></select>
                         </div>
 
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused">Hora de Inicio</label>
                             <div style="display:flex;gap:0.5em;align-items:center;">
-                                <select id="roNewStartH" is="emby-select" style="width:auto;flex:1;"></select>
-                                <span>:</span>
-                                <select id="roNewStartM" is="emby-select" style="width:auto;flex:1;"></select>
+                                <select id="roEditStartH" is="emby-select" style="width:auto;flex:1;"></select>
+                                <span style="font-size:1.2em;">:</span>
+                                <select id="roEditStartM" is="emby-select" style="width:auto;flex:1;"></select>
                             </div>
                         </div>
 
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused">Hora de Fin</label>
                             <div style="display:flex;gap:0.5em;align-items:center;">
-                                <select id="roNewEndH" is="emby-select" style="width:auto;flex:1;"></select>
-                                <span>:</span>
-                                <select id="roNewEndM" is="emby-select" style="width:auto;flex:1;"></select>
+                                <select id="roEditEndH" is="emby-select" style="width:auto;flex:1;"></select>
+                                <span style="font-size:1.2em;">:</span>
+                                <select id="roEditEndM" is="emby-select" style="width:auto;flex:1;"></select>
                             </div>
                         </div>
 
                         <div class="selectContainer">
-                            <label class="selectLabel" for="roNewPlaylist">Playlist</label>
-                            <select id="roNewPlaylist" is="emby-select">
+                            <label class="selectLabel" for="roEditPlaylist">Playlist</label>
+                            <select id="roEditPlaylist" is="emby-select">
                                 <option value="">-- Seleccionar --</option>
                             </select>
                             <div id="roPlaylistError" class="fieldDescription" style="color:#ff6b6b;display:none;margin-top:0.3em;"></div>
@@ -165,7 +168,7 @@
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
-                                <input type="checkbox" id="roNewShuffle" is="emby-checkbox" />
+                                <input type="checkbox" id="roEditShuffle" is="emby-checkbox" />
                                 <span>Reproduccion aleatoria</span>
                             </label>
                             <div class="fieldDescription checkboxFieldDescription">
@@ -174,15 +177,15 @@
                         </div>
 
                         <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="roNewName">Nombre del Programa</label>
-                            <input type="text" id="roNewName" is="emby-input" placeholder="Morning Show" />
+                            <label class="inputLabel inputLabelUnfocused" for="roEditName">Nombre del Programa</label>
+                            <input type="text" id="roEditName" is="emby-input" placeholder="Morning Show" />
                         </div>
 
-                        <div id="roSchedMsg" style="display:none;margin:0.5em 0;padding:0.8em;border-radius:4px;"></div>
+                        <div id="roEditMsg" style="display:none;margin:0.5em 0;padding:0.8em;border-radius:4px;"></div>
 
                         <div style="margin-top:1em;display:flex;gap:0.8em;">
-                            <button type="button" is="emby-button" class="raised button-submit" id="roBtnSaveNew"><span>Guardar</span></button>
-                            <button type="button" is="emby-button" class="raised" id="roBtnCancelNew"><span>Cancelar</span></button>
+                            <button type="button" is="emby-button" class="raised button-submit" id="roBtnSaveEdit"><span>Guardar</span></button>
+                            <button type="button" is="emby-button" class="raised" id="roBtnCancelEdit"><span>Cancelar</span></button>
                         </div>
                     </div>
 
@@ -248,6 +251,7 @@
         var configLoaded = false;
         var playlistsLoaded = false;
         var inited = false;
+        var editIndex = -1; // -1 = adding new, >=0 = editing existing
 
         var dayNames = {1:'Lunes',2:'Martes',3:'Miercoles',4:'Jueves',5:'Viernes',6:'Sabado',7:'Domingo'};
         var csharpDayNames = {'Sunday':7,'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6};
@@ -274,7 +278,6 @@
         }
         function sv(k,v){ cfg[k]=v; cfg[k.charAt(0).toLowerCase()+k.slice(1)]=v; }
 
-        // Use ApiClient for all API calls - handles auth, headers, and error parsing properly
         function apiGet(path){
             return ApiClient.ajax({
                 type: 'GET',
@@ -303,13 +306,6 @@
             var html='';
             for(var d=1;d<=7;d++){
                 html+='<option value="'+d+'"'+(String(sel)===String(d)?' selected':'')+'>'+dayNames[d]+'</option>';
-            }
-            return html;
-        }
-        function plOpts(sel){
-            var html='';
-            for(var i=0;i<playlists.length;i++){
-                html+='<option value="'+playlists[i].id+'"'+(String(playlists[i].id)===String(sel)?' selected':'')+'>'+esc(playlists[i].name)+'</option>';
             }
             return html;
         }
@@ -474,14 +470,13 @@
             var el=document.getElementById('roPlaylistError');
             if(el){ el.textContent=msg; el.style.display=''; }
         }
-
         function hidePlaylistError(){
             var el=document.getElementById('roPlaylistError');
             if(el){ el.style.display='none'; }
         }
 
         function fillPlaylistSelect(){
-            var sel=document.getElementById('roNewPlaylist'); if(!sel) return;
+            var sel=document.getElementById('roEditPlaylist'); if(!sel) return;
             while(sel.options.length>1) sel.remove(1);
             hidePlaylistError();
             if(playlists.length===0){
@@ -503,6 +498,13 @@
         function getEntries(){ return gv('ScheduleEntries')||[]; }
         function setEntries(e){ sv('ScheduleEntries',e); }
 
+        function getPlaylistName(plId){
+            for(var p=0;p<playlists.length;p++){
+                if(playlists[p].id===plId) return playlists[p].name;
+            }
+            return '-- Sin playlist --';
+        }
+
         function renderSchedule(){
             var entries=getEntries();
             var list=document.getElementById('roSchedList');
@@ -518,6 +520,7 @@
             list.style.display='';
             if(empty) empty.style.display='none';
 
+            // Sort entries by day then start time for display
             var sorted=[];
             for(var i=0;i<entries.length;i++) sorted.push({e:entries[i],i:i});
             sorted.sort(function(a,b){
@@ -537,38 +540,25 @@
                 var pl=en.PlaylistId||en.playlistId||'';
                 var nm=en.DisplayName||en.displayName||'';
                 var shuff=en.ShufflePlayback||en.shufflePlayback||false;
+                var plName=getPlaylistName(pl);
 
-                var plName='-- Sin playlist --';
-                for(var p=0;p<playlists.length;p++){
-                    if(playlists[p].id===pl){ plName=playlists[p].name; break; }
-                }
+                var title=nm||(dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m);
+                var secondary=dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m;
+                if(pl) secondary+=' | '+plName;
+                if(shuff) secondary+=' | Aleatorio';
 
                 var div=document.createElement('div');
                 div.className='listItem';
                 div.setAttribute('data-i',idx);
 
                 div.innerHTML=
-                    '<div class="listItemBody three-line">'+
-                        '<div class="listItemBodyText">'+esc(nm||dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m)+'</div>'+
-                        '<div class="listItemBodyText secondary">'+
-                            dayNames[day]+' | '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m+
-                            ' | '+esc(plName)+
-                            (shuff?' | Aleatorio':'')+
-                        '</div>'+
-                        '<div class="listItemBodyText tertiary" style="display:flex;flex-wrap:wrap;gap:0.5em;align-items:center;margin-top:0.5em;">'+
-                            '<select is="emby-select" data-i="'+idx+'" data-f="DayOfWeek" style="width:auto;">'+dayOpts(day)+'</select>'+
-                            '<select is="emby-select" data-i="'+idx+'" data-f="StartTimeH" style="width:auto;">'+hourOpts(stHM.h)+'</select>'+
-                            '<span>:</span>'+
-                            '<select is="emby-select" data-i="'+idx+'" data-f="StartTimeM" style="width:auto;">'+minOpts(stHM.m)+'</select>'+
-                            '<span>-</span>'+
-                            '<select is="emby-select" data-i="'+idx+'" data-f="EndTimeH" style="width:auto;">'+hourOpts(etHM.h)+'</select>'+
-                            '<span>:</span>'+
-                            '<select is="emby-select" data-i="'+idx+'" data-f="EndTimeM" style="width:auto;">'+minOpts(etHM.m)+'</select>'+
-                            '<select is="emby-select" data-i="'+idx+'" data-f="PlaylistId" style="width:auto;"><option value="">-- Sin lista --</option>'+plOpts(pl)+'</select>'+
-                            '<input type="text" is="emby-input" data-i="'+idx+'" data-f="DisplayName" value="'+esc(nm)+'" style="width:auto;flex:1;min-width:100px;" placeholder="Nombre" />'+
-                            '<label style="flex-shrink:0;display:flex;align-items:center;gap:0.3em;"><input type="checkbox" is="emby-checkbox" data-i="'+idx+'" data-f="ShufflePlayback"'+(shuff?' checked':'')+' /> Aleatorio</label>'+
-                        '</div>'+
+                    '<div class="listItemBody two-line">'+
+                        '<div class="listItemBodyText">'+esc(title)+'</div>'+
+                        '<div class="listItemBodyText secondary">'+esc(secondary)+'</div>'+
                     '</div>'+
+                    '<button type="button" is="emby-button" class="listItemButton paperListButton" data-i="'+idx+'" data-act="edit" style="flex-shrink:0;">'+
+                        '<span class="material-icons edit" aria-hidden="true"></span>'+
+                    '</button>'+
                     '<button type="button" is="emby-button" class="listItemButton paperListButton btnDelete" data-i="'+idx+'" data-act="del" style="flex-shrink:0;">'+
                         '<span class="material-icons delete" aria-hidden="true"></span>'+
                     '</button>';
@@ -577,104 +567,133 @@
             }
         }
 
-        function schedChange(e){
-            var t=e.target;
-            var idx=parseInt(t.getAttribute('data-i'),10);
-            var field=t.getAttribute('data-f');
-            if(isNaN(idx)||!field) return;
+        // --- Schedule list click handler ---
+        function schedListClick(e){
+            var btn=e.target.closest('[data-act]');
+            if(!btn) return;
+            var act=btn.getAttribute('data-act');
+            var idx=parseInt(btn.getAttribute('data-i'),10);
+            if(isNaN(idx)) return;
+
+            if(act==='del'){
+                var entries=getEntries();
+                entries.splice(idx,1);
+                setEntries(entries);
+                hideEditForm();
+                renderSchedule();
+            } else if(act==='edit'){
+                openEditForm(idx);
+            }
+        }
+
+        // --- Edit form ---
+        function openEditForm(idx){
+            editIndex=idx;
             var entries=getEntries();
-            if(!entries[idx]) return;
-            var en=entries[idx];
+            var en=(idx>=0 && idx<entries.length) ? entries[idx] : null;
 
-            if(field==='DayOfWeek'){
-                var v=parseInt(t.value,10);
-                en.DayOfWeek=toCSharpDay(v);
-                en.dayOfWeek=v;
-            } else if(field==='PlaylistId'){
-                en.PlaylistId=t.value;
-                en.playlistId=t.value;
-            } else if(field==='StartTimeH'||field==='StartTimeM'){
-                var cur=parseTimeToHM(en.StartTime||en.startTime||'');
-                if(field==='StartTimeH') cur.h=t.value; else cur.m=t.value;
-                var newVal=cur.h+':'+cur.m;
-                en.StartTime=newVal; en.startTime=newVal;
-            } else if(field==='EndTimeH'||field==='EndTimeM'){
-                var cur2=parseTimeToHM(en.EndTime||en.endTime||'');
-                if(field==='EndTimeH') cur2.h=t.value; else cur2.m=t.value;
-                var newVal2=cur2.h+':'+cur2.m;
-                en.EndTime=newVal2; en.endTime=newVal2;
-            } else if(field==='ShufflePlayback'){
-                en.ShufflePlayback=t.checked; en.shufflePlayback=t.checked;
-            } else if(field==='DisplayName'){
-                en.DisplayName=t.value; en.displayName=t.value;
+            var titleEl=document.getElementById('roEditTitle');
+            if(titleEl) titleEl.textContent=en?'Editar Programa':'Nuevo Programa';
+
+            var daySel=document.getElementById('roEditDay');
+            var shSel=document.getElementById('roEditStartH');
+            var smSel=document.getElementById('roEditStartM');
+            var ehSel=document.getElementById('roEditEndH');
+            var emSel=document.getElementById('roEditEndM');
+            var plSel=document.getElementById('roEditPlaylist');
+            var nmIn=document.getElementById('roEditName');
+            var shChk=document.getElementById('roEditShuffle');
+
+            if(en){
+                var day=normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek);
+                var stHM=parseTimeToHM(en.StartTime||en.startTime||'');
+                var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
+                if(daySel) daySel.innerHTML=dayOpts(day);
+                if(shSel) shSel.innerHTML=hourOpts(stHM.h);
+                if(smSel) smSel.innerHTML=minOpts(stHM.m);
+                if(ehSel) ehSel.innerHTML=hourOpts(etHM.h);
+                if(emSel) emSel.innerHTML=minOpts(etHM.m);
+                if(plSel) plSel.value=en.PlaylistId||en.playlistId||'';
+                if(nmIn) nmIn.value=en.DisplayName||en.displayName||'';
+                if(shChk) shChk.checked=!!(en.ShufflePlayback||en.shufflePlayback);
+            } else {
+                if(daySel) daySel.innerHTML=dayOpts(1);
+                if(shSel) shSel.innerHTML=hourOpts('08');
+                if(smSel) smSel.innerHTML=minOpts('00');
+                if(ehSel) ehSel.innerHTML=hourOpts('12');
+                if(emSel) emSel.innerHTML=minOpts('00');
+                if(plSel) plSel.value='';
+                if(nmIn) nmIn.value='';
+                if(shChk) shChk.checked=false;
             }
-            setEntries(entries);
-        }
 
-        function schedClick(e){
-            var t=e.target;
-            var btn=t.closest?t.closest('[data-act="del"]'):null;
-            if(btn){
-                var idx=parseInt(btn.getAttribute('data-i'),10);
-                if(!isNaN(idx)){
-                    var entries=getEntries();
-                    entries.splice(idx,1);
-                    setEntries(entries);
-                    renderSchedule();
-                }
-            }
-        }
-
-        // --- Add entry ---
-        function addEntry(){
             hideMsg();
-            var day=parseInt(document.getElementById('roNewDay').value,10);
-            var stH=document.getElementById('roNewStartH').value;
-            var stM=document.getElementById('roNewStartM').value;
-            var etH=document.getElementById('roNewEndH').value;
-            var etM=document.getElementById('roNewEndM').value;
+            var form=document.getElementById('roEditForm');
+            if(form) form.style.display='';
+        }
+
+        function hideEditForm(){
+            editIndex=-1;
+            var form=document.getElementById('roEditForm');
+            if(form) form.style.display='none';
+            hideMsg();
+        }
+
+        function saveEditForm(){
+            hideMsg();
+            var day=parseInt(document.getElementById('roEditDay').value,10);
+            var stH=document.getElementById('roEditStartH').value;
+            var stM=document.getElementById('roEditStartM').value;
+            var etH=document.getElementById('roEditEndH').value;
+            var etM=document.getElementById('roEditEndM').value;
             var st=stH+':'+stM;
             var et=etH+':'+etM;
-            var pl=(document.getElementById('roNewPlaylist').value||'').trim();
-            var nm=(document.getElementById('roNewName').value||'').trim();
+            var pl=(document.getElementById('roEditPlaylist').value||'').trim();
+            var nm=(document.getElementById('roEditName').value||'').trim();
+            var shuffle=document.getElementById('roEditShuffle')?document.getElementById('roEditShuffle').checked:false;
 
             if(st>=et){ showMsg('La hora de fin debe ser despues de la hora de inicio.'); return; }
             if(!pl){ showMsg('Debes seleccionar una playlist.'); return; }
 
-            var shuffle=document.getElementById('roNewShuffle')?document.getElementById('roNewShuffle').checked:false;
             var name=nm||(dayNames[day]+' '+st+'-'+et);
             var entries=getEntries();
-            entries.push({
-                DayOfWeek:toCSharpDay(day), dayOfWeek:day,
-                StartTime:st, startTime:st,
-                EndTime:et, endTime:et,
-                PlaylistId:pl, playlistId:pl,
-                DisplayName:name, displayName:name,
-                ShufflePlayback:shuffle, shufflePlayback:shuffle,
-                IsEnabled:true, isEnabled:true
-            });
+
+            if(editIndex>=0 && editIndex<entries.length){
+                // Update existing
+                entries[editIndex].DayOfWeek=toCSharpDay(day);
+                entries[editIndex].dayOfWeek=day;
+                entries[editIndex].StartTime=st;
+                entries[editIndex].startTime=st;
+                entries[editIndex].EndTime=et;
+                entries[editIndex].endTime=et;
+                entries[editIndex].PlaylistId=pl;
+                entries[editIndex].playlistId=pl;
+                entries[editIndex].DisplayName=name;
+                entries[editIndex].displayName=name;
+                entries[editIndex].ShufflePlayback=shuffle;
+                entries[editIndex].shufflePlayback=shuffle;
+            } else {
+                // Add new
+                entries.push({
+                    DayOfWeek:toCSharpDay(day), dayOfWeek:day,
+                    StartTime:st, startTime:st,
+                    EndTime:et, endTime:et,
+                    PlaylistId:pl, playlistId:pl,
+                    DisplayName:name, displayName:name,
+                    ShufflePlayback:shuffle, shufflePlayback:shuffle,
+                    IsEnabled:true, isEnabled:true
+                });
+            }
+
             setEntries(entries);
+            hideEditForm();
             renderSchedule();
-            var f=document.getElementById('roAddForm'); if(f) f.style.display='none';
         }
 
-        function hideMsg(){ var m=document.getElementById('roSchedMsg'); if(m) m.style.display='none'; }
+        function hideMsg(){ var m=document.getElementById('roEditMsg'); if(m) m.style.display='none'; }
         function showMsg(t){
-            var m=document.getElementById('roSchedMsg');
+            var m=document.getElementById('roEditMsg');
             if(m){ m.style.display=''; m.textContent=t; m.style.background='rgba(255,107,107,0.15)'; m.style.color='#ff6b6b'; }
-        }
-
-        function populateDropdowns(){
-            var daySel=document.getElementById('roNewDay');
-            if(daySel) daySel.innerHTML=dayOpts(1);
-            var sh=document.getElementById('roNewStartH');
-            if(sh) sh.innerHTML=hourOpts('08');
-            var sm=document.getElementById('roNewStartM');
-            if(sm) sm.innerHTML=minOpts('00');
-            var eh=document.getElementById('roNewEndH');
-            if(eh) eh.innerHTML=hourOpts('12');
-            var em=document.getElementById('roNewEndM');
-            if(em) em.innerHTML=minOpts('00');
         }
 
         // --- Init ---
@@ -685,7 +704,7 @@
             playlistsLoaded = false;
             playlists = [];
             cfg = {};
-            populateDropdowns();
+            editIndex = -1;
             loadConfig();
             loadUsers();
 
@@ -703,11 +722,11 @@
             if(bss) bss.addEventListener('click',saveConfig);
 
             var ba=document.getElementById('roBtnAddSched');
-            if(ba) ba.addEventListener('click',function(){ var f=document.getElementById('roAddForm'); if(f) f.style.display=f.style.display==='none'?'':'none'; hideMsg(); var sh=document.getElementById('roNewShuffle'); if(sh) sh.checked=false; });
-            var bc=document.getElementById('roBtnCancelNew');
-            if(bc) bc.addEventListener('click',function(){ var f=document.getElementById('roAddForm'); if(f) f.style.display='none'; hideMsg(); });
-            var bn=document.getElementById('roBtnSaveNew');
-            if(bn) bn.addEventListener('click',addEntry);
+            if(ba) ba.addEventListener('click',function(){ openEditForm(-1); });
+            var bc=document.getElementById('roBtnCancelEdit');
+            if(bc) bc.addEventListener('click',hideEditForm);
+            var bn=document.getElementById('roBtnSaveEdit');
+            if(bn) bn.addEventListener('click',saveEditForm);
 
             document.getElementById('roTabStatus').addEventListener('click',function(e){
                 var btn=e.target.closest('#roBtnRefresh');
@@ -716,9 +735,7 @@
 
             var sl=document.getElementById('roSchedList');
             if(sl){
-                sl.addEventListener('change',schedChange);
-                sl.addEventListener('input',schedChange);
-                sl.addEventListener('click',schedClick);
+                sl.addEventListener('click',schedListClick);
             }
 
             switchTab('config');
