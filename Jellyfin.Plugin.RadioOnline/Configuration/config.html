@@ -14,29 +14,31 @@
 
             <!-- TAB: Configuracion -->
             <div id="roTabConfig" class="ro-tab-content" data-tab-content="config">
-                <div style="margin-top:2em;">
+                <div class="verticalSection">
 
-                    <div class="sectionHeader">Servidor Icecast</div>
+                    <div class="sectionHeader">
+                        <h2 class="sectionTitle">Servidor Icecast</h2>
+                    </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="roIcecastUrl">URL del Servidor</label>
+                        <label class="inputLabel inputLabelUnfocused" for="roIcecastUrl">URL del Servidor</label>
                         <input type="text" id="roIcecastUrl" is="emby-input" placeholder="http://tu-servidor:8000" />
                         <div class="fieldDescription">URL completa del servidor Icecast (sin barra final). Ejemplo: http://192.168.1.100:8000</div>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="roIcecastUser">Usuario</label>
+                        <label class="inputLabel inputLabelUnfocused" for="roIcecastUser">Usuario</label>
                         <input type="text" id="roIcecastUser" is="emby-input" placeholder="source" />
                         <div class="fieldDescription">Usuario de fuente Icecast (generalmente "source")</div>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="roIcecastPass">Contrasena</label>
+                        <label class="inputLabel inputLabelUnfocused" for="roIcecastPass">Contrasena</label>
                         <input type="password" id="roIcecastPass" is="emby-input" />
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="roMountPoint">Punto de Montaje</label>
+                        <label class="inputLabel inputLabelUnfocused" for="roMountPoint">Punto de Montaje</label>
                         <input type="text" id="roMountPoint" is="emby-input" placeholder="/radio" />
                         <div class="fieldDescription">Debe comenzar con /. Ejemplo: /radio, /stream</div>
                     </div>
@@ -50,25 +52,27 @@
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="roBitrate">Bitrate (kbps)</label>
+                        <label class="inputLabel inputLabelUnfocused" for="roBitrate">Bitrate (kbps)</label>
                         <input type="number" id="roBitrate" is="emby-input" min="32" max="320" step="16" value="128" />
                         <div class="fieldDescription">Recomendado: 96-192 kbps</div>
                     </div>
 
-                    <div class="sectionHeader">Metadatos del Stream</div>
+                    <div class="sectionHeader">
+                        <h2 class="sectionTitle">Metadatos del Stream</h2>
+                    </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="roStreamName">Nombre del Stream</label>
+                        <label class="inputLabel inputLabelUnfocused" for="roStreamName">Nombre del Stream</label>
                         <input type="text" id="roStreamName" is="emby-input" placeholder="Mi Radio" />
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="roStreamDesc">Descripcion</label>
+                        <label class="inputLabel inputLabelUnfocused" for="roStreamDesc">Descripcion</label>
                         <input type="text" id="roStreamDesc" is="emby-input" placeholder="Radio automatizada por Jellyfin" />
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="roStreamGenre">Genero</label>
+                        <label class="inputLabel inputLabelUnfocused" for="roStreamGenre">Genero</label>
                         <input type="text" id="roStreamGenre" is="emby-input" placeholder="Variado" />
                     </div>
 
@@ -79,7 +83,9 @@
                         </label>
                     </div>
 
-                    <div class="sectionHeader">Configuracion de Jellyfin</div>
+                    <div class="sectionHeader">
+                        <h2 class="sectionTitle">Configuracion de Jellyfin</h2>
+                    </div>
 
                     <div class="selectContainer">
                         <label class="selectLabel" for="roUserId">Usuario de Biblioteca</label>
@@ -105,9 +111,11 @@
 
             <!-- TAB: Programacion -->
             <div id="roTabSchedule" class="ro-tab-content" data-tab-content="schedule" style="display:none;">
-                <div style="margin-top:2em;">
+                <div class="verticalSection">
 
-                    <div class="sectionHeader">Programacion Semanal</div>
+                    <div class="sectionHeader">
+                        <h2 class="sectionTitle">Programacion Semanal</h2>
+                    </div>
                     <p class="fieldDescription">Asigna playlists a dias y horarios especificos. La transmision se activa solo durante las horas programadas y se detiene al terminar la playlist. Si dos programas se solapan, el que empieza mas tarde tiene prioridad.</p>
 
                     <div id="roEmptySched" style="padding:1.5em;text-align:center;display:none;">
@@ -115,34 +123,34 @@
                         <p style="margin-top:0.5em;">Haz clic en "Agregar Programa" para comenzar.</p>
                     </div>
 
-                    <div class="paperList" id="roSchedList"></div>
+                    <div id="roSchedList"></div>
 
                     <div style="margin-top:1em;">
                         <button type="button" is="emby-button" class="raised button-submit" id="roBtnAddSched"><span>Agregar Programa</span></button>
                     </div>
 
-                    <div id="roAddForm" style="display:none;padding:1em;margin-top:1em;">
-                        <h3 style="margin-top:0;">Nuevo Programa</h3>
+                    <div id="roAddForm" class="verticalSection verticalSection-extrabottompadding" style="display:none;">
+                        <h3 class="sectionTitle">Nuevo Programa</h3>
 
                         <div class="selectContainer">
                             <label class="selectLabel" for="roNewDay">Dia</label>
                             <select id="roNewDay" is="emby-select"></select>
                         </div>
 
-                        <div class="selectContainer">
-                            <label class="selectLabel">Hora de Inicio</label>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused">Hora de Inicio</label>
                             <div style="display:flex;gap:0.5em;align-items:center;">
                                 <select id="roNewStartH" is="emby-select" style="width:auto;flex:1;"></select>
-                                <span style="font-size:1.2em;">:</span>
+                                <span>:</span>
                                 <select id="roNewStartM" is="emby-select" style="width:auto;flex:1;"></select>
                             </div>
                         </div>
 
-                        <div class="selectContainer">
-                            <label class="selectLabel">Hora de Fin</label>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused">Hora de Fin</label>
                             <div style="display:flex;gap:0.5em;align-items:center;">
                                 <select id="roNewEndH" is="emby-select" style="width:auto;flex:1;"></select>
-                                <span style="font-size:1.2em;">:</span>
+                                <span>:</span>
                                 <select id="roNewEndM" is="emby-select" style="width:auto;flex:1;"></select>
                             </div>
                         </div>
@@ -166,11 +174,11 @@
                         </div>
 
                         <div class="inputContainer">
-                            <label class="inputLabel" for="roNewName">Nombre del Programa</label>
+                            <label class="inputLabel inputLabelUnfocused" for="roNewName">Nombre del Programa</label>
                             <input type="text" id="roNewName" is="emby-input" placeholder="Morning Show" />
                         </div>
 
-                        <div id="roSchedMsg" class="notification-bar" style="display:none;margin:0.5em 0;"></div>
+                        <div id="roSchedMsg" style="display:none;margin:0.5em 0;padding:0.8em;border-radius:4px;"></div>
 
                         <div style="margin-top:1em;display:flex;gap:0.8em;">
                             <button type="button" is="emby-button" class="raised button-submit" id="roBtnSaveNew"><span>Guardar</span></button>
@@ -186,16 +194,43 @@
 
             <!-- TAB: Estado -->
             <div id="roTabStatus" class="ro-tab-content" data-tab-content="status" style="display:none;">
-                <div style="margin-top:2em;">
+                <div class="verticalSection">
 
-                    <div class="sectionHeader">Estado del Streaming</div>
+                    <div class="sectionHeader">
+                        <h2 class="sectionTitle">Estado del Streaming</h2>
+                    </div>
 
-                    <div class="ro-status-grid">
-                        <div class="ro-status-card"><div class="ro-status-label">Plugin</div><div class="ro-status-val" id="roStPlugin">--</div></div>
-                        <div class="ro-status-card"><div class="ro-status-label">Streaming</div><div class="ro-status-val" id="roStStream">--</div></div>
-                        <div class="ro-status-card"><div class="ro-status-label">Formato</div><div class="ro-status-val" id="roStFormat">--</div></div>
-                        <div class="ro-status-card"><div class="ro-status-label">Icecast</div><div class="ro-status-val" id="roStIcecast">--</div></div>
-                        <div class="ro-status-card"><div class="ro-status-label">Programas</div><div class="ro-status-val" id="roStCount">--</div></div>
+                    <div class="paperList" style="margin-bottom:1.5em;">
+                        <div class="listItem listItem-narrow">
+                            <div class="listItemBody">
+                                <div class="listItemBodyText">Plugin</div>
+                                <div class="listItemBodyText secondary" id="roStPlugin">--</div>
+                            </div>
+                        </div>
+                        <div class="listItem listItem-narrow">
+                            <div class="listItemBody">
+                                <div class="listItemBodyText">Streaming</div>
+                                <div class="listItemBodyText secondary" id="roStStream">--</div>
+                            </div>
+                        </div>
+                        <div class="listItem listItem-narrow">
+                            <div class="listItemBody">
+                                <div class="listItemBodyText">Formato</div>
+                                <div class="listItemBodyText secondary" id="roStFormat">--</div>
+                            </div>
+                        </div>
+                        <div class="listItem listItem-narrow">
+                            <div class="listItemBody">
+                                <div class="listItemBodyText">Icecast</div>
+                                <div class="listItemBodyText secondary" id="roStIcecast">--</div>
+                            </div>
+                        </div>
+                        <div class="listItem listItem-narrow">
+                            <div class="listItemBody">
+                                <div class="listItemBodyText">Programas</div>
+                                <div class="listItemBodyText secondary" id="roStCount">--</div>
+                            </div>
+                        </div>
                     </div>
 
                     <button type="button" is="emby-button" class="raised" id="roBtnRefresh"><span>Actualizar</span></button>
@@ -204,22 +239,6 @@
 
         </div>
     </div>
-
-    <style>
-        .ro-tab-content { padding-top: 0.5em; }
-        .ro-status-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.8em;margin-bottom:1.5em; }
-        .ro-status-card { padding:0.8em 1em; }
-        .ro-status-label { font-size:0.75em;text-transform:uppercase;letter-spacing:0.5px; }
-        .ro-status-val { font-size:1.3em;font-weight:600;margin-top:0.2em; }
-        .ro-st-on { color:#52b54b; } .ro-st-off { color:#888; } .ro-st-live { color:#00a4dc; }
-        .ro-sched-item { padding:0.8em 1em;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:0.8em;flex-wrap:wrap; }
-        .ro-sched-item:last-child { border-bottom:none; }
-        .ro-sched-row { display:flex;align-items:center;gap:0.5em;flex:1;min-width:200px;flex-wrap:wrap; }
-        .ro-sched-field { display:flex;align-items:center;gap:0.3em; }
-        .ro-sched-field label { font-size:0.8em;color:rgba(255,255,255,0.5);min-width:32px; }
-        .ro-sched-actions { display:flex;gap:0.5em;align-items:center; }
-        .ro-sched-time-sep { font-size:1.1em;color:rgba(255,255,255,0.4); }
-    </style>
 
     <script type="text/javascript">
     (function(){
@@ -395,7 +414,7 @@
                 var br = st.AudioBitrate || st.audioBitrate || '--';
 
                 var ep=document.getElementById('roStPlugin');
-                if(ep) ep.innerHTML=isEnabled?'<span class="ro-st-on">Activado</span>':'<span class="ro-st-off">Desactivado</span>';
+                if(ep) ep.innerHTML=isEnabled?'<span style="color:#52b54b;">Activado</span>':'<span style="color:#888;">Desactivado</span>';
                 var ei=document.getElementById('roStIcecast');
                 if(ei){ ei.textContent=iceUrl?'Configurado':'Sin configurar'; ei.style.color=iceUrl?'#52b54b':'#888'; }
                 var ef=document.getElementById('roStFormat');
@@ -405,11 +424,11 @@
 
                 apiGet('Plugins/RadioOnline/Status').then(function(apiSt){
                     var es=document.getElementById('roStStream');
-                    if(es) es.innerHTML=(apiSt && apiSt.isStreaming)?'<span class="ro-st-live">En Vivo</span>':'<span class="ro-st-off">Inactivo</span>';
+                    if(es) es.innerHTML=(apiSt && apiSt.isStreaming)?'<span style="color:#00a4dc;">En Vivo</span>':'<span style="color:#888;">Inactivo</span>';
                     Dashboard.hideLoadingMsg();
                 }).catch(function(){
                     var es=document.getElementById('roStStream');
-                    if(es) es.innerHTML='<span class="ro-st-off">Inactivo</span>';
+                    if(es) es.innerHTML='<span style="color:#888;">Inactivo</span>';
                     Dashboard.hideLoadingMsg();
                 });
             }).catch(function(e){
@@ -519,27 +538,40 @@
                 var nm=en.DisplayName||en.displayName||'';
                 var shuff=en.ShufflePlayback||en.shufflePlayback||false;
 
-                var div=document.createElement('div');
-                div.className='listItem listItem-narrow ro-sched-item';
-                div.setAttribute('data-i',idx);
-
                 var plName='-- Sin playlist --';
                 for(var p=0;p<playlists.length;p++){
                     if(playlists[p].id===pl){ plName=playlists[p].name; break; }
                 }
 
+                var div=document.createElement('div');
+                div.className='listItem';
+                div.setAttribute('data-i',idx);
+
                 div.innerHTML=
-                    '<div class="ro-sched-row">'+
-                        '<div class="ro-sched-field"><label>Dia</label><select is="emby-select" data-i="'+idx+'" data-f="DayOfWeek">'+dayOpts(day)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>De</label><select is="emby-select" data-i="'+idx+'" data-f="StartTimeH">'+hourOpts(stHM.h)+'</select><span class="ro-sched-time-sep">:</span><select is="emby-select" data-i="'+idx+'" data-f="StartTimeM">'+minOpts(stHM.m)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>A</label><select is="emby-select" data-i="'+idx+'" data-f="EndTimeH">'+hourOpts(etHM.h)+'</select><span class="ro-sched-time-sep">:</span><select is="emby-select" data-i="'+idx+'" data-f="EndTimeM">'+minOpts(etHM.m)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>Lista</label><select is="emby-select" data-i="'+idx+'" data-f="PlaylistId"><option value="">-- Seleccionar --</option>'+plOpts(pl)+'</select></div>'+
-                        '<div class="ro-sched-field"><label>Nombre</label><input type="text" is="emby-input" data-i="'+idx+'" data-f="DisplayName" value="'+esc(nm)+'" /></div>'+
-                        '<div class="ro-sched-field" style="align-items:center;"><label style="min-width:auto;"><input type="checkbox" is="emby-checkbox" data-i="'+idx+'" data-f="ShufflePlayback"'+(shuff?' checked':'')+' /> Aleatorio</label></div>'+
+                    '<div class="listItemBody three-line">'+
+                        '<div class="listItemBodyText">'+esc(nm||dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m)+'</div>'+
+                        '<div class="listItemBodyText secondary">'+
+                            dayNames[day]+' | '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m+
+                            ' | '+esc(plName)+
+                            (shuff?' | Aleatorio':'')+
+                        '</div>'+
+                        '<div class="listItemBodyText tertiary" style="display:flex;flex-wrap:wrap;gap:0.5em;align-items:center;margin-top:0.5em;">'+
+                            '<select is="emby-select" data-i="'+idx+'" data-f="DayOfWeek" style="width:auto;">'+dayOpts(day)+'</select>'+
+                            '<select is="emby-select" data-i="'+idx+'" data-f="StartTimeH" style="width:auto;">'+hourOpts(stHM.h)+'</select>'+
+                            '<span>:</span>'+
+                            '<select is="emby-select" data-i="'+idx+'" data-f="StartTimeM" style="width:auto;">'+minOpts(stHM.m)+'</select>'+
+                            '<span>-</span>'+
+                            '<select is="emby-select" data-i="'+idx+'" data-f="EndTimeH" style="width:auto;">'+hourOpts(etHM.h)+'</select>'+
+                            '<span>:</span>'+
+                            '<select is="emby-select" data-i="'+idx+'" data-f="EndTimeM" style="width:auto;">'+minOpts(etHM.m)+'</select>'+
+                            '<select is="emby-select" data-i="'+idx+'" data-f="PlaylistId" style="width:auto;"><option value="">-- Sin lista --</option>'+plOpts(pl)+'</select>'+
+                            '<input type="text" is="emby-input" data-i="'+idx+'" data-f="DisplayName" value="'+esc(nm)+'" style="width:auto;flex:1;min-width:100px;" placeholder="Nombre" />'+
+                            '<label style="flex-shrink:0;display:flex;align-items:center;gap:0.3em;"><input type="checkbox" is="emby-checkbox" data-i="'+idx+'" data-f="ShufflePlayback"'+(shuff?' checked':'')+' /> Aleatorio</label>'+
+                        '</div>'+
                     '</div>'+
-                    '<div class="ro-sched-actions">'+
-                        '<button type="button" is="emby-button" class="raised btn-danger" data-i="'+idx+'" data-act="del"><span>Borrar</span></button>'+
-                    '</div>';
+                    '<button type="button" is="emby-button" class="listItemButton paperListButton btnDelete" data-i="'+idx+'" data-act="del" style="flex-shrink:0;">'+
+                        '<span class="material-icons delete" aria-hidden="true"></span>'+
+                    '</button>';
 
                 list.appendChild(div);
             }
@@ -627,7 +659,10 @@
         }
 
         function hideMsg(){ var m=document.getElementById('roSchedMsg'); if(m) m.style.display='none'; }
-        function showMsg(t){ var m=document.getElementById('roSchedMsg'); if(m){ m.style.display=''; m.textContent=t; } }
+        function showMsg(t){
+            var m=document.getElementById('roSchedMsg');
+            if(m){ m.style.display=''; m.textContent=t; m.style.background='rgba(255,107,107,0.15)'; m.style.color='#ff6b6b'; }
+        }
 
         function populateDropdowns(){
             var daySel=document.getElementById('roNewDay');
