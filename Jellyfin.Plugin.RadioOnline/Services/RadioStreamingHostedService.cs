@@ -14,6 +14,10 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 /// Uses FFmpeg with concat demuxer and -stream_loop -1 for continuous gapless playback.
 /// When a schedule becomes active, writes a concat playlist.txt and starts FFmpeg.
 /// Monitors the schedule every 5 seconds - kills and restarts FFmpeg when the schedule changes.
+/// Uses a silence bridge (fallback mount) during transitions to prevent listener disconnection:
+/// 15 seconds before a schedule ends, starts a silence FFmpeg on the fallback mount,
+/// then kills the main FFmpeg. Listeners are seamlessly moved to the silence mount by Icecast.
+/// When the new schedule starts, the new FFmpeg connects and the silence process is stopped.
 /// </summary>
 public class RadioStreamingHostedService : BackgroundService
 {
@@ -22,6 +26,19 @@ public class RadioStreamingHostedService : BackgroundService
     private readonly ScheduleManagerService _scheduleManager;
     private readonly AudioProviderService _audioProvider;
 
+    /// <summary>
+    /// Seconds before schedule ends to start the silence bridge.
+    /// </summary>
+    private const int TransitionLeadTimeSeconds = 15;
+
+    /// <summary>
+    /// Seconds to wait for FFmpeg (main or silence) to connect to Icecast.
+    /// </summary>
+    private const int ConnectionWaitSeconds = 5;
+
+    /// <summary>
+    /// Interval for checking schedule changes while streaming.
+    /// </summary>
     private const int ScheduleCheckIntervalSeconds = 5;
 
     /// <summary>
@@ -49,7 +66,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started (FFmpeg concat mode)");
+        _logger.LogInformation("Radio Online service started (FFmpeg concat mode with silence bridge)");
 
         // Wait for Jellyfin to fully initialize
         try
@@ -71,6 +88,7 @@ public class RadioStreamingHostedService : BackgroundService
                 if (config == null || !config.IsEnabled)
                 {
                     StopStreaming();
+                    StopSilenceBridge();
                     await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
                     continue;
                 }
@@ -79,6 +97,7 @@ public class RadioStreamingHostedService : BackgroundService
                 if (!ValidateConfig(config))
                 {
                     StopStreaming();
+                    StopSilenceBridge();
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
                 }
@@ -88,14 +107,33 @@ public class RadioStreamingHostedService : BackgroundService
 
                 if (activeEntry == null || string.IsNullOrEmpty(activeEntry.PlaylistId))
                 {
-                    // No active schedule - stop streaming and wait
-                    StopStreaming();
-
-                    var timeUntilNext = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
-                    if (timeUntilNext.HasValue && timeUntilNext.Value < TimeSpan.FromMinutes(5))
+                    // No active schedule - handle silence bridge state
+                    if (_icecastService.IsSilenceStreaming)
                     {
-                        _logger.LogInformation("Next schedule in {Minutes:F0} min", timeUntilNext.Value.TotalMinutes);
-                        await Task.Delay(timeUntilNext.Value, stoppingToken).ConfigureAwait(false);
+                        _logger.LogInformation("Silence bridge active, waiting for next schedule...");
+                        var timeUntilNext = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
+                        if (timeUntilNext.HasValue && timeUntilNext.Value < TimeSpan.FromMinutes(5))
+                        {
+                            _logger.LogInformation("Next schedule in {Seconds:F0}s, waiting", timeUntilNext.Value.TotalSeconds);
+                            await Task.Delay(timeUntilNext.Value, stoppingToken).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            // Safety: no schedule coming soon, stop silence to save resources
+                            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
+                            StopSilenceBridge();
+                        }
+
+                        continue;
+                    }
+
+                    // Normal idle: stop streaming and wait
+                    StopStreaming();
+                    var timeUntil = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
+                    if (timeUntil.HasValue && timeUntil.Value < TimeSpan.FromMinutes(5))
+                    {
+                        _logger.LogInformation("Next schedule in {Minutes:F0} min", timeUntil.Value.TotalMinutes);
+                        await Task.Delay(timeUntil.Value, stoppingToken).ConfigureAwait(false);
                     }
                     else
                     {
@@ -105,7 +143,63 @@ public class RadioStreamingHostedService : BackgroundService
                     continue;
                 }
 
-                // Start streaming the active playlist
+                // Check remaining time in current schedule slot
+                var remaining = _scheduleManager.GetRemainingTimeInSlot(activeEntry);
+
+                // If silence bridge is running (transition from previous schedule), start new stream
+                if (_icecastService.IsSilenceStreaming)
+                {
+                    _logger.LogInformation(
+                        "Starting new stream \"{Name}\" while silence bridge is active",
+                        activeEntry.DisplayName);
+
+                    await StreamPlaylistAsync(config, activeEntry, stoppingToken).ConfigureAwait(false);
+
+                    // Wait for the new FFmpeg to connect to Icecast
+                    _logger.LogInformation("Waiting {Seconds}s for new stream to connect...", ConnectionWaitSeconds);
+                    await Task.Delay(TimeSpan.FromSeconds(ConnectionWaitSeconds), stoppingToken).ConfigureAwait(false);
+
+                    // Stop silence bridge - Icecast will move listeners back to the main mount
+                    StopSilenceBridge();
+
+                    _logger.LogInformation("Transition complete: silence bridge stopped");
+                    continue;
+                }
+
+                // Schedule has very little time left and no silence started yet
+                if (remaining <= TimeSpan.FromSeconds(TransitionLeadTimeSeconds))
+                {
+                    _logger.LogInformation(
+                        "Schedule \"{Name}\" has only {Seconds:F0}s remaining, starting silence bridge and waiting",
+                        activeEntry.DisplayName, remaining.TotalSeconds);
+
+                    _icecastService.StartSilence(
+                        config.IcecastUrl,
+                        config.IcecastUsername,
+                        config.IcecastPassword,
+                        config.IcecastMountPoint,
+                        config.AudioFormat,
+                        config.AudioBitrate);
+
+                    await Task.Delay(TimeSpan.FromSeconds(ConnectionWaitSeconds), stoppingToken).ConfigureAwait(false);
+
+                    if (!_icecastService.IsSilenceStreaming)
+                    {
+                        _logger.LogWarning("Silence bridge failed to connect, listeners may experience a cut");
+                    }
+
+                    // Wait for the schedule to end so the next iteration picks up the new schedule
+                    if (remaining > TimeSpan.FromSeconds(2))
+                    {
+                        var waitTime = remaining - TimeSpan.FromSeconds(2);
+                        _logger.LogInformation("Waiting {Seconds:F0}s for schedule to end...", waitTime.TotalSeconds);
+                        await Task.Delay(waitTime, stoppingToken).ConfigureAwait(false);
+                    }
+
+                    continue;
+                }
+
+                // Normal flow: start streaming the active playlist
                 await StreamPlaylistAsync(config, activeEntry, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -116,6 +210,7 @@ public class RadioStreamingHostedService : BackgroundService
             {
                 _logger.LogError(ex, "Streaming cycle error, retrying in 15s");
                 StopStreaming();
+                StopSilenceBridge();
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -128,13 +223,15 @@ public class RadioStreamingHostedService : BackgroundService
         }
 
         StopStreaming();
+        StopSilenceBridge();
         _logger.LogInformation("Radio Online service stopped");
     }
 
     /// <summary>
     /// Streams a playlist to Icecast using FFmpeg concat demuxer.
     /// Generates the concat playlist file, starts FFmpeg, and monitors for schedule changes.
-    /// When the schedule changes or ends, kills FFmpeg and returns (the main loop handles the transition).
+    /// 15 seconds before the schedule ends, starts the silence bridge to allow seamless transition.
+    /// When the schedule ends or changes, kills FFmpeg and returns.
     /// </summary>
     private async Task StreamPlaylistAsync(
         PluginConfiguration config,
@@ -186,6 +283,9 @@ public class RadioStreamingHostedService : BackgroundService
             config.StreamGenre,
             scheduleCts.Token);
 
+        // Track whether silence bridge has been started for this transition
+        bool silenceStarted = false;
+
         // Monitor schedule while streaming
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -195,7 +295,6 @@ public class RadioStreamingHostedService : BackgroundService
             if (!_icecastService.IsStreaming && !scheduleCts.IsCancellationRequested)
             {
                 _logger.LogWarning("FFmpeg died unexpectedly during \"{Name}\"", activeEntry.DisplayName);
-                // Wait for the task to complete, then restart
                 try
                 {
                     await streamTask.ConfigureAwait(false);
@@ -213,7 +312,41 @@ public class RadioStreamingHostedService : BackgroundService
                 break;
             }
 
-            // Check if schedule is still active
+            // Check remaining time in schedule
+            var remaining = _scheduleManager.GetRemainingTimeInSlot(activeEntry);
+
+            // Start silence bridge 15 seconds before schedule ends
+            if (remaining <= TimeSpan.FromSeconds(TransitionLeadTimeSeconds) && !silenceStarted)
+            {
+                silenceStarted = true;
+                _logger.LogInformation(
+                    "Schedule \"{Name}\" ending in {Seconds:F0}s, starting silence bridge",
+                    activeEntry.DisplayName, remaining.TotalSeconds);
+
+                _icecastService.StartSilence(
+                    currentConfig.IcecastUrl,
+                    currentConfig.IcecastUsername,
+                    currentConfig.IcecastPassword,
+                    currentConfig.IcecastMountPoint,
+                    currentConfig.AudioFormat,
+                    currentConfig.AudioBitrate);
+
+                // Wait for silence FFmpeg to connect to Icecast
+                _logger.LogInformation("Waiting {Seconds}s for silence bridge to connect...", ConnectionWaitSeconds);
+                await Task.Delay(TimeSpan.FromSeconds(ConnectionWaitSeconds), cancellationToken).ConfigureAwait(false);
+
+                if (!_icecastService.IsSilenceStreaming)
+                {
+                    _logger.LogWarning("Silence bridge failed to connect - listeners may experience a cut");
+                }
+                else
+                {
+                    _logger.LogInformation("Silence bridge connected successfully on {Mount}",
+                        currentConfig.IcecastMountPoint.TrimEnd('/') + "-silence");
+                }
+            }
+
+            // Check if schedule ended
             var currentEntry = _scheduleManager.GetActiveScheduleEntry(currentConfig.ScheduleEntries);
 
             if (currentEntry == null)
@@ -226,6 +359,25 @@ public class RadioStreamingHostedService : BackgroundService
             // Check if a different playlist has priority (overlap)
             if (!string.Equals(currentEntry.PlaylistId, activeEntry.PlaylistId, StringComparison.Ordinal))
             {
+                // Start silence bridge if not already started for this overlap
+                if (!silenceStarted)
+                {
+                    silenceStarted = true;
+                    _logger.LogInformation(
+                        "Schedule overlap: starting silence bridge before switching to \"{New}\"",
+                        currentEntry.DisplayName);
+
+                    _icecastService.StartSilence(
+                        currentConfig.IcecastUrl,
+                        currentConfig.IcecastUsername,
+                        currentConfig.IcecastPassword,
+                        currentConfig.IcecastMountPoint,
+                        currentConfig.AudioFormat,
+                        currentConfig.AudioBitrate);
+
+                    await Task.Delay(TimeSpan.FromSeconds(ConnectionWaitSeconds), cancellationToken).ConfigureAwait(false);
+                }
+
                 _logger.LogInformation(
                     "Schedule overlap: \"{New}\" takes priority over \"{Old}\"",
                     currentEntry.DisplayName, activeEntry.DisplayName);
@@ -268,6 +420,18 @@ public class RadioStreamingHostedService : BackgroundService
     }
 
     /// <summary>
+    /// Stops the silence bridge if it is running.
+    /// </summary>
+    private void StopSilenceBridge()
+    {
+        if (_icecastService.IsSilenceStreaming)
+        {
+            _icecastService.StopSilence();
+            _logger.LogInformation("Silence bridge stopped");
+        }
+    }
+
+    /// <summary>
     /// Validates that the plugin has all required configuration.
     /// </summary>
     private bool ValidateConfig(PluginConfiguration config)
@@ -285,6 +449,7 @@ public class RadioStreamingHostedService : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         StopStreaming();
+        StopSilenceBridge();
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 }

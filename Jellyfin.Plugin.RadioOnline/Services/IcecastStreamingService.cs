@@ -21,7 +21,9 @@ public class IcecastStreamingService : IDisposable
     private readonly ILogger<IcecastStreamingService> _logger;
     private readonly IServiceProvider _serviceProvider;
     private Process? _ffmpegProcess;
+    private Process? _silenceProcess;
     private bool _isStreaming;
+    private bool _isSilenceStreaming;
     private readonly object _lock = new();
 
     private const string WorkDir = "/tmp/radio-online";
@@ -51,6 +53,20 @@ public class IcecastStreamingService : IDisposable
             lock (_lock)
             {
                 return _isStreaming && _ffmpegProcess != null && !_ffmpegProcess.HasExited;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets whether the silence bridge FFmpeg is currently streaming to the fallback mount.
+    /// </summary>
+    public bool IsSilenceStreaming
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _isSilenceStreaming && _silenceProcess != null && !_silenceProcess.HasExited;
             }
         }
     }
@@ -278,6 +294,128 @@ public class IcecastStreamingService : IDisposable
     }
 
     /// <summary>
+    /// Starts a silence FFmpeg process to the fallback mount point.
+    /// This is used during schedule transitions to prevent listener disconnection.
+    /// The silence mount is derived from the main mount: /radio becomes /radio-silence.
+    /// Requires Icecast to be configured with fallback-mount pointing to this silence mount.
+    /// </summary>
+    /// <returns>True if the silence process started successfully.</returns>
+    public bool StartSilence(
+        string icecastUrl,
+        string icecastUsername,
+        string icecastPassword,
+        string icecastMountPoint,
+        string audioFormat,
+        int audioBitrate)
+    {
+        StopSilence();
+
+        var ffmpegPath = GetFFmpegPath();
+        if (string.IsNullOrEmpty(ffmpegPath))
+        {
+            _logger.LogError("FFmpeg not found, cannot start silence bridge");
+            return false;
+        }
+
+        // Derive silence mount: /radio -> /radio-silence
+        var silenceMount = icecastMountPoint.TrimEnd('/') + "-silence";
+        if (!silenceMount.StartsWith('/'))
+            silenceMount = '/' + silenceMount;
+
+        var arguments = BuildSilenceArguments(
+            icecastUrl, icecastUsername, icecastPassword,
+            silenceMount, audioFormat, audioBitrate);
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegPath,
+            Arguments = arguments,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = WorkDir,
+        };
+
+        try
+        {
+            var process = new Process
+            {
+                StartInfo = startInfo,
+                EnableRaisingEvents = true,
+            };
+
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data) &&
+                    e.Data.Contains("Error", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Silence FFmpeg: {Data}", e.Data);
+                }
+            };
+
+            process.Exited += (_, _) =>
+            {
+                lock (_lock)
+                {
+                    _isSilenceStreaming = false;
+                }
+                _logger.LogInformation("Silence FFmpeg process exited");
+            };
+
+            if (!process.Start())
+            {
+                _logger.LogError("Failed to start silence FFmpeg process");
+                return false;
+            }
+
+            process.BeginErrorReadLine();
+
+            lock (_lock)
+            {
+                _silenceProcess = process;
+                _isSilenceStreaming = true;
+            }
+
+            _logger.LogInformation(
+                "Silence bridge started on {Mount} ({Format}/{Bitrate}kbps)",
+                silenceMount, audioFormat, audioBitrate);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error starting silence FFmpeg");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Stops the silence bridge FFmpeg process.
+    /// </summary>
+    public void StopSilence()
+    {
+        lock (_lock)
+        {
+            if (_silenceProcess != null && !_silenceProcess.HasExited)
+            {
+                try
+                {
+                    _silenceProcess.Kill(true);
+                    _logger.LogInformation("Stopped silence FFmpeg process");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error stopping silence FFmpeg");
+                }
+            }
+
+            _isSilenceStreaming = false;
+            _silenceProcess = null;
+        }
+    }
+
+    /// <summary>
     /// Writes an FFmpeg concat playlist file from the given file paths.
     /// </summary>
     private void WriteConcatPlaylist(List<string> filePaths)
@@ -356,6 +494,48 @@ public class IcecastStreamingService : IDisposable
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
+    /// <summary>
+    /// Builds FFmpeg arguments for the silence bridge stream.
+    /// Uses anullsrc to generate silence audio.
+    /// </summary>
+    private string BuildSilenceArguments(
+        string icecastUrl,
+        string icecastUsername,
+        string icecastPassword,
+        string silenceMount,
+        string audioFormat,
+        int audioBitrate)
+    {
+        var args = new StringBuilder();
+
+        args.Append("-hide_banner -loglevel warning ");
+        args.Append("-re ");
+        args.Append("-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 ");
+
+        if (audioFormat.Equals("m4a", StringComparison.OrdinalIgnoreCase))
+        {
+            args.Append("-c:a aac ");
+            args.Append($"-b:a {audioBitrate}k ");
+            args.Append("-ar 44100 -ac 2 ");
+            args.Append("-content_type audio/aac ");
+            args.Append("-f adts ");
+        }
+        else
+        {
+            args.Append("-c:a libvorbis ");
+            args.Append($"-b:a {audioBitrate}k ");
+            args.Append("-ar 44100 -ac 2 ");
+            args.Append("-f ogg ");
+        }
+
+        var escapedPassword = icecastPassword.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        var cleanUrl = icecastUrl.Replace("http://", string.Empty).Replace("https://", string.Empty);
+
+        args.Append($"icecast://{icecastUsername}:{escapedPassword}@{cleanUrl}{silenceMount}");
+
+        return args.ToString();
+    }
+
     private void CleanupProcess(Process? process)
     {
         if (process != null)
@@ -372,6 +552,7 @@ public class IcecastStreamingService : IDisposable
         lock (_lock)
         {
             StopStreaming();
+            StopSilence();
         }
         GC.SuppressFinalize(this);
     }

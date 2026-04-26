@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.10-alpha",
+        "changelog": "- NEW: Silence bridge for seamless schedule transitions - no more listener disconnection between programs\n- Starts silence FFmpeg on fallback mount 15 seconds before schedule ends\n- Icecast automatically moves listeners to silence mount via fallback-mount\n- When new program starts, listeners are moved back to main mount seamlessly\n- Silence process only runs during transitions (saves CPU vs 24/7)\n- REQUIRES: Icecast fallback-mount configuration (see README)\n- Fixed: DI resolution for controller (lazy IMediaEncoder, removed IPlaylistManager)\n- FFmpeg concat demuxer with -stream_loop -1 for continuous gapless playback",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.10-alpha/jellyfin-plugin-radio-online_0.0.0.10-alpha.zip",
+        "checksum": "0a99c1bb01fbee69658c6b9ef13c27c6",
+        "timestamp": "2026-04-27T14:00:00Z"
+      },
+      {
         "version": "0.0.0.9",
         "changelog": "- CRITICAL FIX: Removed IMediaEncoder from constructor DI - now resolved lazily at runtime\n- CRITICAL FIX: Removed unused IPlaylistManager dependency that caused DI resolution failure\n- Fixed playlist selection - API endpoints now resolve correctly\n- FFmpeg path resolved lazily with fallback to common Jellyfin installation paths\n- Continuous gapless playback using FFmpeg concat demuxer with -stream_loop -1\n- Schedule monitoring every 5 seconds with FFmpeg restart on schedule change",
         "targetAbi": "10.11.8.0",

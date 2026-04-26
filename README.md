@@ -69,12 +69,42 @@
 
 Antes de configurar el plugin, asegurate de tener un servidor Icecast corriendo y configurado para aceptar conexiones de fuente (source).
 
+#### Paso 1.1: Configurar fallback-mount (REQUERIDO para transiciones sin cortes)
+
+Para que los oyentes no se desconecten al cambiar de un programa a otro, debes configurar un **mount de silencio (fallback)** en Icecast. Cuando un programa termina y el siguiente aun no ha comenzado, el plugin envia audio de silencio a este mount secundario, y Icecast mueve automaticamente a los oyentes ahi. Cuando el nuevo programa inicia, los oyentes regresan al mount principal sin interrupcion.
+
+En tu archivo de configuracion `icecast.xml`, agrega lo siguiente dentro de la seccion `<icecast>`:
+
+```xml
+<mount>
+    <mount-name>/radio</mount-name>
+    <fallback-mount>/radio-silence</fallback-mount>
+    <charset>UTF-8</charset>
+</mount>
+
+<mount>
+    <mount-name>/radio-silence</mount-name>
+    <charset>UTF-8</charset>
+</mount>
+```
+
+**Nota importante:**
+- El mount principal (`/radio`) debe coincidir con el **Punto de Montaje** que configures en el plugin.
+- El mount de silencio (`/radio-silence`) se genera automaticamente agregando `-silence` al nombre del mount principal.
+- Si usas un mount diferente (ej: `/stream`), el mount de silencio sera `/stream-silence`.
+- El plugin se encarga de iniciar y detener el FFmpeg de silencio automaticamente durante las transiciones, por lo que no necesitas gestionarlo manualmente.
+- **Si no configuras el fallback-mount, los oyentes se desconectaran brevemente al cambiar de programa.**
+
+Despues de modificar `icecast.xml`, reinicia el servidor Icecast para aplicar los cambios.
+
+#### Paso 1.2: Configurar la conexion en el plugin
+
 1. Navega a **Panel de Control > Plugins > Radio Online**
 2. En la seccion **Icecast Server Configuration**, completa los campos:
    - **Server URL**: URL completa de tu servidor Icecast (ej: `http://tu-servidor:8000`)
    - **Username**: Usuario de fuente Icecast (generalmente `source`)
    - **Password**: Contrasena de fuente Icecast
-   - **Mount Point**: Punto de montaje (ej: `/radio`, `/stream`)
+   - **Mount Point**: Punto de montaje (ej: `/radio`, `/stream`). Debe coincidir con el mount-name del fallback-mount en tu `icecast.xml`.
    - **Audio Format**: `ogg` (Vorbis) o `m4a` (AAC)
    - **Audio Bitrate**: Bitrate de codificacion en kbps (recomendado: 96-192)
 
@@ -141,28 +171,57 @@ El plugin opera como un servicio en segundo plano dentro del servidor Jellyfin, 
 │  │    plano - Background Service)    │                       │
 │  └──────────────┬───────────────────┘                       │
 │                 │                                             │
-│                 ▼                                             │
-│  ┌──────────────────────────────────┐                       │
-│  │   Icecast Streaming Service       │                       │
-│  │   (FFmpeg → codificacion →        │                       │
-│  │    Icecast via icecast://)        │                       │
-│  └──────────────┬───────────────────┘                       │
-└─────────────────┼───────────────────────────────────────────┘
-                  │
-                  ▼
-         ┌────────────────┐
-         │  Icecast Server │
-         │  (Streaming)    │
-         └────────────────┘
-                  │
-                  ▼
-         ┌────────────────┐
-         │    Oyentes     │
-         │ (Listeners)    │
-         └────────────────┘
+│                 ├─────────────────────┐                      │
+│                 ▼                     ▼                      │
+│  ┌──────────────────────┐  ┌────────────────────┐          │
+│  │ FFmpeg (programa)    │  │ FFmpeg (silencio)  │          │
+│  │ → mount /radio       │  │ → mount /radio-    │          │
+│  │                      │  │   silence          │          │
+│  └──────────┬───────────┘  └────────┬───────────┘          │
+└─────────────┼────────────────────────┼──────────────────────┘
+              │                        │
+              ▼                        ▼
+         ┌──────────────────────────────┐
+         │       Icecast Server          │
+         │  /radio ←→ /radio-silence     │
+         │  (fallback-mount: transicion   │
+         │   automatica entre mounts)     │
+         └──────────────┬───────────────┘
+                        │
+                        ▼
+               ┌────────────────┐
+               │    Oyentes     │
+               │ (Listeners)    │
+               └────────────────┘
 ```
 
-### Flujo de Decision por Cancion
+### Transicion entre Programas (Silence Bridge)
+
+Cuando un programa termina y comienza otro, el plugin realiza una transicion sin cortes:
+
+```
+15s antes       │  Programa A termina  │  Silencio  │  Nuevo FFmpeg  │
+                │                      │            │  conecta        │
+────────────────┼──────────────────────┼────────────┼────────────────┤
+FFmpeg A:  ████████████████████████████░            ░                ░
+Silencio:  ░            ░░░░░░░░░░░░░░░░░░████████████░                ░
+FFmpeg B:  ░            ░            ░░░░░░░░░░░░░░░░░░█████████████████
+Oyentes:   ██████████████████████████████████████████████████████████████
+           Escuchan A   Silencio 1-5s    Escuchan B
+                        (imperceptible)
+```
+
+1. **15 segundos antes** de que termine el programa actual, el plugin inicia un segundo proceso FFmpeg que envia silencio al mount `/radio-silence`
+2. Espera 5 segundos para que el FFmpeg de silencio se conecte a Icecast
+3. **Al terminar el programa**, mata el FFmpeg principal. Icecast detecta la caida de `/radio` y **mueve automaticamente a los oyentes** a `/radio-silence` (gracias al `fallback-mount`)
+4. Los oyentes escuchan **1-5 segundos de silencio** (imperceptible, como una pausa natural)
+5. El plugin inicia el **nuevo FFmpeg** para el siguiente programa en `/radio`
+6. Espera a que se conecte, y luego **detiene el FFmpeg de silencio**
+7. Icecast mueve a los oyentes de vuelta a `/radio`
+
+**Resultado: Los oyentes NUNCA se desconectan. Solo escuchan un breve silencio natural entre programas.**
+
+### Flujo de Decision por Programa
 
 1. El servicio verifica la **programacion semanal** para el momento actual
 2. Si hay un **horario activo** con playlist asignada:
