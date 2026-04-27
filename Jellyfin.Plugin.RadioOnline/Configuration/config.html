@@ -148,6 +148,101 @@
         </div>
     </div>
 
+    <style>
+        /* ── Native selects for dynamically created schedule edit forms ── */
+        .ro-native-select {
+            background-color: rgba(0,0,0,0.35);
+            color: inherit;
+            border: 1px solid rgba(255,255,255,0.135);
+            border-radius: 0.3em;
+            padding: 0.6em 1.8em 0.6em 0.8em;
+            font-size: 90%;
+            font-family: inherit;
+            appearance: auto;
+            cursor: pointer;
+            min-width: 70px;
+            max-width: 100%;
+        }
+        .ro-native-select:focus {
+            border-color: #00a4dc;
+            outline: none;
+            box-shadow: 0 0 0 0.1em rgba(0,164,220,0.3);
+        }
+        /* ── Native text input for schedule name ── */
+        .ro-native-input {
+            background-color: rgba(0,0,0,0.35);
+            color: inherit;
+            border: 1px solid rgba(255,255,255,0.135);
+            border-radius: 0.3em;
+            padding: 0.6em 0.8em;
+            font-size: 90%;
+            font-family: inherit;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .ro-native-input:focus {
+            border-color: #00a4dc;
+            outline: none;
+            box-shadow: 0 0 0 0.1em rgba(0,164,220,0.3);
+        }
+        .ro-native-input::placeholder {
+            color: rgba(255,255,255,0.4);
+        }
+        /* ── Edit form row labels ── */
+        .ro-field-label {
+            font-size: 85%;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 0.2em;
+        }
+        /* ── Action buttons for schedule items (edit/delete/save/cancel) ── */
+        .ro-btn-icon {
+            background: transparent;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            padding: 0.5em;
+            border-radius: 0.3em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s;
+        }
+        .ro-btn-icon:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .ro-btn-icon .material-icons {
+            font-size: 22px;
+        }
+        .ro-btn-icon.btn-save:hover {
+            color: #52b54b;
+        }
+        .ro-btn-icon.btn-delete:hover {
+            color: #ff6b6b;
+        }
+        /* ── Inline edit container ── */
+        .ro-edit-form {
+            padding: 0.8em 0;
+        }
+        .ro-edit-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5em;
+            align-items: center;
+            margin-bottom: 0.6em;
+        }
+        .ro-edit-row label {
+            display: flex;
+            align-items: center;
+            gap: 0.3em;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 90%;
+            color: #ccc;
+        }
+    </style>
+
     <script type="text/javascript">
     (function(){
         var PLUGIN_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
@@ -357,7 +452,7 @@
             if(configLoaded && playlistsLoaded) renderSchedule();
         }
 
-        // --- Schedule (inline editing) ---
+        // --- Schedule rendering ---
         function renderSchedule(){
             var entries=getEntries();
             var list=document.getElementById('roSchedList');
@@ -373,7 +468,6 @@
             list.style.display='';
             if(empty) empty.style.display='none';
 
-            // Sort entries by day then start time
             var sorted=[];
             for(var i=0;i<entries.length;i++) sorted.push({e:entries[i],i:i});
             sorted.sort(function(a,b){
@@ -387,11 +481,12 @@
 
             for(var s=0;s<sorted.length;s++){
                 var en=sorted[s].e, idx=sorted[s].i;
-                list.appendChild(buildScheduleItem(en, idx, false));
+                list.appendChild(buildScheduleItem(en, idx));
             }
         }
 
-        function buildScheduleItem(en, idx, isNew){
+        // Build a display-only schedule entry (listItem with edit/delete buttons)
+        function buildScheduleItem(en, idx){
             var day=normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek);
             var stHM=parseTimeToHM(en.StartTime||en.startTime||'');
             var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
@@ -409,21 +504,38 @@
             div.className='listItem';
             div.setAttribute('data-i',idx);
 
-            div.innerHTML=
-                '<div class="listItemBody two-line">'+
-                    '<div class="listItemBodyText">'+esc(title)+'</div>'+
-                    '<div class="listItemBodyText secondary">'+esc(secondary)+'</div>'+
-                '</div>'+
-                '<button type="button" is="emby-button" class="listItemButton paperListButton" data-i="'+idx+'" data-act="edit" style="flex-shrink:0;">'+
-                    '<span class="material-icons" aria-hidden="true">edit</span>'+
-                '</button>'+
-                '<button type="button" is="emby-button" class="listItemButton paperListButton btnDelete" data-i="'+idx+'" data-act="del" style="flex-shrink:0;">'+
-                    '<span class="material-icons" aria-hidden="true">delete</span>'+
-                '</button>';
+            // Body
+            var body=document.createElement('div');
+            body.className='listItemBody two-line';
+            body.innerHTML=
+                '<div class="listItemBodyText">'+esc(title)+'</div>'+
+                '<div class="listItemBodyText secondary">'+esc(secondary)+'</div>';
+            div.appendChild(body);
+
+            // Edit button
+            var btnEdit=document.createElement('button');
+            btnEdit.type='button';
+            btnEdit.className='ro-btn-icon';
+            btnEdit.title='Editar';
+            btnEdit.setAttribute('data-i',idx);
+            btnEdit.setAttribute('data-act','edit');
+            btnEdit.innerHTML='<span class="material-icons" aria-hidden="true">edit</span>';
+            div.appendChild(btnEdit);
+
+            // Delete button
+            var btnDel=document.createElement('button');
+            btnDel.type='button';
+            btnDel.className='ro-btn-icon btn-delete';
+            btnDel.title='Eliminar';
+            btnDel.setAttribute('data-i',idx);
+            btnDel.setAttribute('data-act','del');
+            btnDel.innerHTML='<span class="material-icons" aria-hidden="true">delete</span>';
+            div.appendChild(btnDel);
 
             return div;
         }
 
+        // Build inline edit form for a schedule entry (all native HTML, no emby custom elements)
         function renderInlineEdit(idx){
             var entries=getEntries();
             var en=(idx>=0 && idx<entries.length) ? entries[idx] : null;
@@ -441,38 +553,130 @@
             div.setAttribute('data-editing','true');
             div.setAttribute('data-idx',idx);
 
-            var plOpts='<option value="">-- Seleccionar --</option>';
+            // Form container
+            var form=document.createElement('div');
+            form.className='listItemBody ro-edit-form';
+            form.style.flex='1';
+
+            // Row 1: Day + Time selectors
+            var row1=document.createElement('div');
+            row1.className='ro-edit-row';
+
+            var selDay=document.createElement('select');
+            selDay.className='ro-native-select';
+            selDay.setAttribute('data-field','day');
+            selDay.innerHTML=dayOpts(day);
+            selDay.style.minWidth='100px';
+            row1.appendChild(selDay);
+
+            var lblDe=document.createElement('span');
+            lblDe.textContent='De:';
+            lblDe.style.fontWeight='bold';
+            lblDe.style.fontSize='90%';
+            lblDe.style.marginLeft='0.3em';
+            row1.appendChild(lblDe);
+
+            var selSH=document.createElement('select');
+            selSH.className='ro-native-select';
+            selSH.setAttribute('data-field','startH');
+            selSH.innerHTML=hourOpts(stHM.h);
+            row1.appendChild(selSH);
+
+            var colon1=document.createElement('span');
+            colon1.textContent=':';
+            colon1.style.fontWeight='bold';
+            row1.appendChild(colon1);
+
+            var selSM=document.createElement('select');
+            selSM.className='ro-native-select';
+            selSM.setAttribute('data-field','startM');
+            selSM.innerHTML=minOpts(stHM.m);
+            row1.appendChild(selSM);
+
+            var lblA=document.createElement('span');
+            lblA.textContent='a';
+            lblA.style.fontWeight='bold';
+            lblA.style.fontSize='90%';
+            lblA.style.marginLeft='0.3em';
+            row1.appendChild(lblA);
+
+            var selEH=document.createElement('select');
+            selEH.className='ro-native-select';
+            selEH.setAttribute('data-field','endH');
+            selEH.innerHTML=hourOpts(etHM.h);
+            row1.appendChild(selEH);
+
+            var colon2=document.createElement('span');
+            colon2.textContent=':';
+            colon2.style.fontWeight='bold';
+            row1.appendChild(colon2);
+
+            var selEM=document.createElement('select');
+            selEM.className='ro-native-select';
+            selEM.setAttribute('data-field','endM');
+            selEM.innerHTML=minOpts(etHM.m);
+            row1.appendChild(selEM);
+
+            form.appendChild(row1);
+
+            // Row 2: Playlist + Shuffle
+            var row2=document.createElement('div');
+            row2.className='ro-edit-row';
+
+            var selPL=document.createElement('select');
+            selPL.className='ro-native-select';
+            selPL.setAttribute('data-field','playlist');
+            selPL.style.flex='1';
+            selPL.style.minWidth='180px';
+            var plOpts='<option value="">-- Seleccionar playlist --</option>';
             for(var p=0;p<playlists.length;p++){
                 plOpts+='<option value="'+playlists[p].id+'"'+(playlists[p].id===pl?' selected':'')+'>'+esc(playlists[p].name)+'</option>';
             }
+            selPL.innerHTML=plOpts;
+            row2.appendChild(selPL);
 
-            div.innerHTML=
-                '<div class="listItemBody" style="flex:1;">'+
-                    '<div style="display:flex;flex-wrap:wrap;gap:0.5em;align-items:center;margin-bottom:0.5em;">'+
-                        '<select class="emby-select" data-field="day" style="width:auto;min-width:100px;">'+dayOpts(day)+'</select>'+
-                        '<span style="font-weight:bold;">De:</span>'+
-                        '<select class="emby-select" data-field="startH" style="width:auto;">'+hourOpts(stHM.h)+'</select>'+
-                        '<span>:</span>'+
-                        '<select class="emby-select" data-field="startM" style="width:auto;">'+minOpts(stHM.m)+'</select>'+
-                        '<span style="font-weight:bold;">a</span>'+
-                        '<select class="emby-select" data-field="endH" style="width:auto;">'+hourOpts(etHM.h)+'</select>'+
-                        '<span>:</span>'+
-                        '<select class="emby-select" data-field="endM" style="width:auto;">'+minOpts(etHM.m)+'</select>'+
-                    '</div>'+
-                    '<div style="display:flex;flex-wrap:wrap;gap:0.5em;align-items:center;margin-bottom:0.5em;">'+
-                        '<select class="emby-select" data-field="playlist" style="flex:1;min-width:180px;">'+plOpts+'</select>'+
-                        '<label style="display:flex;align-items:center;gap:0.3em;cursor:pointer;white-space:nowrap;">'+
-                            '<input type="checkbox" data-field="shuffle"'+(shuff?' checked':'')+' /> Aleatorio'+
-                        '</label>'+
-                    '</div>'+
-                    '<input type="text" class="emby-input" data-field="name" value="'+esc(nm)+'" placeholder="Nombre del programa" style="width:100%;box-sizing:border-box;" />'+
-                '</div>'+
-                '<button type="button" is="emby-button" class="listItemButton paperListButton" data-act="save-edit" style="flex-shrink:0;color:#52b54b;">'+
-                    '<span class="material-icons" aria-hidden="true">check_circle</span>'+
-                '</button>'+
-                '<button type="button" is="emby-button" class="listItemButton paperListButton" data-act="cancel-edit" style="flex-shrink:0;">'+
-                    '<span class="material-icons" aria-hidden="true">cancel</span>'+
-                '</button>';
+            var lblShuff=document.createElement('label');
+            var chkShuff=document.createElement('input');
+            chkShuff.type='checkbox';
+            chkShuff.setAttribute('data-field','shuffle');
+            if(shuff) chkShuff.checked=true;
+            lblShuff.appendChild(chkShuff);
+            lblShuff.appendChild(document.createTextNode(' Aleatorio'));
+            row2.appendChild(lblShuff);
+
+            form.appendChild(row2);
+
+            // Row 3: Name input
+            var row3=document.createElement('div');
+            row3.style.marginBottom='0.5em';
+            var inpName=document.createElement('input');
+            inpName.type='text';
+            inpName.className='ro-native-input';
+            inpName.setAttribute('data-field','name');
+            inpName.value=nm;
+            inpName.placeholder='Nombre del programa (opcional)';
+            row3.appendChild(inpName);
+            form.appendChild(row3);
+
+            div.appendChild(form);
+
+            // Save button
+            var btnSave=document.createElement('button');
+            btnSave.type='button';
+            btnSave.className='ro-btn-icon btn-save';
+            btnSave.title='Guardar';
+            btnSave.setAttribute('data-act','save-edit');
+            btnSave.innerHTML='<span class="material-icons" aria-hidden="true">check_circle</span>';
+            div.appendChild(btnSave);
+
+            // Cancel button
+            var btnCancel=document.createElement('button');
+            btnCancel.type='button';
+            btnCancel.className='ro-btn-icon';
+            btnCancel.title='Cancelar';
+            btnCancel.setAttribute('data-act','cancel-edit');
+            btnCancel.innerHTML='<span class="material-icons" aria-hidden="true">cancel</span>';
+            div.appendChild(btnCancel);
 
             return div;
         }
@@ -556,7 +760,7 @@
                 var cancelIdx=parseInt(cancelItem.getAttribute('data-idx'),10);
                 var entries2=getEntries();
                 var en2=(cancelIdx>=0 && cancelIdx<entries2.length) ? entries2[cancelIdx] : null;
-                var newDiv=buildScheduleItem(en2, cancelIdx, cancelIdx<0);
+                var newDiv=buildScheduleItem(en2, cancelIdx);
                 cancelItem.replaceWith(newDiv);
             }
         }
