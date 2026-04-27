@@ -17,8 +17,8 @@ public class LiquidsoapClient : IDisposable
     private readonly ILogger<LiquidsoapClient> _logger;
     private TcpClient? _tcpClient;
     private NetworkStream? _stream;
-    private readonly string _host;
-    private readonly int _port;
+    private string _host;
+    private int _port;
     private readonly int _connectTimeoutMs;
     private readonly int _readTimeoutMs;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
@@ -349,6 +349,8 @@ public class LiquidsoapClient : IDisposable
         if (_host != host || _port != port)
         {
             _logger.LogInformation("Liquidsoap connection settings changed: {OldHost}:{OldPort} -> {NewHost}:{NewPort}", _host, _port, host, port);
+            _host = host;
+            _port = port;
             Disconnect();
         }
     }

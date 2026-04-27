@@ -46,6 +46,9 @@ public class RadioOnlineController : ControllerBase
             return NotFound(new { error = "Plugin not found" });
         }
 
+        // Ensure client uses the latest config values
+        _liquidsoapClient.UpdateConnection(config.LiquidsoapHost, config.LiquidsoapPort);
+
         var liquidsoapConnected = false;
         var liquidsoapStatus = string.Empty;
         try

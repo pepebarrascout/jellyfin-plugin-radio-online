@@ -128,33 +128,36 @@ public class RadioStreamingHostedService : BackgroundService
                     continue;
                 }
 
-                // Check Liquidsoap connectivity before doing anything
+                // Update Liquidsoap connection settings if host/port changed
+                _liquidsoapClient.UpdateConnection(config.LiquidsoapHost, config.LiquidsoapPort);
+
+                // Check Liquidsoap connectivity - attempt to connect if not connected
                 if (!_liquidsoapClient.IsConnected)
                 {
-                    if (!_warnedLiquidsoapDown)
+                    // Try to establish the connection
+                    var connected = await _liquidsoapClient.TestConnectionAsync().ConfigureAwait(false);
+
+                    if (!connected)
                     {
-                        _logger.LogWarning("Liquidsoap no disponible en {Host}:{Port} - se reintentara en cada ciclo",
-                            config.LiquidsoapHost, config.LiquidsoapPort);
-                        _warnedLiquidsoapDown = true;
+                        if (!_warnedLiquidsoapDown)
+                        {
+                            _logger.LogWarning("Liquidsoap no disponible en {Host}:{Port} - se reintentara en cada ciclo",
+                                config.LiquidsoapHost, config.LiquidsoapPort);
+                            _warnedLiquidsoapDown = true;
+                        }
+
+                        // Wait longer when Liquidsoap is down to avoid spam
+                        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
+                        continue;
                     }
 
-                    // Still update connection settings so it reconnects when available
-                    _liquidsoapClient.UpdateConnection(config.LiquidsoapHost, config.LiquidsoapPort);
-
-                    // Wait longer when Liquidsoap is down to avoid spam
-                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
-                    continue;
+                    // Connection succeeded - reset warning flag
+                    if (_warnedLiquidsoapDown)
+                    {
+                        _logger.LogInformation("Liquidsoap reconectado en {Host}:{Port}", config.LiquidsoapHost, config.LiquidsoapPort);
+                        _warnedLiquidsoapDown = false;
+                    }
                 }
-
-                // Liquidsoap is back - reset warning flag
-                if (_warnedLiquidsoapDown)
-                {
-                    _logger.LogInformation("Liquidsoap reconectado en {Host}:{Port}", config.LiquidsoapHost, config.LiquidsoapPort);
-                    _warnedLiquidsoapDown = false;
-                }
-
-                // Update Liquidsoap connection settings if changed
-                _liquidsoapClient.UpdateConnection(config.LiquidsoapHost, config.LiquidsoapPort);
 
                 // Get the active schedule entry for the current time
                 var activeEntry = _scheduleManager.GetActiveScheduleEntry(config.ScheduleEntries);
