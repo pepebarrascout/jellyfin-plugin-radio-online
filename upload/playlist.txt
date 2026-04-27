@@ -1,5 +1,0 @@
-file '/home/pepe/Público/Música/AOA/Short Hair/Joa YO! (JOA YO!).m4a'
-file '/home/pepe/Público/Música/AOA/Short Hair/Short Hair (단발머리 (SHORT HAIR)).m4a'
-file '/home/pepe/Público/Música/AOA/Short Hair/Short Hair (inst) (Instrumental) (단발머리 (SHORT HAIR) (INST) (Instrumental)).m4a'
-file '/home/pepe/Público/Música/AOA/Short Hair/You know that (말이 안 통해).m4a'
-file '/home/pepe/Público/Música/AOA/Short Hair/You'\''re the one for me (내 반쪽).m4a'
