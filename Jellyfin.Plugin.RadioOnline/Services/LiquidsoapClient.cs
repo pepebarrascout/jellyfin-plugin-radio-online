@@ -321,7 +321,7 @@ public class LiquidsoapClient : IDisposable
     /// <summary>
     /// Disconnects from the Liquidsoap Telnet server.
     /// </summary>
-    private void Disconnect()
+    public void Disconnect()
     {
         try
         {
@@ -348,6 +348,7 @@ public class LiquidsoapClient : IDisposable
     {
         if (_host != host || _port != port)
         {
+            _logger.LogInformation("Liquidsoap connection settings changed: {OldHost}:{OldPort} -> {NewHost}:{NewPort}", _host, _port, host, port);
             Disconnect();
         }
     }

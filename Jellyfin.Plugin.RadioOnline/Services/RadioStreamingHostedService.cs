@@ -39,6 +39,16 @@ public class RadioStreamingHostedService : BackgroundService
     private bool _isStreaming;
 
     /// <summary>
+    /// Tracks whether the plugin was previously enabled, to detect state changes.
+    /// </summary>
+    private bool _wasEnabled;
+
+    /// <summary>
+    /// Tracks whether we already warned about Liquidsoap being unreachable (avoids log spam).
+    /// </summary>
+    private bool _warnedLiquidsoapDown;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="RadioStreamingHostedService"/> class.
     /// </summary>
     public RadioStreamingHostedService(
@@ -81,17 +91,41 @@ public class RadioStreamingHostedService : BackgroundService
             {
                 var config = Plugin.Instance?.Configuration as PluginConfiguration;
 
-                // Check if plugin is enabled
+                // ── Plugin disabled: do nothing, don't touch Liquidsoap ──
                 if (config == null || !config.IsEnabled)
                 {
-                    if (_isStreaming)
+                    // Detect transition: was enabled, now disabled
+                    if (_wasEnabled)
                     {
-                        _isStreaming = false;
-                        _currentPlaylistId = null;
+                        _wasEnabled = false;
+                        _warnedLiquidsoapDown = false;
+                        _logger.LogInformation("Radio automatizada desactivada - pausando servicio");
+
+                        // Clear queue and disconnect cleanly
+                        try
+                        {
+                            await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
+                        }
+                        catch { }
+
+                        _liquidsoapClient.Disconnect();
                     }
+
+                    _isStreaming = false;
+                    _currentPlaylistId = null;
 
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
+                }
+
+                // ── Plugin enabled ──
+
+                // Detect transition: was disabled, now enabled
+                if (!_wasEnabled)
+                {
+                    _wasEnabled = true;
+                    _warnedLiquidsoapDown = false;
+                    _logger.LogInformation("Radio automatizada activada - iniciando servicio");
                 }
 
                 // Validate configuration
@@ -99,6 +133,31 @@ public class RadioStreamingHostedService : BackgroundService
                 {
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
+                }
+
+                // Check Liquidsoap connectivity before doing anything
+                if (!_liquidsoapClient.IsConnected)
+                {
+                    if (!_warnedLiquidsoapDown)
+                    {
+                        _logger.LogWarning("Liquidsoap no disponible en {Host}:{Port} - se reintentara en cada ciclo",
+                            config.LiquidsoapHost, config.LiquidsoapPort);
+                        _warnedLiquidsoapDown = true;
+                    }
+
+                    // Still update connection settings so it reconnects when available
+                    _liquidsoapClient.UpdateConnection(config.LiquidsoapHost, config.LiquidsoapPort);
+
+                    // Wait longer when Liquidsoap is down to avoid spam
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                // Liquidsoap is back - reset warning flag
+                if (_warnedLiquidsoapDown)
+                {
+                    _logger.LogInformation("Liquidsoap reconectado en {Host}:{Port}", config.LiquidsoapHost, config.LiquidsoapPort);
+                    _warnedLiquidsoapDown = false;
                 }
 
                 // Update Liquidsoap connection settings if changed
@@ -170,10 +229,14 @@ public class RadioStreamingHostedService : BackgroundService
         // Cleanup on shutdown
         try
         {
-            await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
+            if (_isStreaming)
+            {
+                await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
+            }
         }
         catch { }
 
+        _liquidsoapClient.Disconnect();
         _isStreaming = false;
         _logger.LogInformation("Radio Online service stopped");
     }
@@ -338,10 +401,14 @@ public class RadioStreamingHostedService : BackgroundService
     {
         try
         {
-            await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
+            if (_isStreaming)
+            {
+                await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
+            }
         }
         catch { }
 
+        _liquidsoapClient.Disconnect();
         _isStreaming = false;
         _currentPlaylistId = null;
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
