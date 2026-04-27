@@ -88,7 +88,7 @@ services:
     command: ["/scripts/radio.liq"]
     network_mode: host
     environment:
-      - ICECAST_HOST=209.141.61.116    # IP de tu servidor Icecast
+      - ICECAST_HOST=192.168.1.100    # IP de tu servidor Icecast
       - ICECAST_PORT=8000                # Puerto de Icecast
       - ICECAST_PASSWORD=tu_password    # Contrasena de fuente Icecast
       - ICECAST_MOUNT=/radio             # Punto de montaje
