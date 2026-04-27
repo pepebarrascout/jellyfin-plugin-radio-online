@@ -4,8 +4,10 @@
     <TargetFramework>net9.0</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.RadioOnline</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.RadioOnline</AssemblyName>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Version>0.0.0.14</Version>
