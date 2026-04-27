@@ -18,7 +18,7 @@ namespace Jellyfin.Plugin.RadioOnline.Api;
 public class RadioOnlineController : ControllerBase
 {
     private readonly AudioProviderService _audioProvider;
-    private readonly RadioStreamingHostedService _streamingService;
+    private readonly RadioStateService _state;
     private readonly LiquidsoapClient _liquidsoapClient;
 
     /// <summary>
@@ -26,11 +26,11 @@ public class RadioOnlineController : ControllerBase
     /// </summary>
     public RadioOnlineController(
         AudioProviderService audioProvider,
-        RadioStreamingHostedService streamingService,
+        RadioStateService state,
         LiquidsoapClient liquidsoapClient)
     {
         _audioProvider = audioProvider;
-        _streamingService = streamingService;
+        _state = state;
         _liquidsoapClient = liquidsoapClient;
     }
 
@@ -61,7 +61,7 @@ public class RadioOnlineController : ControllerBase
         return Ok(new
         {
             isEnabled = config.IsEnabled,
-            isStreaming = _streamingService.IsStreaming,
+            isStreaming = _state.IsStreaming,
             liquidsoapConnected,
             liquidsoapStatus,
             liquidsoapHost = config.LiquidsoapHost,

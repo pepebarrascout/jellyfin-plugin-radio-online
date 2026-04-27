@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
-        "version": "0.0.0.19",
-        "changelog": "FIX: Playlists now load correctly (10+ playlists supported)\nFIX: User context passed to library query for playlist access\nFIX: Clean GitHub repository (removed non-plugin files)\nREQUIRE: Select a user in Config tab to see playlists in Schedule tab",
+        "version": "0.0.0.20",
+        "changelog": "FIX: Playlists now load correctly - eliminated DI resolution error for RadioStreamingHostedService\nFIX: Controller no longer depends on hosted service directly (uses RadioStateService singleton)\nFIX: ZIP now includes logo.png\nREQUIRE: Select a user in Config tab to see playlists in Schedule tab",
         "targetAbi": "10.11.8.0",
-        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.19/jellyfin-plugin-radio-online_0.0.0.19.zip",
-        "checksum": "fbf695a5092a2361e4f2910ef5a3b73a",
-        "timestamp": "2026-04-28T02:00:00Z"
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.20/jellyfin-plugin-radio-online_0.0.0.20.zip",
+        "checksum": "52632646bf3e98ff4789c2feebf5a2f9",
+        "timestamp": "2026-04-28T03:00:00Z"
       }
     ]
   }

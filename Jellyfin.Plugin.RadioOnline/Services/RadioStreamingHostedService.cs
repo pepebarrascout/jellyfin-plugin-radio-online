@@ -22,6 +22,7 @@ public class RadioStreamingHostedService : BackgroundService
     private readonly LiquidsoapClient _liquidsoapClient;
     private readonly ScheduleManagerService _scheduleManager;
     private readonly AudioProviderService _audioProvider;
+    private readonly RadioStateService _state;
 
     /// <summary>
     /// Interval for checking schedule changes while streaming.
@@ -32,11 +33,6 @@ public class RadioStreamingHostedService : BackgroundService
     /// Tracks the currently active schedule entry to detect changes.
     /// </summary>
     private string? _currentPlaylistId;
-
-    /// <summary>
-    /// Tracks whether we've queued tracks for the current schedule.
-    /// </summary>
-    private bool _isStreaming;
 
     /// <summary>
     /// Tracks whether the plugin was previously enabled, to detect state changes.
@@ -55,18 +51,15 @@ public class RadioStreamingHostedService : BackgroundService
         ILogger<RadioStreamingHostedService> logger,
         LiquidsoapClient liquidsoapClient,
         ScheduleManagerService scheduleManager,
-        AudioProviderService audioProvider)
+        AudioProviderService audioProvider,
+        RadioStateService state)
     {
         _logger = logger;
         _liquidsoapClient = liquidsoapClient;
         _scheduleManager = scheduleManager;
         _audioProvider = audioProvider;
+        _state = state;
     }
-
-    /// <summary>
-    /// Gets whether the service is currently streaming (has queued tracks to Liquidsoap).
-    /// </summary>
-    public bool IsStreaming => _isStreaming;
 
     /// <summary>
     /// Executes the main radio scheduling loop.
@@ -111,7 +104,7 @@ public class RadioStreamingHostedService : BackgroundService
                         _liquidsoapClient.Disconnect();
                     }
 
-                    _isStreaming = false;
+                    _state.IsStreaming = false;
                     _currentPlaylistId = null;
 
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
@@ -169,11 +162,11 @@ public class RadioStreamingHostedService : BackgroundService
                 if (activeEntry == null || string.IsNullOrEmpty(activeEntry.PlaylistId))
                 {
                     // No active schedule - clear queue if we were streaming
-                    if (_isStreaming)
+                    if (_state.IsStreaming)
                     {
                         _logger.LogInformation("No active schedule, clearing Liquidsoap queue");
                         await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
-                        _isStreaming = false;
+                        _state.IsStreaming = false;
                         _currentPlaylistId = null;
                     }
 
@@ -213,7 +206,7 @@ public class RadioStreamingHostedService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Streaming cycle error, retrying in 15s");
-                _isStreaming = false;
+                _state.IsStreaming = false;
                 _currentPlaylistId = null;
                 try
                 {
@@ -229,7 +222,7 @@ public class RadioStreamingHostedService : BackgroundService
         // Cleanup on shutdown
         try
         {
-            if (_isStreaming)
+            if (_state.IsStreaming)
             {
                 await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
             }
@@ -237,7 +230,7 @@ public class RadioStreamingHostedService : BackgroundService
         catch { }
 
         _liquidsoapClient.Disconnect();
-        _isStreaming = false;
+        _state.IsStreaming = false;
         _logger.LogInformation("Radio Online service stopped");
     }
 
@@ -256,7 +249,7 @@ public class RadioStreamingHostedService : BackgroundService
         {
             _logger.LogWarning("Playlist \"{Name}\" is empty or not found", activeEntry.DisplayName);
             _currentPlaylistId = activeEntry.PlaylistId;
-            _isStreaming = false;
+            _state.IsStreaming = false;
             return;
         }
 
@@ -273,7 +266,7 @@ public class RadioStreamingHostedService : BackgroundService
         {
             _logger.LogWarning("No valid audio files in playlist \"{Name}\"", activeEntry.DisplayName);
             _currentPlaylistId = activeEntry.PlaylistId;
-            _isStreaming = false;
+            _state.IsStreaming = false;
             return;
         }
 
@@ -295,7 +288,7 @@ public class RadioStreamingHostedService : BackgroundService
         {
             _logger.LogWarning("No valid paths after translation for playlist \"{Name}\"", activeEntry.DisplayName);
             _currentPlaylistId = activeEntry.PlaylistId;
-            _isStreaming = false;
+            _state.IsStreaming = false;
             return;
         }
 
@@ -310,7 +303,7 @@ public class RadioStreamingHostedService : BackgroundService
         var added = await _liquidsoapClient.AppendTracksAsync(liquidsoapPaths, cancellationToken).ConfigureAwait(false);
 
         _currentPlaylistId = activeEntry.PlaylistId;
-        _isStreaming = added > 0;
+        _state.IsStreaming = added > 0;
 
         if (added > 0)
         {
@@ -401,7 +394,7 @@ public class RadioStreamingHostedService : BackgroundService
     {
         try
         {
-            if (_isStreaming)
+            if (_state.IsStreaming)
             {
                 await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
             }
@@ -409,7 +402,7 @@ public class RadioStreamingHostedService : BackgroundService
         catch { }
 
         _liquidsoapClient.Disconnect();
-        _isStreaming = false;
+        _state.IsStreaming = false;
         _currentPlaylistId = null;
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }

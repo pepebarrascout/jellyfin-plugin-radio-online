@@ -1,4 +1,3 @@
-using System;
 using Jellyfin.Plugin.RadioOnline.ScheduledTasks;
 using Jellyfin.Plugin.RadioOnline.Services;
 using MediaBrowser.Controller;
@@ -18,10 +17,11 @@ public class ServiceRegistrator : IPluginServiceRegistrator
     /// </summary>
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
-        // Radio streaming background service — register as Singleton so controllers
-        // can inject it directly, then wire it into the hosted-service pipeline.
-        serviceCollection.AddSingleton<RadioStreamingHostedService>();
-        serviceCollection.AddHostedService(sp => sp.GetRequiredService<RadioStreamingHostedService>());
+        // Shared state service (thread-safe bridge between hosted service and API controller)
+        serviceCollection.AddSingleton<RadioStateService>();
+
+        // Radio streaming background service (runs continuously)
+        serviceCollection.AddHostedService<RadioStreamingHostedService>();
 
         // Liquidsoap Telnet client
         serviceCollection.AddSingleton<LiquidsoapClient>();
