@@ -102,7 +102,7 @@ services:
 
 | Campo | Descripcion | Ejemplo |
 |---|---|---|
-| `ICECAST_HOST` | IP o dominio del servidor Icecast | `209.141.61.116` |
+| `ICECAST_HOST` | IP o dominio del servidor Icecast | `192.168.1.100` |
 | `ICECAST_PORT` | Puerto de Icecast (usualmente 8000) | `8000` |
 | `ICECAST_PASSWORD` | Contrasena de fuente en Icecast | `tu_password` |
 | `ICECAST_MOUNT` | Punto de montaje | `/radio` |
