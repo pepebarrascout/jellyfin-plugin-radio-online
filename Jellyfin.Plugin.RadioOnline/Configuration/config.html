@@ -436,9 +436,18 @@
         // --- Playlists ---
         function loadPlaylists(){
             if(playlistsLoaded) { tryRenderSchedule(); return; }
+            var userId = gv('JellyfinUserId') || '';
+            if(!userId) {
+                console.warn('[RadioOnline] No user selected, playlists not loaded');
+                playlistsLoaded = true;
+                playlists = [];
+                renderSchedule();
+                return;
+            }
             apiGet('Plugins/RadioOnline/Playlists').then(function(d){
                 playlists=d||[];
                 playlistsLoaded=true;
+                console.log('[RadioOnline] Loaded ' + playlists.length + ' playlists');
                 renderSchedule();
             }).catch(function(e){
                 console.warn('[RadioOnline] Playlists API failed',e);

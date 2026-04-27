@@ -93,13 +93,20 @@ public class AudioProviderService
     {
         try
         {
-            if (!TryGetUser(userId, out _))
+            if (!TryGetUser(userId, out var userGuid))
             {
                 _logger.LogError("User not found: {UserId}", userId);
                 return new List<(string, string)>();
             }
 
-            var query = new InternalItemsQuery
+            var user = _userManager.GetUserById(userGuid);
+            if (user == null)
+            {
+                _logger.LogError("User lookup failed for: {UserId}", userId);
+                return new List<(string, string)>();
+            }
+
+            var query = new InternalItemsQuery(user)
             {
                 IncludeItemTypes = new[] { BaseItemKind.Playlist },
             };
@@ -109,7 +116,7 @@ public class AudioProviderService
                 .Select(p => (p.Id.ToString("N"), p.Name))
                 .ToList();
 
-            _logger.LogDebug("Found {Count} playlists", playlists.Count);
+            _logger.LogInformation("Found {Count} playlists for user {UserName}", playlists.Count, user.Username);
             return playlists;
         }
         catch (Exception ex)
