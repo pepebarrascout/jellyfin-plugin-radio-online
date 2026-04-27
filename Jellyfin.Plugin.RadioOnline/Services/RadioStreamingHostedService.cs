@@ -86,13 +86,11 @@ public class RadioStreamingHostedService : BackgroundService
                 {
                     if (_isStreaming)
                     {
-                        _logger.LogInformation("Plugin disabled, clearing Liquidsoap queue");
-                        await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
                         _isStreaming = false;
                         _currentPlaylistId = null;
                     }
 
-                    await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
                 }
 
@@ -309,20 +307,25 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     private bool ValidateConfig(PluginConfiguration config)
     {
-        if (string.IsNullOrWhiteSpace(config.LiquidsoapHost)) return false;
-        if (string.IsNullOrWhiteSpace(config.JellyfinMediaPath)) return false;
-        if (string.IsNullOrWhiteSpace(config.LiquidsoapMusicPath)) return false;
-        if (string.IsNullOrWhiteSpace(config.JellyfinUserId)) return false;
-
-        // Test connection on first validation failure
-        if (!_isStreaming)
+        if (string.IsNullOrWhiteSpace(config.LiquidsoapHost))
         {
-            var connected = _liquidsoapClient.TestConnectionAsync().GetAwaiter().GetResult();
-            if (!connected)
-            {
-                _logger.LogWarning("Cannot connect to Liquidsoap at {Host}:{Port}", config.LiquidsoapHost, config.LiquidsoapPort);
-                return false;
-            }
+            _logger.LogWarning("Liquidsoap host not configured");
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(config.JellyfinMediaPath))
+        {
+            _logger.LogWarning("Jellyfin media path not configured");
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(config.LiquidsoapMusicPath))
+        {
+            _logger.LogWarning("Liquidsoap music path not configured");
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(config.JellyfinUserId))
+        {
+            _logger.LogWarning("Jellyfin user not configured");
+            return false;
         }
 
         return true;
