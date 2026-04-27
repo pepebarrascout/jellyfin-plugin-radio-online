@@ -25,3 +25,21 @@ packages/
 ## Misc
 *.log
 *.tmp
+
+## Environment
+.env
+
+## Publish outputs
+publish/
+ZIPs/
+releases/
+
+## Skills (not part of plugin)
+skills/
+
+## Worklog
+worklog.md
+build.yaml
+
+## Download artifacts
+download/
