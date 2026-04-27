@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using MediaBrowser.Model.Plugins;
 
@@ -6,62 +5,39 @@ namespace Jellyfin.Plugin.RadioOnline.Configuration;
 
 /// <summary>
 /// Configuration model for the Radio Online plugin.
-/// Contains Icecast server settings and weekly schedule programming.
+/// Contains Liquidsoap connection settings and weekly schedule programming.
 /// </summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
-    // ── Icecast Server Settings ──────────────────────────────────────────
+    // ── Liquidsoap Settings ──────────────────────────────────────────────
 
     /// <summary>
-    /// Gets or sets the Icecast server URL (e.g., http://your-server:8000).
+    /// Gets or sets the Liquidsoap Telnet server host.
+    /// Default: "localhost".
     /// </summary>
-    public string IcecastUrl { get; set; } = string.Empty;
+    public string LiquidsoapHost { get; set; } = "localhost";
 
     /// <summary>
-    /// Gets or sets the Icecast source username (typically "source").
+    /// Gets or sets the Liquidsoap Telnet server port.
+    /// Default: 8080.
     /// </summary>
-    public string IcecastUsername { get; set; } = "source";
+    public int LiquidsoapPort { get; set; } = 8080;
+
+    // ── Path Mapping ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Gets or sets the Icecast source password.
+    /// Gets or sets the Jellyfin media root path on the host filesystem.
+    /// Used for path translation when sending tracks to Liquidsoap.
+    /// Example: "/media".
     /// </summary>
-    public string IcecastPassword { get; set; } = string.Empty;
+    public string JellyfinMediaPath { get; set; } = "/media";
 
     /// <summary>
-    /// Gets or sets the Icecast mount point (e.g., /radio or /stream).
+    /// Gets or sets the corresponding music path inside the Liquidsoap container.
+    /// Example: "/music".
+    /// Paths sent to Liquidsoap have JellyfinMediaPath replaced with LiquidsoapMusicPath.
     /// </summary>
-    public string IcecastMountPoint { get; set; } = "/radio";
-
-    /// <summary>
-    /// Gets or sets the audio format to send to Icecast.
-    /// "ogg" (Vorbis) or "m4a" (AAC).
-    /// </summary>
-    public string AudioFormat { get; set; } = "ogg";
-
-    /// <summary>
-    /// Gets or sets the audio bitrate in kbps.
-    /// </summary>
-    public int AudioBitrate { get; set; } = 128;
-
-    /// <summary>
-    /// Gets or sets the stream name metadata sent to Icecast listeners.
-    /// </summary>
-    public string StreamName { get; set; } = "Jellyfin Radio Online";
-
-    /// <summary>
-    /// Gets or sets the stream description metadata.
-    /// </summary>
-    public string StreamDescription { get; set; } = "Automated online radio powered by Jellyfin";
-
-    /// <summary>
-    /// Gets or sets the stream genre metadata.
-    /// </summary>
-    public string StreamGenre { get; set; } = "Various";
-
-    /// <summary>
-    /// Gets or sets the public flag for the Icecast stream.
-    /// </summary>
-    public bool StreamPublic { get; set; } = false;
+    public string LiquidsoapMusicPath { get; set; } = "/music";
 
     // ── Scheduling Settings ──────────────────────────────────────────────
 

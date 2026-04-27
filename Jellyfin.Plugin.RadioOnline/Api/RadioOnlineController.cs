@@ -18,24 +18,27 @@ namespace Jellyfin.Plugin.RadioOnline.Api;
 public class RadioOnlineController : ControllerBase
 {
     private readonly AudioProviderService _audioProvider;
-    private readonly IcecastStreamingService _icecastService;
+    private readonly RadioStreamingHostedService _streamingService;
+    private readonly LiquidsoapClient _liquidsoapClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RadioOnlineController"/> class.
     /// </summary>
     public RadioOnlineController(
         AudioProviderService audioProvider,
-        IcecastStreamingService icecastService)
+        RadioStreamingHostedService streamingService,
+        LiquidsoapClient liquidsoapClient)
     {
         _audioProvider = audioProvider;
-        _icecastService = icecastService;
+        _streamingService = streamingService;
+        _liquidsoapClient = liquidsoapClient;
     }
 
     /// <summary>
     /// Gets the current streaming status.
     /// </summary>
     [HttpGet("Status")]
-    public ActionResult<object> GetStatus()
+    public async Task<ActionResult<object>> GetStatus()
     {
         var config = Plugin.Instance?.Configuration as PluginConfiguration;
         if (config == null)
@@ -43,14 +46,26 @@ public class RadioOnlineController : ControllerBase
             return NotFound(new { error = "Plugin not found" });
         }
 
+        var liquidsoapConnected = false;
+        var liquidsoapStatus = string.Empty;
+        try
+        {
+            liquidsoapConnected = await _liquidsoapClient.TestConnectionAsync().ConfigureAwait(false);
+            if (liquidsoapConnected)
+            {
+                liquidsoapStatus = await _liquidsoapClient.GetStatusAsync().ConfigureAwait(false);
+            }
+        }
+        catch { }
+
         return Ok(new
         {
             isEnabled = config.IsEnabled,
-            isStreaming = _icecastService.IsStreaming,
-            icecastUrl = config.IcecastUrl,
-            mountPoint = config.IcecastMountPoint,
-            audioFormat = config.AudioFormat,
-            audioBitrate = config.AudioBitrate,
+            isStreaming = _streamingService.IsStreaming,
+            liquidsoapConnected,
+            liquidsoapStatus,
+            liquidsoapHost = config.LiquidsoapHost,
+            liquidsoapPort = config.LiquidsoapPort,
             scheduleEntriesCount = config.ScheduleEntries.Count,
         });
     }

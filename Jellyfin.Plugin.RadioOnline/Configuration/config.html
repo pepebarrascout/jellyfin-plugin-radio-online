@@ -4,7 +4,7 @@
         <div class="content-primary">
 
             <h1>Radio Online</h1>
-            <p>Transmite audio a un servidor Icecast con programacion semanal de playlists. La transmision esta activa unicamente durante las horas programadas.</p>
+            <p>Transmite audio a traves de Liquidsoap con programacion semanal de playlists. Requiere un contenedor Docker de Liquidsoap corriendo con el script radio.liq. <a href="https://github.com/pepebarrascout/jellyfin-plugin-radio-online/blob/main/LIQUIDSOAP.md" target="_blank">Instrucciones de instalacion de Liquidsoap</a>.</p>
 
             <div data-role="controlgroup" data-type="horizontal" class="localnav" id="roTabNav">
                 <a class="emby-button ui-btn-active" href="#" data-role="button" data-tab="config">Configuracion</a>
@@ -17,70 +17,35 @@
                 <div class="verticalSection">
 
                     <div class="sectionHeader">
-                        <h2 class="sectionTitle">Servidor Icecast</h2>
+                        <h2 class="sectionTitle">Servidor Liquidsoap</h2>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="roIcecastUrl">URL del Servidor</label>
-                        <input type="text" id="roIcecastUrl" is="emby-input" placeholder="http://tu-servidor:8000" />
-                        <div class="fieldDescription">URL completa del servidor Icecast (sin barra final). Ejemplo: http://192.168.1.100:8000</div>
+                        <label class="inputLabel inputLabelUnfocused" for="roLiquidHost">Host Telnet</label>
+                        <input type="text" id="roLiquidHost" is="emby-input" placeholder="localhost" />
+                        <div class="fieldDescription">Host del servidor Telnet de Liquidsoap. Si esta en el mismo servidor, usa "localhost".</div>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="roIcecastUser">Usuario</label>
-                        <input type="text" id="roIcecastUser" is="emby-input" placeholder="source" />
-                        <div class="fieldDescription">Usuario de fuente Icecast (generalmente "source")</div>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="roIcecastPass">Contrasena</label>
-                        <input type="password" id="roIcecastPass" is="emby-input" />
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="roMountPoint">Punto de Montaje</label>
-                        <input type="text" id="roMountPoint" is="emby-input" placeholder="/radio" />
-                        <div class="fieldDescription">Debe comenzar con /. Ejemplo: /radio, /stream</div>
-                    </div>
-
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="roAudioFormat">Formato de Audio</label>
-                        <select id="roAudioFormat" is="emby-select">
-                            <option value="ogg">OGG (Vorbis)</option>
-                            <option value="m4a">M4A (AAC)</option>
-                        </select>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="roBitrate">Bitrate (kbps)</label>
-                        <input type="number" id="roBitrate" is="emby-input" min="32" max="320" step="16" value="128" />
-                        <div class="fieldDescription">Recomendado: 96-192 kbps</div>
+                        <label class="inputLabel inputLabelUnfocused" for="roLiquidPort">Puerto Telnet</label>
+                        <input type="number" id="roLiquidPort" is="emby-input" min="1" max="65535" value="8080" />
+                        <div class="fieldDescription">Puerto del servidor Telnet de Liquidsoap (definido con set("server.telnet.port", ...) en radio.liq).</div>
                     </div>
 
                     <div class="sectionHeader">
-                        <h2 class="sectionTitle">Metadatos del Stream</h2>
+                        <h2 class="sectionTitle">Mapeo de Rutas</h2>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="roStreamName">Nombre del Stream</label>
-                        <input type="text" id="roStreamName" is="emby-input" placeholder="Mi Radio" />
+                        <label class="inputLabel inputLabelUnfocused" for="roMediaPath">Ruta de Biblioteca Jellyfin</label>
+                        <input type="text" id="roMediaPath" is="emby-input" placeholder="/media" />
+                        <div class="fieldDescription">Ruta raiz donde Jellyfin almacena los archivos multimedia en el host.</div>
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="roStreamDesc">Descripcion</label>
-                        <input type="text" id="roStreamDesc" is="emby-input" placeholder="Radio automatizada por Jellyfin" />
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="roStreamGenre">Genero</label>
-                        <input type="text" id="roStreamGenre" is="emby-input" placeholder="Variado" />
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input type="checkbox" id="roStreamPublic" is="emby-checkbox" />
-                            <span>Stream publico (listar en directorios Icecast)</span>
-                        </label>
+                        <label class="inputLabel inputLabelUnfocused" for="roMusicPath">Ruta en Liquidsoap</label>
+                        <input type="text" id="roMusicPath" is="emby-input" placeholder="/music" />
+                        <div class="fieldDescription">Ruta correspondiente dentro del contenedor Liquidsoap (definida en docker-compose volumes).</div>
                     </div>
 
                     <div class="sectionHeader">
@@ -101,7 +66,7 @@
                             <span>Activar radio automatizada</span>
                         </label>
                         <div class="fieldDescription checkboxFieldDescription">
-                            Al activar, el plugin transmitira audio al servidor Icecast unicamente durante las horas programadas.
+                            Al activar, el plugin enviara canciones a Liquidsoap durante las horas programadas.
                         </div>
                     </div>
 
@@ -109,14 +74,14 @@
                 </div>
             </div>
 
-            <!-- TAB: Programacion -->
+            <!-- TAB: Programacion (inline editing) -->
             <div id="roTabSchedule" class="ro-tab-content" data-tab-content="schedule" style="display:none;">
                 <div class="verticalSection">
 
                     <div class="sectionHeader">
                         <h2 class="sectionTitle">Programacion Semanal</h2>
                     </div>
-                    <p class="fieldDescription">Asigna playlists a dias y horarios especificos. La transmision se activa solo durante las horas programadas y se detiene al terminar la playlist. Si dos programas se solapan, el que empieza mas tarde tiene prioridad.</p>
+                    <p class="fieldDescription">Asigna playlists a dias y horarios especificos. La transmision se activa solo durante las horas programadas. Si dos programas se solapan, el que empieza mas tarde tiene prioridad.</p>
 
                     <div id="roEmptySched" style="padding:1.5em;text-align:center;display:none;">
                         <p>No hay programacion configurada.</p>
@@ -127,66 +92,6 @@
 
                     <div style="margin-top:1em;">
                         <button type="button" is="emby-button" class="raised button-submit" id="roBtnAddSched"><span>Agregar Programa</span></button>
-                    </div>
-
-                    <!-- Shared Edit/Add Form (hidden by default) -->
-                    <div id="roEditForm" class="verticalSection verticalSection-extrabottompadding" style="display:none;">
-                        <div class="sectionHeader">
-                            <h3 class="sectionTitle" id="roEditTitle">Nuevo Programa</h3>
-                        </div>
-
-                        <div class="selectContainer">
-                            <label class="selectLabel" for="roEditDay">Dia</label>
-                            <select id="roEditDay" is="emby-select"></select>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused">Hora de Inicio</label>
-                            <div style="display:flex;gap:0.5em;align-items:center;">
-                                <select id="roEditStartH" is="emby-select" style="width:auto;flex:1;"></select>
-                                <span style="font-size:1.2em;">:</span>
-                                <select id="roEditStartM" is="emby-select" style="width:auto;flex:1;"></select>
-                            </div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused">Hora de Fin</label>
-                            <div style="display:flex;gap:0.5em;align-items:center;">
-                                <select id="roEditEndH" is="emby-select" style="width:auto;flex:1;"></select>
-                                <span style="font-size:1.2em;">:</span>
-                                <select id="roEditEndM" is="emby-select" style="width:auto;flex:1;"></select>
-                            </div>
-                        </div>
-
-                        <div class="selectContainer">
-                            <label class="selectLabel" for="roEditPlaylist">Playlist</label>
-                            <select id="roEditPlaylist" is="emby-select">
-                                <option value="">-- Seleccionar --</option>
-                            </select>
-                            <div id="roPlaylistError" class="fieldDescription" style="color:#ff6b6b;display:none;margin-top:0.3em;"></div>
-                        </div>
-
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label>
-                                <input type="checkbox" id="roEditShuffle" is="emby-checkbox" />
-                                <span>Reproduccion aleatoria</span>
-                            </label>
-                            <div class="fieldDescription checkboxFieldDescription">
-                                Activa para mezclar el orden de las canciones cada vez que inicia este programa.
-                            </div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="roEditName">Nombre del Programa</label>
-                            <input type="text" id="roEditName" is="emby-input" placeholder="Morning Show" />
-                        </div>
-
-                        <div id="roEditMsg" style="display:none;margin:0.5em 0;padding:0.8em;border-radius:4px;"></div>
-
-                        <div style="margin-top:1em;display:flex;gap:0.8em;">
-                            <button type="button" is="emby-button" class="raised button-submit" id="roBtnSaveEdit"><span>Guardar</span></button>
-                            <button type="button" is="emby-button" class="raised" id="roBtnCancelEdit"><span>Cancelar</span></button>
-                        </div>
                     </div>
 
                     <div style="margin-top:2em;">
@@ -218,14 +123,14 @@
                         </div>
                         <div class="listItem listItem-narrow">
                             <div class="listItemBody">
-                                <div class="listItemBodyText">Formato</div>
-                                <div class="listItemBodyText secondary" id="roStFormat">--</div>
+                                <div class="listItemBodyText">Liquidsoap</div>
+                                <div class="listItemBodyText secondary" id="roStLiquidsoap">--</div>
                             </div>
                         </div>
                         <div class="listItem listItem-narrow">
                             <div class="listItemBody">
-                                <div class="listItemBodyText">Icecast</div>
-                                <div class="listItemBodyText secondary" id="roStIcecast">--</div>
+                                <div class="listItemBodyText">Estado Telnet</div>
+                                <div class="listItemBodyText secondary" id="roStTelnet">--</div>
                             </div>
                         </div>
                         <div class="listItem listItem-narrow">
@@ -251,7 +156,6 @@
         var configLoaded = false;
         var playlistsLoaded = false;
         var inited = false;
-        var editIndex = -1; // -1 = adding new, >=0 = editing existing
 
         var dayNames = {1:'Lunes',2:'Martes',3:'Miercoles',4:'Jueves',5:'Viernes',6:'Sabado',7:'Domingo'};
         var csharpDayNames = {'Sunday':7,'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6};
@@ -268,7 +172,6 @@
             }
             return 1;
         }
-
         function toCSharpDay(uiDay){ return uiDay===7?0:uiDay; }
 
         function gv(k){
@@ -279,34 +182,22 @@
         function sv(k,v){ cfg[k]=v; cfg[k.charAt(0).toLowerCase()+k.slice(1)]=v; }
 
         function apiGet(path){
-            return ApiClient.ajax({
-                type: 'GET',
-                url: ApiClient.getUrl(path),
-                dataType: 'json'
-            });
+            return ApiClient.ajax({ type:'GET', url:ApiClient.getUrl(path), dataType:'json' });
         }
 
         function hourOpts(sel){
             var html='';
-            for(var h=0;h<24;h++){
-                var v=(h<10?'0':'')+h;
-                html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>';
-            }
+            for(var h=0;h<24;h++){ var v=(h<10?'0':'')+h; html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>'; }
             return html;
         }
         function minOpts(sel){
             var html='';
-            for(var m=0;m<60;m+=5){
-                var v=(m<10?'0':'')+m;
-                html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>';
-            }
+            for(var m=0;m<60;m+=5){ var v=(m<10?'0':'')+m; html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>'; }
             return html;
         }
         function dayOpts(sel){
             var html='';
-            for(var d=1;d<=7;d++){
-                html+='<option value="'+d+'"'+(String(sel)===String(d)?' selected':'')+'>'+dayNames[d]+'</option>';
-            }
+            for(var d=1;d<=7;d++){ html+='<option value="'+d+'"'+(String(sel)===String(d)?' selected':'')+'>'+dayNames[d]+'</option>'; }
             return html;
         }
 
@@ -315,6 +206,16 @@
             var parts=timeStr.split(':');
             return {h:parts[0]||'00', m:parts[1]||'00'};
         }
+
+        function getPlaylistName(plId){
+            for(var p=0;p<playlists.length;p++){
+                if(playlists[p].id===plId) return playlists[p].name;
+            }
+            return '-- Sin playlist --';
+        }
+
+        function getEntries(){ return gv('ScheduleEntries')||[]; }
+        function setEntries(e){ sv('ScheduleEntries',e); }
 
         // --- Tabs ---
         function switchTab(id){
@@ -353,32 +254,20 @@
 
         function fillForm(){
             var s=function(id,val){ var el=document.getElementById(id); if(el) el.value=val; };
-            s('roIcecastUrl', gv('IcecastUrl')||'');
-            s('roIcecastUser', gv('IcecastUsername')||'source');
-            s('roIcecastPass', gv('IcecastPassword')||'');
-            s('roMountPoint', gv('IcecastMountPoint')||'/radio');
-            s('roAudioFormat', gv('AudioFormat')||'ogg');
-            s('roBitrate', gv('AudioBitrate')||128);
-            s('roStreamName', gv('StreamName')||'');
-            s('roStreamDesc', gv('StreamDescription')||'');
-            s('roStreamGenre', gv('StreamGenre')||'');
-            var ep=document.getElementById('roStreamPublic'); if(ep) ep.checked=!!gv('StreamPublic');
-            var ee=document.getElementById('roEnabled'); if(ee) ee.checked=!!gv('IsEnabled');
+            s('roLiquidHost', gv('LiquidsoapHost')||'localhost');
+            s('roLiquidPort', gv('LiquidsoapPort')||8080);
+            s('roMediaPath', gv('JellyfinMediaPath')||'/media');
+            s('roMusicPath', gv('LiquidsoapMusicPath')||'/music');
             s('roUserId', gv('JellyfinUserId')||'');
+            var ee=document.getElementById('roEnabled'); if(ee) ee.checked=!!gv('IsEnabled');
         }
 
         function readForm(){
             var g=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
-            sv('IcecastUrl', g('roIcecastUrl'));
-            sv('IcecastUsername', g('roIcecastUser')||'source');
-            sv('IcecastPassword', document.getElementById('roIcecastPass')?document.getElementById('roIcecastPass').value:'');
-            sv('IcecastMountPoint', g('roMountPoint')||'/radio');
-            sv('AudioFormat', document.getElementById('roAudioFormat')?document.getElementById('roAudioFormat').value:'ogg');
-            sv('AudioBitrate', parseInt(document.getElementById('roBitrate')?document.getElementById('roBitrate').value:'128',10)||128);
-            sv('StreamName', g('roStreamName'));
-            sv('StreamDescription', g('roStreamDesc'));
-            sv('StreamGenre', g('roStreamGenre'));
-            sv('StreamPublic', document.getElementById('roStreamPublic')?document.getElementById('roStreamPublic').checked:false);
+            sv('LiquidsoapHost', g('roLiquidHost')||'localhost');
+            sv('LiquidsoapPort', parseInt(document.getElementById('roLiquidPort')?document.getElementById('roLiquidPort').value:'8080',10)||8080);
+            sv('JellyfinMediaPath', g('roMediaPath')||'/media');
+            sv('LiquidsoapMusicPath', g('roMusicPath')||'/music');
             sv('IsEnabled', document.getElementById('roEnabled')?document.getElementById('roEnabled').checked:false);
             sv('JellyfinUserId', document.getElementById('roUserId')?document.getElementById('roUserId').value:'');
         }
@@ -404,27 +293,28 @@
             ApiClient.getPluginConfiguration(PLUGIN_ID).then(function(c){
                 var st = c || {};
                 var isEnabled = st.IsEnabled || st.isEnabled || false;
-                var iceUrl = st.IcecastUrl || st.icecastUrl || '';
                 var schedCount = (st.ScheduleEntries || st.scheduleEntries || []).length;
-                var fmt = st.AudioFormat || st.audioFormat || '--';
-                var br = st.AudioBitrate || st.audioBitrate || '--';
+                var lsHost = st.LiquidsoapHost || st.liquidsoapHost || 'localhost';
+                var lsPort = st.LiquidsoapPort || st.liquidsoapPort || 8080;
 
                 var ep=document.getElementById('roStPlugin');
                 if(ep) ep.innerHTML=isEnabled?'<span style="color:#52b54b;">Activado</span>':'<span style="color:#888;">Desactivado</span>';
-                var ei=document.getElementById('roStIcecast');
-                if(ei){ ei.textContent=iceUrl?'Configurado':'Sin configurar'; ei.style.color=iceUrl?'#52b54b':'#888'; }
-                var ef=document.getElementById('roStFormat');
-                if(ef) ef.textContent=(fmt||'--').toUpperCase()+' / '+(br||'--')+'kbps';
+                var el=document.getElementById('roStLiquidsoap');
+                if(el){ el.textContent=lsHost+':'+lsPort; el.style.color='#52b54b'; }
                 var ec=document.getElementById('roStCount');
                 if(ec) ec.textContent=schedCount;
 
                 apiGet('Plugins/RadioOnline/Status').then(function(apiSt){
                     var es=document.getElementById('roStStream');
                     if(es) es.innerHTML=(apiSt && apiSt.isStreaming)?'<span style="color:#00a4dc;">En Vivo</span>':'<span style="color:#888;">Inactivo</span>';
+                    var et=document.getElementById('roStTelnet');
+                    if(et) et.innerHTML=(apiSt && apiSt.liquidsoapConnected)?'<span style="color:#52b54b;">Conectado</span>':'<span style="color:#ff6b6b;">Desconectado</span>';
                     Dashboard.hideLoadingMsg();
                 }).catch(function(){
                     var es=document.getElementById('roStStream');
                     if(es) es.innerHTML='<span style="color:#888;">Inactivo</span>';
+                    var et=document.getElementById('roStTelnet');
+                    if(et) et.innerHTML='<span style="color:#ff6b6b;">Desconectado</span>';
                     Dashboard.hideLoadingMsg();
                 });
             }).catch(function(e){
@@ -454,57 +344,20 @@
             apiGet('Plugins/RadioOnline/Playlists').then(function(d){
                 playlists=d||[];
                 playlistsLoaded=true;
-                fillPlaylistSelect();
                 renderSchedule();
             }).catch(function(e){
                 console.warn('[RadioOnline] Playlists API failed',e);
                 playlistsLoaded=true;
                 playlists=[];
-                fillPlaylistSelect();
                 renderSchedule();
-                showPlaylistError('No se pudieron cargar las playlists. Verifica que el usuario de biblioteca este configurado.');
             });
         }
 
-        function showPlaylistError(msg){
-            var el=document.getElementById('roPlaylistError');
-            if(el){ el.textContent=msg; el.style.display=''; }
-        }
-        function hidePlaylistError(){
-            var el=document.getElementById('roPlaylistError');
-            if(el){ el.style.display='none'; }
-        }
-
-        function fillPlaylistSelect(){
-            var sel=document.getElementById('roEditPlaylist'); if(!sel) return;
-            while(sel.options.length>1) sel.remove(1);
-            hidePlaylistError();
-            if(playlists.length===0){
-                showPlaylistError('No se encontraron playlists. Verifica que el usuario de biblioteca tenga acceso a playlists.');
-                return;
-            }
-            for(var i=0;i<playlists.length;i++){
-                var o=document.createElement('option');
-                o.value=playlists[i].id; o.textContent=playlists[i].name;
-                sel.appendChild(o);
-            }
-        }
-
-        // --- Schedule ---
         function tryRenderSchedule(){
             if(configLoaded && playlistsLoaded) renderSchedule();
         }
 
-        function getEntries(){ return gv('ScheduleEntries')||[]; }
-        function setEntries(e){ sv('ScheduleEntries',e); }
-
-        function getPlaylistName(plId){
-            for(var p=0;p<playlists.length;p++){
-                if(playlists[p].id===plId) return playlists[p].name;
-            }
-            return '-- Sin playlist --';
-        }
-
+        // --- Schedule (inline editing) ---
         function renderSchedule(){
             var entries=getEntries();
             var list=document.getElementById('roSchedList');
@@ -520,7 +373,7 @@
             list.style.display='';
             if(empty) empty.style.display='none';
 
-            // Sort entries by day then start time for display
+            // Sort entries by day then start time
             var sorted=[];
             for(var i=0;i<entries.length;i++) sorted.push({e:entries[i],i:i});
             sorted.sort(function(a,b){
@@ -534,146 +387,125 @@
 
             for(var s=0;s<sorted.length;s++){
                 var en=sorted[s].e, idx=sorted[s].i;
-                var day=normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek);
-                var stHM=parseTimeToHM(en.StartTime||en.startTime||'');
-                var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
-                var pl=en.PlaylistId||en.playlistId||'';
-                var nm=en.DisplayName||en.displayName||'';
-                var shuff=en.ShufflePlayback||en.shufflePlayback||false;
-                var plName=getPlaylistName(pl);
-
-                var title=nm||(dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m);
-                var secondary=dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m;
-                if(pl) secondary+=' | '+plName;
-                if(shuff) secondary+=' | Aleatorio';
-
-                var div=document.createElement('div');
-                div.className='listItem';
-                div.setAttribute('data-i',idx);
-
-                div.innerHTML=
-                    '<div class="listItemBody two-line">'+
-                        '<div class="listItemBodyText">'+esc(title)+'</div>'+
-                        '<div class="listItemBodyText secondary">'+esc(secondary)+'</div>'+
-                    '</div>'+
-                    '<button type="button" is="emby-button" class="listItemButton paperListButton" data-i="'+idx+'" data-act="edit" style="flex-shrink:0;">'+
-                        '<span class="material-icons edit" aria-hidden="true"></span>'+
-                    '</button>'+
-                    '<button type="button" is="emby-button" class="listItemButton paperListButton btnDelete" data-i="'+idx+'" data-act="del" style="flex-shrink:0;">'+
-                        '<span class="material-icons delete" aria-hidden="true"></span>'+
-                    '</button>';
-
-                list.appendChild(div);
+                list.appendChild(buildScheduleItem(en, idx, false));
             }
         }
 
-        // --- Schedule list click handler ---
-        function schedListClick(e){
-            var btn=e.target.closest('[data-act]');
-            if(!btn) return;
-            var act=btn.getAttribute('data-act');
-            var idx=parseInt(btn.getAttribute('data-i'),10);
-            if(isNaN(idx)) return;
+        function buildScheduleItem(en, idx, isNew){
+            var day=normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek);
+            var stHM=parseTimeToHM(en.StartTime||en.startTime||'');
+            var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
+            var pl=en.PlaylistId||en.playlistId||'';
+            var nm=en.DisplayName||en.displayName||'';
+            var shuff=en.ShufflePlayback||en.shufflePlayback||false;
+            var plName=getPlaylistName(pl);
 
-            if(act==='del'){
-                var entries=getEntries();
-                entries.splice(idx,1);
-                setEntries(entries);
-                hideEditForm();
-                renderSchedule();
-            } else if(act==='edit'){
-                openEditForm(idx);
-            }
+            var title=nm||(dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m);
+            var secondary=dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m;
+            if(pl) secondary+=' | '+plName;
+            if(shuff) secondary+=' | Aleatorio';
+
+            var div=document.createElement('div');
+            div.className='listItem';
+            div.setAttribute('data-i',idx);
+
+            div.innerHTML=
+                '<div class="listItemBody two-line">'+
+                    '<div class="listItemBodyText">'+esc(title)+'</div>'+
+                    '<div class="listItemBodyText secondary">'+esc(secondary)+'</div>'+
+                '</div>'+
+                '<button type="button" is="emby-button" class="listItemButton paperListButton" data-i="'+idx+'" data-act="edit" style="flex-shrink:0;">'+
+                    '<span class="material-icons edit" aria-hidden="true"></span>'+
+                '</button>'+
+                '<button type="button" is="emby-button" class="listItemButton paperListButton btnDelete" data-i="'+idx+'" data-act="del" style="flex-shrink:0;">'+
+                    '<span class="material-icons delete" aria-hidden="true"></span>'+
+                '</button>';
+
+            return div;
         }
 
-        // --- Edit form ---
-        function openEditForm(idx){
-            editIndex=idx;
+        function renderInlineEdit(idx){
             var entries=getEntries();
             var en=(idx>=0 && idx<entries.length) ? entries[idx] : null;
+            var isNew = (idx<0 || !en);
 
-            var titleEl=document.getElementById('roEditTitle');
-            if(titleEl) titleEl.textContent=en?'Editar Programa':'Nuevo Programa';
+            var day= en ? normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek) : 1;
+            var stHM= en ? parseTimeToHM(en.StartTime||en.startTime||'') : {h:'08',m:'00'};
+            var etHM= en ? parseTimeToHM(en.EndTime||en.endTime||'') : {h:'12',m:'00'};
+            var pl= en ? (en.PlaylistId||en.playlistId||'') : '';
+            var nm= en ? (en.DisplayName||en.displayName||'') : '';
+            var shuff= en ? !!(en.ShufflePlayback||en.shufflePlayback) : false;
 
-            var daySel=document.getElementById('roEditDay');
-            var shSel=document.getElementById('roEditStartH');
-            var smSel=document.getElementById('roEditStartM');
-            var ehSel=document.getElementById('roEditEndH');
-            var emSel=document.getElementById('roEditEndM');
-            var plSel=document.getElementById('roEditPlaylist');
-            var nmIn=document.getElementById('roEditName');
-            var shChk=document.getElementById('roEditShuffle');
+            var div=document.createElement('div');
+            div.className='listItem';
+            div.setAttribute('data-editing','true');
+            div.setAttribute('data-idx',idx);
 
-            if(en){
-                var day=normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek);
-                var stHM=parseTimeToHM(en.StartTime||en.startTime||'');
-                var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
-                if(daySel) daySel.innerHTML=dayOpts(day);
-                if(shSel) shSel.innerHTML=hourOpts(stHM.h);
-                if(smSel) smSel.innerHTML=minOpts(stHM.m);
-                if(ehSel) ehSel.innerHTML=hourOpts(etHM.h);
-                if(emSel) emSel.innerHTML=minOpts(etHM.m);
-                if(plSel) plSel.value=en.PlaylistId||en.playlistId||'';
-                if(nmIn) nmIn.value=en.DisplayName||en.displayName||'';
-                if(shChk) shChk.checked=!!(en.ShufflePlayback||en.shufflePlayback);
-            } else {
-                if(daySel) daySel.innerHTML=dayOpts(1);
-                if(shSel) shSel.innerHTML=hourOpts('08');
-                if(smSel) smSel.innerHTML=minOpts('00');
-                if(ehSel) ehSel.innerHTML=hourOpts('12');
-                if(emSel) emSel.innerHTML=minOpts('00');
-                if(plSel) plSel.value='';
-                if(nmIn) nmIn.value='';
-                if(shChk) shChk.checked=false;
+            var plOpts='<option value="">-- Seleccionar --</option>';
+            for(var p=0;p<playlists.length;p++){
+                plOpts+='<option value="'+playlists[p].id+'"'+(playlists[p].id===pl?' selected':'')+'>'+esc(playlists[p].name)+'</option>';
             }
 
-            hideMsg();
-            var form=document.getElementById('roEditForm');
-            if(form) form.style.display='';
+            div.innerHTML=
+                '<div class="listItemBody" style="flex:1;">'+
+                    '<div style="display:flex;flex-wrap:wrap;gap:0.5em;align-items:center;margin-bottom:0.5em;">'+
+                        '<select is="emby-select" data-field="day" style="width:auto;min-width:100px;">'+dayOpts(day)+'</select>'+
+                        '<span style="font-weight:bold;">De:</span>'+
+                        '<select is="emby-select" data-field="startH" style="width:auto;">'+hourOpts(stHM.h)+'</select>'+
+                        '<span>:</span>'+
+                        '<select is="emby-select" data-field="startM" style="width:auto;">'+minOpts(stHM.m)+'</select>'+
+                        '<span style="font-weight:bold;">a</span>'+
+                        '<select is="emby-select" data-field="endH" style="width:auto;">'+hourOpts(etHM.h)+'</select>'+
+                        '<span>:</span>'+
+                        '<select is="emby-select" data-field="endM" style="width:auto;">'+minOpts(etHM.m)+'</select>'+
+                    '</div>'+
+                    '<div style="display:flex;flex-wrap:wrap;gap:0.5em;align-items:center;margin-bottom:0.5em;">'+
+                        '<select is="emby-select" data-field="playlist" style="flex:1;min-width:180px;">'+plOpts+'</select>'+
+                        '<label style="display:flex;align-items:center;gap:0.3em;cursor:pointer;white-space:nowrap;">'+
+                            '<input type="checkbox" data-field="shuffle"'+(shuff?' checked':'')+' /> Aleatorio'+
+                        '</label>'+
+                    '</div>'+
+                    '<input type="text" is="emby-input" data-field="name" value="'+esc(nm)+'" placeholder="Nombre del programa" style="width:100%;box-sizing:border-box;" />'+
+                '</div>'+
+                '<button type="button" is="emby-button" class="listItemButton paperListButton" data-act="save-edit" style="flex-shrink:0;color:#52b54b;">'+
+                    '<span class="material-icons check" aria-hidden="true"></span>'+
+                '</button>'+
+                '<button type="button" is="emby-button" class="listItemButton paperListButton" data-act="cancel-edit" style="flex-shrink:0;">'+
+                    '<span class="material-icons close" aria-hidden="true"></span>'+
+                '</button>';
+
+            return div;
         }
 
-        function hideEditForm(){
-            editIndex=-1;
-            var form=document.getElementById('roEditForm');
-            if(form) form.style.display='none';
-            hideMsg();
-        }
+        function saveInlineEdit(div){
+            var entries=getEntries();
+            var idx=parseInt(div.getAttribute('data-idx'),10);
 
-        function saveEditForm(){
-            hideMsg();
-            var day=parseInt(document.getElementById('roEditDay').value,10);
-            var stH=document.getElementById('roEditStartH').value;
-            var stM=document.getElementById('roEditStartM').value;
-            var etH=document.getElementById('roEditEndH').value;
-            var etM=document.getElementById('roEditEndM').value;
+            var day=parseInt(div.querySelector('[data-field="day"]').value,10);
+            var stH=div.querySelector('[data-field="startH"]').value;
+            var stM=div.querySelector('[data-field="startM"]').value;
+            var etH=div.querySelector('[data-field="endH"]').value;
+            var etM=div.querySelector('[data-field="endM"]').value;
             var st=stH+':'+stM;
             var et=etH+':'+etM;
-            var pl=(document.getElementById('roEditPlaylist').value||'').trim();
-            var nm=(document.getElementById('roEditName').value||'').trim();
-            var shuffle=document.getElementById('roEditShuffle')?document.getElementById('roEditShuffle').checked:false;
+            var pl=(div.querySelector('[data-field="playlist"]').value||'').trim();
+            var shuffle=div.querySelector('[data-field="shuffle"]').checked;
+            var nm=(div.querySelector('[data-field="name"]').value||'').trim();
 
-            if(st>=et){ showMsg('La hora de fin debe ser despues de la hora de inicio.'); return; }
-            if(!pl){ showMsg('Debes seleccionar una playlist.'); return; }
+            if(st>=et){ Dashboard.alert({title:'Error',message:'La hora de fin debe ser despues de la hora de inicio.'}); return false; }
+            if(!pl){ Dashboard.alert({title:'Error',message:'Debes seleccionar una playlist.'}); return false; }
 
             var name=nm||(dayNames[day]+' '+st+'-'+et);
-            var entries=getEntries();
 
-            if(editIndex>=0 && editIndex<entries.length){
-                // Update existing
-                entries[editIndex].DayOfWeek=toCSharpDay(day);
-                entries[editIndex].dayOfWeek=day;
-                entries[editIndex].StartTime=st;
-                entries[editIndex].startTime=st;
-                entries[editIndex].EndTime=et;
-                entries[editIndex].endTime=et;
-                entries[editIndex].PlaylistId=pl;
-                entries[editIndex].playlistId=pl;
-                entries[editIndex].DisplayName=name;
-                entries[editIndex].displayName=name;
-                entries[editIndex].ShufflePlayback=shuffle;
-                entries[editIndex].shufflePlayback=shuffle;
+            if(idx>=0 && idx<entries.length){
+                entries[idx].DayOfWeek=toCSharpDay(day);
+                entries[idx].dayOfWeek=day;
+                entries[idx].StartTime=st; entries[idx].startTime=st;
+                entries[idx].EndTime=et; entries[idx].endTime=et;
+                entries[idx].PlaylistId=pl; entries[idx].playlistId=pl;
+                entries[idx].DisplayName=name; entries[idx].displayName=name;
+                entries[idx].ShufflePlayback=shuffle; entries[idx].shufflePlayback=shuffle;
             } else {
-                // Add new
                 entries.push({
                     DayOfWeek:toCSharpDay(day), dayOfWeek:day,
                     StartTime:st, startTime:st,
@@ -686,14 +518,60 @@
             }
 
             setEntries(entries);
-            hideEditForm();
             renderSchedule();
+            return true;
         }
 
-        function hideMsg(){ var m=document.getElementById('roEditMsg'); if(m) m.style.display='none'; }
-        function showMsg(t){
-            var m=document.getElementById('roEditMsg');
-            if(m){ m.style.display=''; m.textContent=t; m.style.background='rgba(255,107,107,0.15)'; m.style.color='#ff6b6b'; }
+        // --- Schedule list click handler ---
+        function schedListClick(e){
+            var btn=e.target.closest('[data-act]');
+            if(!btn) return;
+
+            var act=btn.getAttribute('data-act');
+            var list=document.getElementById('roSchedList');
+            if(!list) return;
+
+            if(act==='del'){
+                var item=btn.closest('[data-i]');
+                if(!item) return;
+                var idx=parseInt(item.getAttribute('data-i'),10);
+                if(isNaN(idx)) return;
+                var entries=getEntries();
+                entries.splice(idx,1);
+                setEntries(entries);
+                renderSchedule();
+            } else if(act==='edit'){
+                var itemEdit=btn.closest('[data-i]');
+                if(!itemEdit) return;
+                var idxEdit=parseInt(itemEdit.getAttribute('data-i'),10);
+                var editDiv=renderInlineEdit(idxEdit);
+                itemEdit.replaceWith(editDiv);
+            } else if(act==='save-edit'){
+                var editItem=btn.closest('[data-editing]');
+                if(!editItem) return;
+                saveInlineEdit(editItem);
+            } else if(act==='cancel-edit'){
+                var cancelItem=btn.closest('[data-editing]');
+                if(!cancelItem) return;
+                var cancelIdx=parseInt(cancelItem.getAttribute('data-idx'),10);
+                var entries2=getEntries();
+                var en2=(cancelIdx>=0 && cancelIdx<entries2.length) ? entries2[cancelIdx] : null;
+                var newDiv=buildScheduleItem(en2, cancelIdx, cancelIdx<0);
+                cancelItem.replaceWith(newDiv);
+            }
+        }
+
+        // --- Add new entry ---
+        function addNewEntry(){
+            var entries=getEntries();
+            var editDiv=renderInlineEdit(-1);
+            var list=document.getElementById('roSchedList');
+            if(!list) return;
+            if(entries.length===0){
+                list.style.display='';
+            }
+            list.appendChild(editDiv);
+            editDiv.scrollIntoView({behavior:'smooth',block:'center'});
         }
 
         // --- Init ---
@@ -704,7 +582,6 @@
             playlistsLoaded = false;
             playlists = [];
             cfg = {};
-            editIndex = -1;
             loadConfig();
             loadUsers();
 
@@ -720,23 +597,15 @@
             if(bs) bs.addEventListener('click',saveConfig);
             var bss=document.getElementById('roBtnSaveSched');
             if(bss) bss.addEventListener('click',saveConfig);
-
             var ba=document.getElementById('roBtnAddSched');
-            if(ba) ba.addEventListener('click',function(){ openEditForm(-1); });
-            var bc=document.getElementById('roBtnCancelEdit');
-            if(bc) bc.addEventListener('click',hideEditForm);
-            var bn=document.getElementById('roBtnSaveEdit');
-            if(bn) bn.addEventListener('click',saveEditForm);
+            if(ba) ba.addEventListener('click',addNewEntry);
 
             document.getElementById('roTabStatus').addEventListener('click',function(e){
-                var btn=e.target.closest('#roBtnRefresh');
-                if(btn) loadStatus();
+                if(e.target.closest('#roBtnRefresh')) loadStatus();
             });
 
             var sl=document.getElementById('roSchedList');
-            if(sl){
-                sl.addEventListener('click',schedListClick);
-            }
+            if(sl) sl.addEventListener('click',schedListClick);
 
             switchTab('config');
         }

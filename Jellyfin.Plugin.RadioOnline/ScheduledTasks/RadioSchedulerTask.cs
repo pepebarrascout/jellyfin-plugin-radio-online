@@ -78,9 +78,8 @@ public class RadioSchedulerTask : IScheduledTask, IConfigurableScheduledTask
             }
 
             _logger.LogInformation("Radio Online is ENABLED");
-            _logger.LogInformation("  Icecast Server: {Url}", config.IcecastUrl);
-            _logger.LogInformation("  Mount Point: {Mount}", config.IcecastMountPoint);
-            _logger.LogInformation("  Audio Format: {Format} @ {Bitrate}kbps", config.AudioFormat, config.AudioBitrate);
+            _logger.LogInformation("  Liquidsoap Server: {Host}:{Port}", config.LiquidsoapHost, config.LiquidsoapPort);
+            _logger.LogInformation("  Media Path: {MediaPath} -> {MusicPath}", config.JellyfinMediaPath, config.LiquidsoapMusicPath);
             _logger.LogInformation("  Schedule Entries: {Count}", config.ScheduleEntries.Count);
 
             progress.Report(50);

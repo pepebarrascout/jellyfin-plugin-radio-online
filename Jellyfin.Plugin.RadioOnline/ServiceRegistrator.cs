@@ -20,8 +20,8 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         // Radio streaming background service (runs continuously)
         serviceCollection.AddHostedService<RadioStreamingHostedService>();
 
-        // FFmpeg streaming service (uses Jellyfin's bundled FFmpeg)
-        serviceCollection.AddSingleton<IcecastStreamingService>();
+        // Liquidsoap Telnet client
+        serviceCollection.AddSingleton<LiquidsoapClient>();
 
         // Schedule manager
         serviceCollection.AddSingleton<ScheduleManagerService>();
