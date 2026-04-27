@@ -18,22 +18,23 @@ Crea los directorios necesarios en el servidor:
 
 ```bash
 # Directorio para el script de Liquidsoap
-mkdir -p /opt/liquidsoap/scripts
+mkdir -p /media/Cloud1/liquidsoap
 
-# Generar archivo de silencio (5 segundos en OGG)
+# Generar archivo de silencio (5 segundos en OGG) - opcional
 apt-get install -y sox
-sox -n -r 44100 -c 2 /opt/liquidsoap/scripts/silence.ogg trim 0 5
+sox -n -r 44100 -c 2 /media/Cloud1/liquidsoap/silence.ogg trim 0 5
 ```
 
 ---
 
 ## Paso 2: Crear el archivo radio.liq
 
-Crea el archivo `/opt/liquidsoap/scripts/radio.liq` con el siguiente contenido:
+Crea el archivo `/media/Cloud1/liquidsoap/radio.liq` con el siguiente contenido:
 
 ```
 set("server.telnet", true)
 set("server.telnet.port", 8080)
+set("server.telnet.bind_addr", "0.0.0.0")
 
 icecast_host = getenv("localhost","ICECAST_HOST")
 icecast_port = int_of_string(default=8000,getenv("8000","ICECAST_PORT"))
@@ -67,7 +68,8 @@ server.register("queue.clear", cmd_clear)
 ### Notas sobre el script
 
 - **`set("server.telnet", true)`**: Habilita el servidor Telnet para que el plugin pueda enviar comandos
-- **`set("server.telnet.port", 8080)`**: Puerto Telnet dentro del contenedor
+- **`set("server.telnet.port", 8080)`**: Puerto Telnet del servidor
+- **`set("server.telnet.bind_addr", "0.0.0.0")`**: ESCENCIAL - Permite conexiones desde otros contenedores Docker. Sin esta linea, Telnet solo escucha en `127.0.0.1` y el plugin no puede conectarse desde un contenedor Jellyfin separado. El nombre correcto del setting es `server.telnet.bind_addr` (no `server.telnet.address` ni `server.telnet.host`)
 - **`getenv("default","VAR_NAME")`**: Lee variables de entorno (el primer argumento es el valor por defecto)
 - **`request.queue()`**: Cola de reproduccion que acepta canciones via Telnet
 - **`mksafe()`**: Reproduce silencio automaticamente cuando la cola esta vacia
@@ -78,7 +80,7 @@ server.register("queue.clear", cmd_clear)
 
 ## Paso 3: Crear el archivo docker-compose.yml
 
-Crea el archivo `/opt/liquidsoap/docker-compose.yml`:
+Crea el archivo `docker-compose.yml` para Liquidsoap:
 
 ```yaml
 services:
@@ -88,13 +90,13 @@ services:
     command: ["/scripts/radio.liq"]
     network_mode: host
     environment:
-      - ICECAST_HOST=192.168.1.100    # IP de tu servidor Icecast
+      - ICECAST_HOST=209.141.61.116    # IP de tu servidor Icecast
       - ICECAST_PORT=8000                # Puerto de Icecast
       - ICECAST_PASSWORD=tu_password    # Contrasena de fuente Icecast
       - ICECAST_MOUNT=/radio             # Punto de montaje
     volumes:
-      - /ruta/a/tu/biblioteca:/music:ro           # Biblioteca de Jellyfin
-      - /opt/liquidsoap/scripts:/scripts:ro        # Scripts de Liquidsoap
+      - /media/Music:/music:ro           # Biblioteca de Jellyfin
+      - /media/Cloud1/liquidsoap:/scripts:ro  # Scripts de Liquidsoap
     restart: unless-stopped
 ```
 
@@ -102,24 +104,25 @@ services:
 
 | Campo | Descripcion | Ejemplo |
 |---|---|---|
-| `ICECAST_HOST` | IP o dominio del servidor Icecast | `192.168.1.100` |
+| `ICECAST_HOST` | IP o dominio del servidor Icecast | `209.141.61.116` |
 | `ICECAST_PORT` | Puerto de Icecast (usualmente 8000) | `8000` |
 | `ICECAST_PASSWORD` | Contrasena de fuente en Icecast | `tu_password` |
 | `ICECAST_MOUNT` | Punto de montaje | `/radio` |
-| `/ruta/a/tu/biblioteca:/music:ro` | Ruta de la biblioteca de Jellyfin | `/media:/music:ro` |
+| `/media/Music:/music:ro` | Ruta de la biblioteca de Jellyfin | Debe coincidir con la ruta configurada en el plugin |
 
 ### Notas importantes
 
-- **`network_mode: host`**: Liquidsoap usa Telnet en `127.0.0.1` y Docker bridge networking no permite acceder a este. `network_mode: host` comparte la red del host directamente.
-- **`:ro` en los volumes**: Los volmenes son de solo lectura por seguridad.
-- El puerto Telnet es **8080** dentro del contenedor. Con `network_mode: host`, es accesible desde `localhost:8080` en el host.
+- **`network_mode: host`**: Liquidsoap comparte la red del host. Con `server.telnet.bind_addr` en `0.0.0.0`, el Telnet es accesible desde otros contenedores Docker a traves de la IP gateway del host.
+- **`command: ["/scripts/radio.liq"]`**: NO uses `--enable-telnet` como argumento. El flag `--enable-telnet` puede sobreescribir la configuracion del script y forzar el bind a `127.0.0.1`. El script ya habilita Telnet con `set("server.telnet", true)`.
+- **`:ro` en los volumes**: Los volumenes son de solo lectura por seguridad.
+- El puerto Telnet es **8080**. Con `bind_addr` en `0.0.0.0`, es accesible desde cualquier interfaz de red del host.
 
 ---
 
 ## Paso 4: Iniciar Liquidsoap
 
 ```bash
-cd /opt/liquidsoap
+cd /media/Cloud1/liquidsoap
 docker compose up -d
 ```
 
@@ -135,11 +138,19 @@ Deberia mostrar:
 Connection setup was successful.
 ```
 
+Verificar que Telnet escucha en todas las interfaces:
+
+```bash
+ss -tlnp | grep 8080
+```
+
+Debe mostrar `0.0.0.0:8080` (no `127.0.0.1:8080`). Si muestra `127.0.0.1`, revisa que el archivo `radio.liq` tenga `set("server.telnet.bind_addr", "0.0.0.0")` y que NO estes usando `--enable-telnet` en el command del docker-compose.
+
 ---
 
 ## Paso 5: Probar la conexion
 
-### Verificar Telnet
+### Verificar Telnet desde el host
 
 ```bash
 echo "queue.status" | nc -w 3 localhost 8080
@@ -150,6 +161,19 @@ Deberia responder:
 running
 END
 ```
+
+### Verificar Telnet desde el contenedor de Jellyfin
+
+Si Jellyfin corre en otro contenedor Docker (bridge networking), usa la IP gateway de la red Docker:
+
+```bash
+# Primero encuentra la IP gateway de la red de Jellyfin (ej: 172.20.0.1)
+# Se puede ver en Portainer o con: docker network inspect <nombre_red>
+
+docker exec -it Jellyfin sh -c "echo 'queue.status' | nc -w 3 172.20.0.1 8080"
+```
+
+Deberia responder `running` + `END`. Si no responde, verifica que `ss -tlnp | grep 8080` muestra `0.0.0.0:8080`.
 
 ### Agregar una cancion
 
@@ -171,18 +195,33 @@ Abre en tu navegador: `http://TU_IP_ICECAST:8000/radio`
 
 ## Configuracion en el Plugin
 
-Una vez que Liquidsoap esta corriendo, configura el plugin en Jellyfin:
+Una vez que Liquidsoap esta corriendo y la conexion Telnet funciona, configura el plugin en Jellyfin:
 
-1. **Host Telnet**: `localhost` (si estan en el mismo servidor)
-2. **Puerto Telnet**: `8080`
-3. **Ruta de Biblioteca Jellyfin**: `/media` (la ruta donde Jellyfin almacena los archivos)
-4. **Ruta en Liquidsoap**: `/music` (la ruta correspondiente dentro del contenedor)
+### Si Jellyfin y Liquidsoap estan en el mismo servidor
+
+Jellyfin en Docker bridge y Liquidsoap en `network_mode: host`:
+
+| Campo | Valor |
+|---|---|
+| **Liquidsoap Telnet Host** | La IP gateway de la red Docker de Jellyfin (ej: `172.20.0.1`). Se puede ver en Portainer en la seccion Networks del contenedor, o con `docker network inspect <red>` |
+| **Liquidsoap Telnet Port** | `8080` |
+| **Jellyfin Media Path** | La ruta donde Jellyfin almacena los archivos (ej: `/media`) |
+| **Liquidsoap Music Path** | La ruta correspondiente dentro del contenedor Liquidsoap (ej: `/music`) |
+
+### Si ambos estan en el mismo contenedor o red
+
+| Campo | Valor |
+|---|---|
+| **Liquidsoap Telnet Host** | `localhost` o el nombre del contenedor |
+| **Liquidsoap Telnet Port** | `8080` |
+
+### Traduccion de rutas
 
 La relacion de rutas es directa: el plugin reemplaza la ruta de Jellyfin con la ruta de Liquidsoap. Por ejemplo:
 - Jellyfin ve: `/media/Music/ABBA/Bang-A-Boomerang.m4a`
 - Plugin envia a Liquidsoap: `/music/Music/ABBA/Bang-A-Boomerang.m4a`
 
-Esto corresponde al volume `/media:/music:ro` en docker-compose.yml.
+Esto corresponde al volume `/media/Music:/music:ro` en docker-compose.yml.
 
 ---
 
@@ -201,11 +240,20 @@ Busca errores de sintaxis en el script `.liq`. Los errores mas comunes:
 - `Cannot apply that parameter labeled "restart"`: Elimina `restart=true` de `output.icecast`
 - `That source is fallible`: Aplica `mksafe()` antes de `output.icecast`, no despues de `crossfade`
 
-### Telnet no responde (Connection reset)
+### Telnet escucha solo en 127.0.0.1
 
-- Verifica que el script tiene `set("server.telnet", true)` al inicio
-- Verifica que `network_mode: host` esta configurado en docker-compose.yml
-- Verifica que no hay otro servicio usando el puerto 8080: `ss -tlnp | grep 8080`
+Verifica con `ss -tlnp | grep 8080`:
+- Si muestra `127.0.0.1:8080` → el `bind_addr` no se esta aplicando. Asegurate de:
+  1. El archivo `radio.liq` tenga `set("server.telnet.bind_addr", "0.0.0.0")` (el nombre correcto es `bind_addr`, NO `address` ni `host`)
+  2. NO estes usando `--enable-telnet` en el command del docker-compose (este flag puede sobreescribir el bind address del script)
+  3. Reiniciar el contenedor: `docker restart liquidsoap`
+
+### Telnet no responde desde el contenedor de Jellyfin
+
+- Verifica que Telnet funciona desde el host: `echo "queue.status" | nc -w 3 localhost 8080`
+- Verifica que `ss -tlnp | grep 8080` muestra `0.0.0.0:8080`
+- Encuentra la IP gateway correcta de la red Docker de Jellyfin (Portainer → Networks)
+- Prueba desde el contenedor: `docker exec -it Jellyfin sh -c "nc -zv <IP_GATEWAY> 8080"`
 
 ### Las canciones no se reproducen
 

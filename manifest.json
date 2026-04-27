@@ -13,7 +13,7 @@
         "changelog": "FIX: Telnet connection now works after config change - hosted service actively attempts connection instead of infinite retry loop\nFIX: Status endpoint now updates connection settings before testing Liquidsoap\nFIX: Liquidsoap bind_addr must be server.telnet.bind_addr (not server.telnet.address)\nNOTE: If Jellyfin runs in Docker bridge and Liquidsoap in host mode, set Telnet Host to Docker gateway IP (e.g. 172.20.0.1)",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.21/jellyfin-plugin-radio-online_0.0.0.21.zip",
-        "checksum": "dfa053546fb3026622c88220e21b3278",
+        "checksum": "111ac4f3f99ec1087538d2f7f358bdc6",
         "timestamp": "2026-04-28T04:45:00Z"
       }
     ]
