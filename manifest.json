@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
-        "version": "0.0.0.21",
-        "changelog": "FIX: Telnet connection now works after config change - hosted service actively attempts connection instead of infinite retry loop\nFIX: Status endpoint now updates connection settings before testing Liquidsoap\nFIX: Liquidsoap bind_addr must be server.telnet.bind_addr (not server.telnet.address)\nNOTE: If Jellyfin runs in Docker bridge and Liquidsoap in host mode, set Telnet Host to Docker gateway IP (e.g. 172.20.0.1)",
+        "version": "0.0.0.22",
+        "changelog": "FIX: Telnet Broken pipe - SendCommandAsync now retries once after reconnecting on IOException\nFIX: Schedule not followed - now tracks full schedule key (day+time+playlist) instead of just playlist ID\nFIX: Queue clear now retries up to 3 times on failure to ensure schedule transitions work reliably\nFIX: Status endpoint shows correct telnet state after reconnect",
         "targetAbi": "10.11.8.0",
-        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.21/jellyfin-plugin-radio-online_0.0.0.21.zip",
-        "checksum": "111ac4f3f99ec1087538d2f7f358bdc6",
-        "timestamp": "2026-04-28T04:45:00Z"
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.22/jellyfin-plugin-radio-online_0.0.0.22.zip",
+        "checksum": "f0ee7f3af74480ffbca254adc8620bc8",
+        "timestamp": "2026-04-28T05:30:00Z"
       }
     ]
   }

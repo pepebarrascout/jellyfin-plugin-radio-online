@@ -164,10 +164,26 @@ public class LiquidsoapClient : IDisposable
     /// <summary>
     /// Sends a raw command to the Liquidsoap Telnet server and returns the response.
     /// Handles connection, command sending, and response reading.
+    /// On IOException (broken pipe / stale connection), retries once after reconnecting.
     /// </summary>
     private async Task<string> SendCommandAsync(string command)
     {
         await _semaphore.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return await SendCommandInternalAsync(command).ConfigureAwait(false);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Internal command send with retry logic for stale connections.
+    /// </summary>
+    private async Task<string> SendCommandInternalAsync(string command)
+    {
         try
         {
             EnsureConnected();
@@ -185,15 +201,39 @@ public class LiquidsoapClient : IDisposable
             // Read response until "END" marker
             return await ReadResponseAsync().ConfigureAwait(false);
         }
+        catch (System.IO.IOException)
+        {
+            // Stale/broken connection - disconnect and retry once
+            _logger.LogDebug("Stale connection detected, reconnecting and retrying: {Command}", command);
+            Disconnect();
+
+            try
+            {
+                EnsureConnected();
+                if (_stream == null)
+                {
+                    _logger.LogWarning("Reconnect failed for command: {Command}", command);
+                    return string.Empty;
+                }
+
+                var commandBytes = Encoding.ASCII.GetBytes(command + "\n");
+                await _stream.WriteAsync(commandBytes).ConfigureAwait(false);
+                await _stream.FlushAsync().ConfigureAwait(false);
+
+                return await ReadResponseAsync().ConfigureAwait(false);
+            }
+            catch (Exception retryEx)
+            {
+                _logger.LogWarning(retryEx, "Retry failed for command: {Command}", command);
+                Disconnect();
+                return string.Empty;
+            }
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error sending command to Liquidsoap: {Command}", command);
             Disconnect();
             return string.Empty;
-        }
-        finally
-        {
-            _semaphore.Release();
         }
     }
 

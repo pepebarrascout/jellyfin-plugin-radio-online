@@ -30,9 +30,11 @@ public class RadioStreamingHostedService : BackgroundService
     private const int ScheduleCheckIntervalSeconds = 5;
 
     /// <summary>
-    /// Tracks the currently active schedule entry to detect changes.
+    /// Tracks the currently active schedule slot to detect changes.
+    /// Uses DayOfWeek+StartTime+EndTime+PlaylistId so even the same playlist
+    /// in different time slots triggers a proper reload and queue clear.
     /// </summary>
-    private string? _currentPlaylistId;
+    private string? _currentScheduleKey;
 
     /// <summary>
     /// Tracks whether the plugin was previously enabled, to detect state changes.
@@ -95,17 +97,12 @@ public class RadioStreamingHostedService : BackgroundService
                         _logger.LogInformation("Radio automatizada desactivada - pausando servicio");
 
                         // Clear queue and disconnect cleanly
-                        try
-                        {
-                            await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
-                        }
-                        catch { }
-
+                        await RetryClearQueueAsync().ConfigureAwait(false);
                         _liquidsoapClient.Disconnect();
                     }
 
                     _state.IsStreaming = false;
-                    _currentPlaylistId = null;
+                    _currentScheduleKey = null;
 
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
@@ -168,9 +165,9 @@ public class RadioStreamingHostedService : BackgroundService
                     if (_state.IsStreaming)
                     {
                         _logger.LogInformation("No active schedule, clearing Liquidsoap queue");
-                        await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
+                        await RetryClearQueueAsync().ConfigureAwait(false);
                         _state.IsStreaming = false;
-                        _currentPlaylistId = null;
+                        _currentScheduleKey = null;
                     }
 
                     // Wait until next schedule
@@ -188,16 +185,19 @@ public class RadioStreamingHostedService : BackgroundService
                     continue;
                 }
 
+                // Build a unique key for this schedule slot (day + times + playlist)
+                var scheduleKey = BuildScheduleKey(activeEntry);
+
                 // Check if the schedule has changed
-                if (!string.Equals(_currentPlaylistId, activeEntry.PlaylistId, StringComparison.Ordinal))
+                if (!string.Equals(_currentScheduleKey, scheduleKey, StringComparison.Ordinal))
                 {
                     _logger.LogInformation(
-                        "Schedule change: {OldPlaylist} -> {NewPlaylist} ({Name})",
-                        _currentPlaylistId ?? "(none)",
-                        activeEntry.PlaylistId,
+                        "Schedule change: [{OldKey}] -> [{NewKey}] (\"{Name}\")",
+                        _currentScheduleKey ?? "(none)",
+                        scheduleKey,
                         activeEntry.DisplayName);
 
-                    await LoadPlaylistToLiquidsoapAsync(config, activeEntry, stoppingToken).ConfigureAwait(false);
+                    await LoadPlaylistToLiquidsoapAsync(config, activeEntry, scheduleKey, stoppingToken).ConfigureAwait(false);
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds), stoppingToken).ConfigureAwait(false);
@@ -210,7 +210,7 @@ public class RadioStreamingHostedService : BackgroundService
             {
                 _logger.LogError(ex, "Streaming cycle error, retrying in 15s");
                 _state.IsStreaming = false;
-                _currentPlaylistId = null;
+                _currentScheduleKey = null;
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -234,16 +234,18 @@ public class RadioStreamingHostedService : BackgroundService
 
         _liquidsoapClient.Disconnect();
         _state.IsStreaming = false;
+        _currentScheduleKey = null;
         _logger.LogInformation("Radio Online service stopped");
     }
 
     /// <summary>
     /// Loads a playlist's tracks into the Liquidsoap queue.
-    /// Clears the existing queue first, then pushes all tracks.
+    /// Clears the existing queue first (with retry), then pushes all tracks.
     /// </summary>
     private async Task LoadPlaylistToLiquidsoapAsync(
         PluginConfiguration config,
         ScheduleEntry activeEntry,
+        string scheduleKey,
         CancellationToken cancellationToken)
     {
         // Get audio files from Jellyfin playlist
@@ -251,7 +253,7 @@ public class RadioStreamingHostedService : BackgroundService
         if (playlistItems.Count == 0)
         {
             _logger.LogWarning("Playlist \"{Name}\" is empty or not found", activeEntry.DisplayName);
-            _currentPlaylistId = activeEntry.PlaylistId;
+            _currentScheduleKey = scheduleKey;
             _state.IsStreaming = false;
             return;
         }
@@ -268,7 +270,7 @@ public class RadioStreamingHostedService : BackgroundService
         if (filePaths.Count == 0)
         {
             _logger.LogWarning("No valid audio files in playlist \"{Name}\"", activeEntry.DisplayName);
-            _currentPlaylistId = activeEntry.PlaylistId;
+            _currentScheduleKey = scheduleKey;
             _state.IsStreaming = false;
             return;
         }
@@ -290,22 +292,22 @@ public class RadioStreamingHostedService : BackgroundService
         if (liquidsoapPaths.Length == 0)
         {
             _logger.LogWarning("No valid paths after translation for playlist \"{Name}\"", activeEntry.DisplayName);
-            _currentPlaylistId = activeEntry.PlaylistId;
+            _currentScheduleKey = scheduleKey;
             _state.IsStreaming = false;
             return;
         }
 
-        // Clear the queue and load new tracks
+        // Clear the queue (with retry for reliability) and load new tracks
         _logger.LogInformation(
             "Loading \"{Name}\" ({Day} {Start}-{End}) - {Count} tracks{Shuffle} to Liquidsoap",
             activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime,
             liquidsoapPaths.Length, activeEntry.ShufflePlayback ? " [SHUFFLE]" : "");
 
-        await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
+        await RetryClearQueueAsync().ConfigureAwait(false);
 
         var added = await _liquidsoapClient.AppendTracksAsync(liquidsoapPaths, cancellationToken).ConfigureAwait(false);
 
-        _currentPlaylistId = activeEntry.PlaylistId;
+        _currentScheduleKey = scheduleKey;
         _state.IsStreaming = added > 0;
 
         if (added > 0)
@@ -321,9 +323,43 @@ public class RadioStreamingHostedService : BackgroundService
     }
 
     /// <summary>
+    /// Builds a unique key for a schedule slot using day, start time, end time, and playlist ID.
+    /// This ensures that even the same playlist scheduled at different times triggers a reload.
+    /// </summary>
+    private static string BuildScheduleKey(ScheduleEntry entry)
+    {
+        return $"{entry.DayOfWeek}|{entry.StartTime}|{entry.EndTime}|{entry.PlaylistId}";
+    }
+
+    /// <summary>
+    /// Attempts to clear the Liquidsoap queue with up to 3 retries on failure.
+    /// This ensures the queue is properly cleared even with transient telnet errors.
+    /// </summary>
+    private async Task RetryClearQueueAsync()
+    {
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            var cleared = await _liquidsoapClient.ClearQueueAsync().ConfigureAwait(false);
+            if (cleared)
+            {
+                _logger.LogDebug("Queue cleared successfully on attempt {Attempt}", attempt);
+                return;
+            }
+
+            _logger.LogWarning("Queue clear failed on attempt {Attempt}/3, retrying in 2s", attempt);
+            if (attempt < 3)
+            {
+                await Task.Delay(2000).ConfigureAwait(false);
+            }
+        }
+
+        _logger.LogError("Failed to clear Liquidsoap queue after 3 attempts");
+    }
+
+    /// <summary>
     /// Translates a Jellyfin filesystem path to the corresponding Liquidsoap path.
     /// Replaces the Jellyfin media root with the Liquidsoap music path.
-    /// Example: /media/Music/Album/song.m4a -> /music/Music/Album/song.m4a
+    /// Example: /media/Music/Album/song.m4a -> /music/Album/song.m4a
     /// </summary>
     private string? TranslatePath(string jellyfinPath, PluginConfiguration config)
     {
@@ -406,7 +442,7 @@ public class RadioStreamingHostedService : BackgroundService
 
         _liquidsoapClient.Disconnect();
         _state.IsStreaming = false;
-        _currentPlaylistId = null;
+        _currentScheduleKey = null;
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 }
