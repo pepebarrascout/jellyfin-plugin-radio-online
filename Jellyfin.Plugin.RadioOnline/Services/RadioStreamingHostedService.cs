@@ -13,7 +13,7 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 /// Background hosted service that manages the radio streaming loop using Liquidsoap.
 /// Monitors the weekly schedule and sends tracks to Liquidsoap's queue via Telnet.
 /// When a schedule becomes active, clears the queue and pushes all playlist tracks.
-/// When a schedule ends or changes, clears the queue and Liquidsoap plays silence.
+/// When a schedule ends or changes, skips current track (triggering crossfade) and clears the queue.
 /// Liquidsoap handles encoding, streaming to Icecast, and silence gaps.
 /// </summary>
 public class RadioStreamingHostedService : BackgroundService
@@ -161,10 +161,20 @@ public class RadioStreamingHostedService : BackgroundService
 
                 if (activeEntry == null || string.IsNullOrEmpty(activeEntry.PlaylistId))
                 {
-                    // No active schedule - clear queue if we were streaming
+                    // No active schedule - skip current track and clear queue if we were streaming
                     if (_state.IsStreaming)
                     {
-                        _logger.LogInformation("No active schedule, clearing Liquidsoap queue");
+                        _logger.LogInformation("No active schedule, skipping current track and clearing Liquidsoap queue");
+                        try
+                        {
+                            await _liquidsoapClient.SkipAsync().ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to skip current track");
+                        }
+
+                        await Task.Delay(500, stoppingToken).ConfigureAwait(false);
                         await RetryClearQueueAsync().ConfigureAwait(false);
                         _state.IsStreaming = false;
                         _currentScheduleKey = null;
@@ -198,6 +208,28 @@ public class RadioStreamingHostedService : BackgroundService
                         activeEntry.DisplayName);
 
                     await LoadPlaylistToLiquidsoapAsync(config, activeEntry, scheduleKey, stoppingToken).ConfigureAwait(false);
+                }
+                else if (_state.IsStreaming)
+                {
+                    // Same schedule still active - check remaining time in slot
+                    var remaining = _scheduleManager.GetRemainingTimeInSlot(activeEntry);
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        _logger.LogInformation("Schedule time slot ended, skipping and clearing queue");
+                        try
+                        {
+                            await _liquidsoapClient.SkipAsync().ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to skip current track");
+                        }
+
+                        await Task.Delay(500, stoppingToken).ConfigureAwait(false);
+                        await RetryClearQueueAsync().ConfigureAwait(false);
+                        _state.IsStreaming = false;
+                        _currentScheduleKey = null;
+                    }
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds), stoppingToken).ConfigureAwait(false);
@@ -240,7 +272,7 @@ public class RadioStreamingHostedService : BackgroundService
 
     /// <summary>
     /// Loads a playlist's tracks into the Liquidsoap queue.
-    /// Clears the existing queue first (with retry), then pushes all tracks.
+    /// Skips current track (triggering crossfade), clears the existing queue (with retry), then pushes all tracks.
     /// </summary>
     private async Task LoadPlaylistToLiquidsoapAsync(
         PluginConfiguration config,
@@ -297,11 +329,26 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
-        // Clear the queue (with retry for reliability) and load new tracks
+        // Skip current track to trigger crossfade out, then clear queue and load new tracks
         _logger.LogInformation(
             "Loading \"{Name}\" ({Day} {Start}-{End}) - {Count} tracks{Shuffle} to Liquidsoap",
             activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime,
             liquidsoapPaths.Length, activeEntry.ShufflePlayback ? " [SHUFFLE]" : "");
+
+        // Skip current track if streaming to trigger crossfade transition
+        if (_state.IsStreaming)
+        {
+            try
+            {
+                await _liquidsoapClient.SkipAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to skip current track before playlist change");
+            }
+
+            await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+        }
 
         await RetryClearQueueAsync().ConfigureAwait(false);
 

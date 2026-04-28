@@ -168,6 +168,15 @@
             outline: none;
             box-shadow: 0 0 0 0.1em rgba(0,164,220,0.3);
         }
+        .ro-native-select option {
+            background-color: #101010;
+            color: #ccc;
+        }
+        .ro-native-select option:checked,
+        .ro-native-select option:hover {
+            background-color: #00a4dc;
+            color: #fff;
+        }
         /* ── Native text input for schedule name ── */
         .ro-native-input {
             background-color: rgba(0,0,0,0.35);
@@ -287,7 +296,7 @@
         }
         function minOpts(sel){
             var html='';
-            for(var m=0;m<60;m+=5){ var v=(m<10?'0':'')+m; html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>'; }
+            for(var m=0;m<60;m+=1){ var v=(m<10?'0':'')+m; html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>'; }
             return html;
         }
         function dayOpts(sel){
