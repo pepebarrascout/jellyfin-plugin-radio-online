@@ -30,6 +30,17 @@ public class RadioStreamingHostedService : BackgroundService
     private const int ScheduleCheckIntervalSeconds = 5;
 
     /// <summary>
+    /// Interval for checking schedule changes when near the end of a slot.
+    /// Checks every second for precise schedule ending.
+    /// </summary>
+    private const int ScheduleCheckNearEndIntervalSeconds = 1;
+
+    /// <summary>
+    /// When remaining time is less than this threshold, switch to near-end polling.
+    /// </summary>
+    private const int NearEndThresholdSeconds = 30;
+
+    /// <summary>
     /// Tracks the currently active schedule slot to detect changes.
     /// Uses DayOfWeek+StartTime+EndTime+PlaylistId so even the same playlist
     /// in different time slots triggers a proper reload and queue clear.
@@ -161,23 +172,11 @@ public class RadioStreamingHostedService : BackgroundService
 
                 if (activeEntry == null || string.IsNullOrEmpty(activeEntry.PlaylistId))
                 {
-                    // No active schedule - skip current track and clear queue if we were streaming
+                    // No active schedule - clear queue and skip current track if we were streaming
                     if (_state.IsStreaming)
                     {
-                        _logger.LogInformation("No active schedule, skipping current track and clearing Liquidsoap queue");
-                        try
-                        {
-                            await _liquidsoapClient.SkipAsync().ConfigureAwait(false);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to skip current track");
-                        }
-
-                        await Task.Delay(500, stoppingToken).ConfigureAwait(false);
-                        await RetryClearQueueAsync().ConfigureAwait(false);
-                        _state.IsStreaming = false;
-                        _currentScheduleKey = null;
+                        _logger.LogInformation("No active schedule, clearing Liquidsoap queue and skipping current track");
+                        await StopCurrentStreamingAsync(stoppingToken).ConfigureAwait(false);
                     }
 
                     // Wait until next schedule
@@ -215,21 +214,41 @@ public class RadioStreamingHostedService : BackgroundService
                     var remaining = _scheduleManager.GetRemainingTimeInSlot(activeEntry);
                     if (remaining <= TimeSpan.Zero)
                     {
-                        _logger.LogInformation("Schedule time slot ended, skipping and clearing queue");
-                        try
-                        {
-                            await _liquidsoapClient.SkipAsync().ConfigureAwait(false);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to skip current track");
-                        }
+                        _logger.LogInformation("Schedule time slot ended, clearing queue and skipping current track");
+                        await StopCurrentStreamingAsync(stoppingToken).ConfigureAwait(false);
 
-                        await Task.Delay(500, stoppingToken).ConfigureAwait(false);
-                        await RetryClearQueueAsync().ConfigureAwait(false);
-                        _state.IsStreaming = false;
-                        _currentScheduleKey = null;
+                        // If there's a next schedule starting now, immediately process it
+                        var nextEntry = _scheduleManager.GetActiveScheduleEntry(config.ScheduleEntries);
+                        if (nextEntry != null && !string.IsNullOrEmpty(nextEntry.PlaylistId))
+                        {
+                            var nextKey = BuildScheduleKey(nextEntry);
+                            _logger.LogInformation("Next schedule immediately active: \"{Name}\"", nextEntry.DisplayName);
+                            await LoadPlaylistToLiquidsoapAsync(config, nextEntry, nextKey, stoppingToken).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            // No next schedule - wait with appropriate interval
+                            var timeUntil = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
+                            if (timeUntil.HasValue && timeUntil.Value < TimeSpan.FromMinutes(5))
+                            {
+                                _logger.LogInformation("Next schedule in {Minutes:F0} min", timeUntil.Value.TotalMinutes);
+                                await Task.Delay(timeUntil.Value, stoppingToken).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                await Task.Delay(TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds), stoppingToken).ConfigureAwait(false);
+                            }
+                        }
+                        continue;
                     }
+
+                    // Use near-end polling when close to schedule end for precise timing
+                    var pollInterval = remaining < TimeSpan.FromSeconds(NearEndThresholdSeconds)
+                        ? TimeSpan.FromSeconds(ScheduleCheckNearEndIntervalSeconds)
+                        : TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds);
+
+                    await Task.Delay(pollInterval, stoppingToken).ConfigureAwait(false);
+                    continue;
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds), stoppingToken).ConfigureAwait(false);
@@ -241,6 +260,17 @@ public class RadioStreamingHostedService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Streaming cycle error, retrying in 15s");
+
+                // Clear queue on error to prevent orphaned tracks from playing
+                try
+                {
+                    await RetryClearQueueAsync().ConfigureAwait(false);
+                }
+                catch (Exception clearEx)
+                {
+                    _logger.LogWarning(clearEx, "Failed to clear queue after cycle error");
+                }
+
                 _state.IsStreaming = false;
                 _currentScheduleKey = null;
                 try
@@ -335,9 +365,13 @@ public class RadioStreamingHostedService : BackgroundService
             activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime,
             liquidsoapPaths.Length, activeEntry.ShufflePlayback ? " [SHUFFLE]" : "");
 
-        // Skip current track if streaming to trigger crossfade transition
+        // Clear queue first, then skip current track
+        // IMPORTANT: clear BEFORE skip so that skip falls through to fallback (off-air)
+        // If we skip first, Liquidsoap starts the next queued track before clear removes it
         if (_state.IsStreaming)
         {
+            await RetryClearQueueAsync().ConfigureAwait(false);
+
             try
             {
                 await _liquidsoapClient.SkipAsync().ConfigureAwait(false);
@@ -349,8 +383,10 @@ public class RadioStreamingHostedService : BackgroundService
 
             await Task.Delay(500, cancellationToken).ConfigureAwait(false);
         }
-
-        await RetryClearQueueAsync().ConfigureAwait(false);
+        else
+        {
+            await RetryClearQueueAsync().ConfigureAwait(false);
+        }
 
         var added = await _liquidsoapClient.AppendTracksAsync(liquidsoapPaths, cancellationToken).ConfigureAwait(false);
 
@@ -376,6 +412,46 @@ public class RadioStreamingHostedService : BackgroundService
     private static string BuildScheduleKey(ScheduleEntry entry)
     {
         return $"{entry.DayOfWeek}|{entry.StartTime}|{entry.EndTime}|{entry.PlaylistId}";
+    }
+
+    /// <summary>
+    /// Stops the current streaming by clearing the Liquidsoap queue and skipping the current track.
+    /// IMPORTANT: Clears the queue BEFORE skipping so that skip falls through to fallback.
+    /// </summary>
+    private async Task StopCurrentStreamingAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Step 1: Clear all queued tracks first (except currently playing)
+            await RetryClearQueueAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clear queue during stop");
+        }
+
+        // Step 2: Wait for Liquidsoap to process the clear
+        try
+        {
+            await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Continue with skip even if cancelled
+        }
+
+        // Step 3: Skip current track → empty queue → falls back to off-air with crossfade
+        try
+        {
+            await _liquidsoapClient.SkipAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to skip current track during stop");
+        }
+
+        _state.IsStreaming = false;
+        _currentScheduleKey = null;
     }
 
     /// <summary>
