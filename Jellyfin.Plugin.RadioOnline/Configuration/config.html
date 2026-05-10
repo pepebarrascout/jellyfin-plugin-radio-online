@@ -70,6 +70,17 @@
                         </div>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" id="roReportPlayback" is="emby-checkbox" />
+                            <span>Reportar reproducciones a estadisticas de Jellyfin</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            Cuenta cada cancion reproducida en la radio dentro de las estadisticas de Jellyfin.
+                            Permite crear listas inteligentes (mas escuchados, menos escuchados, recientemente reproducidos, etc.).
+                        </div>
+                    </div>
+
                     <button type="button" is="emby-button" class="raised button-submit" id="roBtnSave"><span>Guardar Configuracion</span></button>
                 </div>
             </div>
@@ -364,6 +375,7 @@
             s('roMusicPath', gv('LiquidsoapMusicPath')||'/music');
             s('roUserId', gv('JellyfinUserId')||'');
             var ee=document.getElementById('roEnabled'); if(ee) ee.checked=!!gv('IsEnabled');
+            var rp=document.getElementById('roReportPlayback'); if(rp) rp.checked=!!gv('EnablePlaybackReporting');
         }
 
         function readForm(){
@@ -373,6 +385,7 @@
             sv('JellyfinMediaPath', g('roMediaPath')||'/media');
             sv('LiquidsoapMusicPath', g('roMusicPath')||'/music');
             sv('IsEnabled', document.getElementById('roEnabled')?document.getElementById('roEnabled').checked:false);
+            sv('EnablePlaybackReporting', document.getElementById('roReportPlayback')?document.getElementById('roReportPlayback').checked:true);
             sv('JellyfinUserId', document.getElementById('roUserId')?document.getElementById('roUserId').value:'');
         }
 

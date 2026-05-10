@@ -57,4 +57,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the Jellyfin user ID used for library access.
     /// </summary>
     public string JellyfinUserId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets whether to report track plays to Jellyfin statistics.
+    /// When enabled, each track played on the radio increments the PlayCount
+    /// and updates LastPlayedDate, enabling smart playlists (most played, least played, etc.).
+    /// </summary>
+    public bool EnablePlaybackReporting { get; set; } = true;
 }

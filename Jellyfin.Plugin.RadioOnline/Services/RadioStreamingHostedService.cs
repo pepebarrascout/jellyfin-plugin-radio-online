@@ -4,6 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.RadioOnline.Configuration;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Audio;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -23,6 +27,8 @@ public class RadioStreamingHostedService : BackgroundService
     private readonly ScheduleManagerService _scheduleManager;
     private readonly AudioProviderService _audioProvider;
     private readonly RadioStateService _state;
+    private readonly IUserDataManager _userDataManager;
+    private readonly IUserManager _userManager;
 
     /// <summary>
     /// Interval for checking schedule changes while streaming.
@@ -39,6 +45,11 @@ public class RadioStreamingHostedService : BackgroundService
     /// When remaining time is less than this threshold, switch to near-end polling.
     /// </summary>
     private const int NearEndThresholdSeconds = 30;
+
+    /// <summary>
+    /// Interval for checking the current track in Liquidsoap for playback reporting.
+    /// </summary>
+    private const int PlaybackReportIntervalSeconds = 10;
 
     /// <summary>
     /// Tracks the currently active schedule slot to detect changes.
@@ -58,6 +69,24 @@ public class RadioStreamingHostedService : BackgroundService
     private bool _warnedLiquidsoapDown;
 
     /// <summary>
+    /// Maps Liquidsoap file paths to Jellyfin Audio items for playback reporting.
+    /// Built when a playlist is loaded and cleared when streaming stops.
+    /// Key: Liquidsoap path (e.g., /music/Album/song.mp3)
+    /// Value: The corresponding Jellyfin Audio item with Id for statistics.
+    /// </summary>
+    private Dictionary<string, Audio> _pathToItemMap = new();
+
+    /// <summary>
+    /// Tracks the last reported track path to avoid duplicate play count increments.
+    /// </summary>
+    private string? _lastReportedTrackPath;
+
+    /// <summary>
+    /// Tracks the last time we checked the current track for playback reporting.
+    /// </summary>
+    private DateTime _lastPlaybackReportCheck = DateTime.MinValue;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="RadioStreamingHostedService"/> class.
     /// </summary>
     public RadioStreamingHostedService(
@@ -65,13 +94,17 @@ public class RadioStreamingHostedService : BackgroundService
         LiquidsoapClient liquidsoapClient,
         ScheduleManagerService scheduleManager,
         AudioProviderService audioProvider,
-        RadioStateService state)
+        RadioStateService state,
+        IUserDataManager userDataManager,
+        IUserManager userManager)
     {
         _logger = logger;
         _liquidsoapClient = liquidsoapClient;
         _scheduleManager = scheduleManager;
         _audioProvider = audioProvider;
         _state = state;
+        _userDataManager = userDataManager;
+        _userManager = userManager;
     }
 
     /// <summary>
@@ -179,6 +212,10 @@ public class RadioStreamingHostedService : BackgroundService
                         await StopCurrentStreamingAsync(stoppingToken).ConfigureAwait(false);
                     }
 
+                    // Reset playback reporting state
+                    _lastReportedTrackPath = null;
+                    _pathToItemMap.Clear();
+
                     // Wait until next schedule
                     var timeUntil = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
                     if (timeUntil.HasValue && timeUntil.Value < TimeSpan.FromMinutes(5))
@@ -247,6 +284,14 @@ public class RadioStreamingHostedService : BackgroundService
                         ? TimeSpan.FromSeconds(ScheduleCheckNearEndIntervalSeconds)
                         : TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds);
 
+                    // Check current track for playback reporting (independent of schedule polling)
+                    if (config.EnablePlaybackReporting &&
+                        (DateTime.UtcNow - _lastPlaybackReportCheck).TotalSeconds >= PlaybackReportIntervalSeconds)
+                    {
+                        _lastPlaybackReportCheck = DateTime.UtcNow;
+                        await CheckAndReportPlaybackAsync(config).ConfigureAwait(false);
+                    }
+
                     await Task.Delay(pollInterval, stoppingToken).ConfigureAwait(false);
                     continue;
                 }
@@ -273,6 +318,8 @@ public class RadioStreamingHostedService : BackgroundService
 
                 _state.IsStreaming = false;
                 _currentScheduleKey = null;
+                _lastReportedTrackPath = null;
+                _pathToItemMap.Clear();
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -320,13 +367,17 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
-        // Collect valid file paths
+        // Collect valid file paths and build Jellyfin path -> Audio item mapping
         var filePaths = new List<string>();
+        var jellyfinPathMap = new Dictionary<string, Audio>();
         foreach (var item in playlistItems)
         {
             var path = _audioProvider.GetAudioFilePath(item);
             if (path != null)
+            {
                 filePaths.Add(path);
+                jellyfinPathMap[path] = item;
+            }
         }
 
         if (filePaths.Count == 0)
@@ -345,11 +396,19 @@ public class RadioStreamingHostedService : BackgroundService
         }
 
         // Translate paths: Jellyfin path -> Liquidsoap path
-        var liquidsoapPaths = filePaths
-            .Select(p => TranslatePath(p, config))
-            .Where(p => p != null)
-            .Cast<string>()
-            .ToArray();
+        // Also build Liquidsoap path -> Audio item map for playback reporting
+        _pathToItemMap.Clear();
+        var liquidsoapPathsList = new List<string>();
+        foreach (var jellyfinPath in filePaths)
+        {
+            var liqPath = TranslatePath(jellyfinPath, config);
+            if (liqPath != null)
+            {
+                liquidsoapPathsList.Add(liqPath);
+                _pathToItemMap[liqPath] = jellyfinPathMap[jellyfinPath];
+            }
+        }
+        var liquidsoapPaths = liquidsoapPathsList.ToArray();
 
         if (liquidsoapPaths.Length == 0)
         {
@@ -393,6 +452,10 @@ public class RadioStreamingHostedService : BackgroundService
         _currentScheduleKey = scheduleKey;
         _state.IsStreaming = added > 0;
 
+        // Reset playback tracking for new playlist
+        _lastReportedTrackPath = null;
+        _lastPlaybackReportCheck = DateTime.UtcNow;
+
         if (added > 0)
         {
             _logger.LogInformation(
@@ -402,6 +465,101 @@ public class RadioStreamingHostedService : BackgroundService
         else
         {
             _logger.LogError("Failed to queue any tracks for \"{Name}\"", activeEntry.DisplayName);
+        }
+    }
+
+    /// <summary>
+    /// Checks the currently playing track in Liquidsoap and reports it to Jellyfin statistics
+    /// if it has changed since the last report. Only reports once per track.
+    /// </summary>
+    private async Task CheckAndReportPlaybackAsync(PluginConfiguration config)
+    {
+        try
+        {
+            var currentTrack = await _liquidsoapClient.GetCurrentTrackAsync().ConfigureAwait(false);
+
+            // Skip if nothing playing, off-air, or same as last reported
+            if (string.IsNullOrEmpty(currentTrack) ||
+                currentTrack.Equals("none", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            // Filter out off-air audio and fallback sources
+            if (currentTrack.EndsWith("offair.ogg", StringComparison.OrdinalIgnoreCase) ||
+                currentTrack.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (string.Equals(currentTrack, _lastReportedTrackPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _lastReportedTrackPath = currentTrack;
+            await ReportPlaybackToJellyfinAsync(currentTrack, config).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Playback reporting check failed (non-critical)");
+        }
+    }
+
+    /// <summary>
+    /// Reports a track play to Jellyfin's user data system.
+    /// Increments PlayCount, sets Played=true, and updates LastPlayedDate.
+    /// This feeds into Jellyfin's statistics for smart playlists.
+    /// </summary>
+    private async Task ReportPlaybackToJellyfinAsync(string liquidsoapPath, PluginConfiguration config)
+    {
+        if (!_pathToItemMap.TryGetValue(liquidsoapPath, out var audioItem))
+        {
+            _logger.LogDebug("Current track not in playlist map: {Path}", liquidsoapPath);
+            return;
+        }
+
+        if (!Guid.TryParse(config.JellyfinUserId, out var userId))
+        {
+            _logger.LogWarning("Invalid user ID for playback reporting");
+            return;
+        }
+
+        var user = _userManager.GetUserById(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("User not found for playback reporting: {UserId}", userId);
+            return;
+        }
+
+        try
+        {
+            var userData = _userDataManager.GetUserData(user, audioItem);
+            if (userData == null)
+            {
+                _logger.LogWarning("Could not get user data for {ItemName}", audioItem.Name);
+                return;
+            }
+
+            userData.PlayCount++;
+            userData.LastPlayedDate = DateTime.UtcNow;
+            userData.Played = true;
+
+            _userDataManager.SaveUserData(user, audioItem, userData, UserDataSaveReason.PlaybackFinished, CancellationToken.None);
+
+            await Task.CompletedTask.ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Reported playback: {Artist} - {Title} (PlayCount: {Count})",
+                audioItem.Artists != null && audioItem.Artists.Count > 0
+                    ? string.Join(", ", audioItem.Artists)
+                    : "Unknown Artist",
+                audioItem.Name ?? "Unknown",
+                userData.PlayCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to report playback for {ItemName}", audioItem.Name);
         }
     }
 

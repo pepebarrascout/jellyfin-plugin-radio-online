@@ -144,6 +144,17 @@ public class LiquidsoapClient : IDisposable
     }
 
     /// <summary>
+    /// Gets the file path of the currently playing track from Liquidsoap.
+    /// Returns the Liquidsoap path (e.g., /music/Album/song.mp3) or "none" if nothing is playing.
+    /// </summary>
+    /// <returns>The file path of the current track, or empty string on failure.</returns>
+    public async Task<string> GetCurrentTrackAsync()
+    {
+        var response = await SendCommandAsync("queue.current_track").ConfigureAwait(false);
+        return response.Trim();
+    }
+
+    /// <summary>
     /// Tests the connection to the Liquidsoap server.
     /// </summary>
     /// <returns>True if the connection is working.</returns>
