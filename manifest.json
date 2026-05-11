@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
-        "version": "0.0.0.30",
-        "changelog": "FIX: PlayCount duplicate issue resolved - removed manual userData.PlayCount++ that conflicted with Jellyfin's internal playback event handler. Now relies exclusively on ISessionManager events (OnPlaybackStart/OnPlaybackStopped) for PlayCount and LastPlayedDate updates, ensuring each track is counted exactly once\nFIX: PlaybackStopped now reports positionTicks equal to the track's full runtime, ensuring Jellyfin always marks the track as PlayedToCompletion (triggers scrobble and PlayCount)\nIMPROVE: Removed IUserDataManager dependency from streaming service - simpler architecture, single source of truth for playback stats\nREMAIN: Virtual playback session via ISessionManager still active - radio appears as client in Jellyfin dashboard, scrobbling plugins detect activity",
+        "version": "0.0.0.31",
+        "changelog": "FIX: PlayCount duplicate issue resolved (v2) - verified DLL contains correct code with no manual PlayCount++\nFIX: PlaybackStopped now reports positionTicks equal to track's full runtime for PlayedToCompletion\nFIX: Diagnostic logging added - startup shows version, PlaybackStopped shows ItemId and PositionTicks\nIMPROVE: Removed IUserDataManager dependency - single source of truth for playback stats via ISessionManager",
         "targetAbi": "10.11.8.0",
-        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.30/jellyfin-plugin-radio-online_0.0.0.30.zip",
-        "checksum": "c8bda767382a0ffcdbdddefcda4d6255",
-        "timestamp": "2026-05-12T06:00:00Z"
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.31/jellyfin-plugin-radio-online_0.0.0.31.zip",
+        "checksum": "02bf36d2813df01bd2181406a51065b2",
+        "timestamp": "2026-05-12T07:00:00Z"
       },
       {
         "version": "0.0.0.29",

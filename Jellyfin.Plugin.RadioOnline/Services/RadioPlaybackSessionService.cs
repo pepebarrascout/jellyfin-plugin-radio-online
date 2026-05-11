@@ -219,9 +219,9 @@ public class RadioPlaybackSessionService
             };
 
             await _sessionManager.OnPlaybackStopped(stopInfo).ConfigureAwait(false);
-            _logger.LogDebug(
-                "Session playback stopped (PlaySessionId: {PlaySessionId})",
-                _currentPlaySessionId);
+            _logger.LogInformation(
+                "Session playback stopped: ItemId={ItemId}, PositionTicks={PositionTicks}, PlaySessionId={PlaySessionId}",
+                _currentItemId, _currentItemRunTimeTicks, _currentPlaySessionId);
         }
         catch (Exception ex)
         {

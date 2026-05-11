@@ -135,7 +135,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started (Liquidsoap mode)");
+        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.31 — PlayCount via ISessionManager only (no manual UserData)");
 
         // Wait for Jellyfin to fully initialize
         try
