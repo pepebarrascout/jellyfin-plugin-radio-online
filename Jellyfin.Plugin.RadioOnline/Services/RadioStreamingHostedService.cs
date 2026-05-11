@@ -4,11 +4,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.RadioOnline.Configuration;
-using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
-using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -26,7 +24,6 @@ public class RadioStreamingHostedService : BackgroundService
     private readonly ScheduleManagerService _scheduleManager;
     private readonly AudioProviderService _audioProvider;
     private readonly RadioStateService _state;
-    private readonly IUserDataManager _userDataManager;
     private readonly IUserManager _userManager;
     private readonly RadioPlaybackSessionService _playbackSession;
 
@@ -121,7 +118,6 @@ public class RadioStreamingHostedService : BackgroundService
         ScheduleManagerService scheduleManager,
         AudioProviderService audioProvider,
         RadioStateService state,
-        IUserDataManager userDataManager,
         IUserManager userManager,
         RadioPlaybackSessionService playbackSession)
     {
@@ -130,7 +126,6 @@ public class RadioStreamingHostedService : BackgroundService
         _scheduleManager = scheduleManager;
         _audioProvider = audioProvider;
         _state = state;
-        _userDataManager = userDataManager;
         _userManager = userManager;
         _playbackSession = playbackSession;
     }
@@ -614,7 +609,8 @@ public class RadioStreamingHostedService : BackgroundService
     /// Creates a virtual session (if not yet active) and fires PlaybackStart/PlaybackStopped events.
     /// This makes the radio appear as an active client in Jellyfin's dashboard and triggers
     /// scrobbling plugins (Last.fm, ListenBrainz) to detect the playback activity.
-    /// Also increments PlayCount and updates LastPlayedDate via UserData as before.
+    /// PlayCount, LastPlayedDate and scrobbling are all handled by Jellyfin's internal
+    /// playback event handlers (OnPlaybackStart / OnPlaybackStopped) — no manual UserData needed.
     /// </summary>
     private async Task ReportTrackPlaybackAsync(Audio audioItem, PluginConfiguration config)
     {
@@ -638,30 +634,17 @@ public class RadioStreamingHostedService : BackgroundService
             if (sessionReady)
             {
                 // Fire PlaybackStart event (now-playing in dashboard + scrobble registration)
+                // On track change, this automatically stops the previous track (PlaybackStopped),
+                // which triggers Jellyfin's internal PlayCount++ for the previous track.
                 await _playbackSession.ReportPlaybackStartAsync(audioItem).ConfigureAwait(false);
             }
 
-            // Also update UserData directly (PlayCount++, LastPlayedDate) for smart playlists
-            var userData = _userDataManager.GetUserData(user, audioItem);
-            if (userData == null)
-            {
-                _logger.LogWarning("Could not get user data for {ItemName}", audioItem.Name);
-                return;
-            }
-
-            userData.PlayCount++;
-            userData.LastPlayedDate = DateTime.UtcNow;
-            userData.Played = true;
-
-            _userDataManager.SaveUserData(user, audioItem, userData, UserDataSaveReason.PlaybackFinished, CancellationToken.None);
-
             _logger.LogInformation(
-                "Reported playback: {Artist} - {Title} (PlayCount: {Count})",
+                "Reported playback start: {Artist} - {Title}",
                 audioItem.Artists != null && audioItem.Artists.Count > 0
                     ? string.Join(", ", audioItem.Artists)
                     : "Unknown Artist",
-                audioItem.Name ?? "Unknown",
-                userData.PlayCount);
+                audioItem.Name ?? "Unknown");
         }
         catch (Exception ex)
         {

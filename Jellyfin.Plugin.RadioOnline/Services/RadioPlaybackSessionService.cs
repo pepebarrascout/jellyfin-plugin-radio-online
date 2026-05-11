@@ -59,6 +59,13 @@ public class RadioPlaybackSessionService
     private bool _isPlaying;
 
     /// <summary>
+    /// The runtime ticks of the currently playing item.
+    /// Stored on PlaybackStart so that PlaybackStopped can report positionTicks = runtime,
+    /// ensuring Jellyfin considers the track as PlayedToCompletion (triggers PlayCount++ and scrobble).
+    /// </summary>
+    private long _currentItemRunTimeTicks;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="RadioPlaybackSessionService"/> class.
     /// </summary>
     public RadioPlaybackSessionService(
@@ -130,6 +137,7 @@ public class RadioPlaybackSessionService
     ///   - Playback start notification to all connected clients
     ///
     /// Automatically stops the previous track if one was playing.
+    /// Stores the item's RunTimeTicks for later use in PlaybackStopped.
     /// </summary>
     /// <param name="audioItem">The audio item being played.</param>
     public async Task ReportPlaybackStartAsync(Audio audioItem)
@@ -143,13 +151,16 @@ public class RadioPlaybackSessionService
         // Stop the previous track first (if any)
         if (_isPlaying && _currentItemId != Guid.Empty)
         {
-            await ReportPlaybackStoppedAsync(positionTicks: null).ConfigureAwait(false);
+            await ReportPlaybackStoppedAsync().ConfigureAwait(false);
         }
 
         try
         {
             _currentPlaySessionId = Guid.NewGuid().ToString("N");
             _currentItemId = audioItem.Id;
+            _currentItemRunTimeTicks = audioItem.RunTimeTicks.HasValue && audioItem.RunTimeTicks.Value > 0
+                ? audioItem.RunTimeTicks.Value
+                : TimeSpan.FromMinutes(3).Ticks;
 
             var startInfo = new PlaybackStartInfo
             {
@@ -185,17 +196,12 @@ public class RadioPlaybackSessionService
 
     /// <summary>
     /// Reports that a track has stopped playing on the radio.
-    /// Fires Jellyfin's PlaybackStopped event with PlayedToCompletion=true,
-    /// which triggers the actual scrobble (submit to Last.fm / ListenBrainz).
-    ///
-    /// If positionTicks is null, the full runtime of the track is used,
-    /// ensuring PlayedToCompletion is always true for radio playback.
+    /// Fires Jellyfin's PlaybackStopped event with positionTicks set to the item's
+    /// full runtime, ensuring Jellyfin considers it PlayedToCompletion.
+    /// This triggers both PlayCount++ (via Jellyfin's internal handler) and scrobble
+    /// submission to Last.fm / ListenBrainz.
     /// </summary>
-    /// <param name="positionTicks">
-    /// The position where playback stopped. If null, uses the item's full runtime
-    /// to ensure PlayedToCompletion=true for scrobbling.
-    /// </param>
-    public async Task ReportPlaybackStoppedAsync(long? positionTicks = null)
+    public async Task ReportPlaybackStoppedAsync()
     {
         if (_session == null || !_isPlaying || _currentItemId == Guid.Empty)
             return;
@@ -206,7 +212,7 @@ public class RadioPlaybackSessionService
             {
                 ItemId = _currentItemId,
                 SessionId = _session.Id,
-                PositionTicks = positionTicks,
+                PositionTicks = _currentItemRunTimeTicks,
                 Failed = false,
                 MediaSourceId = _currentItemId.ToString("N"),
                 PlaySessionId = _currentPlaySessionId
@@ -226,6 +232,7 @@ public class RadioPlaybackSessionService
             _isPlaying = false;
             _currentItemId = Guid.Empty;
             _currentPlaySessionId = string.Empty;
+            _currentItemRunTimeTicks = 0;
         }
     }
 
@@ -239,7 +246,7 @@ public class RadioPlaybackSessionService
         // Stop any currently playing track
         if (_isPlaying)
         {
-            await ReportPlaybackStoppedAsync(positionTicks: null).ConfigureAwait(false);
+            await ReportPlaybackStoppedAsync().ConfigureAwait(false);
         }
 
         // End the session itself
