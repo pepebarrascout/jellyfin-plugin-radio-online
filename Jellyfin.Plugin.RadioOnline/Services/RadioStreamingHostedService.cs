@@ -7,6 +7,7 @@ using Jellyfin.Plugin.RadioOnline.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,7 @@ public class RadioStreamingHostedService : BackgroundService
     private readonly RadioStateService _state;
     private readonly IUserDataManager _userDataManager;
     private readonly IUserManager _userManager;
+    private readonly RadioPlaybackSessionService _playbackSession;
 
     /// <summary>
     /// Interval for checking schedule changes while streaming.
@@ -120,7 +122,8 @@ public class RadioStreamingHostedService : BackgroundService
         AudioProviderService audioProvider,
         RadioStateService state,
         IUserDataManager userDataManager,
-        IUserManager userManager)
+        IUserManager userManager,
+        RadioPlaybackSessionService playbackSession)
     {
         _logger = logger;
         _liquidsoapClient = liquidsoapClient;
@@ -129,6 +132,7 @@ public class RadioStreamingHostedService : BackgroundService
         _state = state;
         _userDataManager = userDataManager;
         _userManager = userManager;
+        _playbackSession = playbackSession;
     }
 
     /// <summary>
@@ -165,6 +169,7 @@ public class RadioStreamingHostedService : BackgroundService
 
                         await RetryClearQueueAsync().ConfigureAwait(false);
                         _liquidsoapClient.Disconnect();
+                        await _playbackSession.EndSessionAsync().ConfigureAwait(false);
                     }
 
                     _state.IsStreaming = false;
@@ -373,6 +378,7 @@ public class RadioStreamingHostedService : BackgroundService
         catch { }
 
         _liquidsoapClient.Disconnect();
+        await _playbackSession.EndSessionAsync().ConfigureAwait(false);
         _state.IsStreaming = false;
         _currentScheduleKey = null;
         _logger.LogInformation("Radio Online service stopped");
@@ -506,7 +512,7 @@ public class RadioStreamingHostedService : BackgroundService
             if (config.EnablePlaybackReporting)
             {
                 _lastReportedTrackIndex = 0;
-                await ReportPlaybackToJellyfinAsync(_playlistTracks[0].AudioItem, config).ConfigureAwait(false);
+                await ReportTrackPlaybackAsync(_playlistTracks[0].AudioItem, config).ConfigureAwait(false);
             }
         }
         else
@@ -575,7 +581,7 @@ public class RadioStreamingHostedService : BackgroundService
         if (config.EnablePlaybackReporting && nextIndex != _lastReportedTrackIndex)
         {
             _lastReportedTrackIndex = nextIndex;
-            await ReportPlaybackToJellyfinAsync(_playlistTracks[nextIndex].AudioItem, config).ConfigureAwait(false);
+            await ReportTrackPlaybackAsync(_playlistTracks[nextIndex].AudioItem, config).ConfigureAwait(false);
         }
 
         // Try to buffer one more track ahead (best-effort, non-blocking)
@@ -604,10 +610,13 @@ public class RadioStreamingHostedService : BackgroundService
     }
 
     /// <summary>
-    /// Reports a track play to Jellyfin's user data system.
-    /// Increments PlayCount, sets Played=true, and updates LastPlayedDate.
+    /// Reports a track play to Jellyfin's playback session system.
+    /// Creates a virtual session (if not yet active) and fires PlaybackStart/PlaybackStopped events.
+    /// This makes the radio appear as an active client in Jellyfin's dashboard and triggers
+    /// scrobbling plugins (Last.fm, ListenBrainz) to detect the playback activity.
+    /// Also increments PlayCount and updates LastPlayedDate via UserData as before.
     /// </summary>
-    private async Task ReportPlaybackToJellyfinAsync(Audio audioItem, PluginConfiguration config)
+    private async Task ReportTrackPlaybackAsync(Audio audioItem, PluginConfiguration config)
     {
         if (!Guid.TryParse(config.JellyfinUserId, out var userId))
         {
@@ -624,6 +633,15 @@ public class RadioStreamingHostedService : BackgroundService
 
         try
         {
+            // Ensure virtual session exists (creates or reuses)
+            var sessionReady = await _playbackSession.EnsureSessionAsync(user).ConfigureAwait(false);
+            if (sessionReady)
+            {
+                // Fire PlaybackStart event (now-playing in dashboard + scrobble registration)
+                await _playbackSession.ReportPlaybackStartAsync(audioItem).ConfigureAwait(false);
+            }
+
+            // Also update UserData directly (PlayCount++, LastPlayedDate) for smart playlists
             var userData = _userDataManager.GetUserData(user, audioItem);
             if (userData == null)
             {
@@ -636,8 +654,6 @@ public class RadioStreamingHostedService : BackgroundService
             userData.Played = true;
 
             _userDataManager.SaveUserData(user, audioItem, userData, UserDataSaveReason.PlaybackFinished, CancellationToken.None);
-
-            await Task.CompletedTask.ConfigureAwait(false);
 
             _logger.LogInformation(
                 "Reported playback: {Artist} - {Title} (PlayCount: {Count})",
@@ -814,6 +830,7 @@ public class RadioStreamingHostedService : BackgroundService
         }
         catch { }
 
+        await _playbackSession.EndSessionAsync().ConfigureAwait(false);
         _liquidsoapClient.Disconnect();
         _state.IsStreaming = false;
         _currentScheduleKey = null;

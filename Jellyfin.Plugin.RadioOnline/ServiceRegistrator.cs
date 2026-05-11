@@ -32,6 +32,9 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         // Audio provider (retrieves playlists from Jellyfin library)
         serviceCollection.AddSingleton<AudioProviderService>();
 
+        // Virtual playback session (makes radio appear as active client for scrobbling)
+        serviceCollection.AddSingleton<RadioPlaybackSessionService>();
+
         // Scheduled task (dashboard visibility)
         serviceCollection.AddSingleton<IScheduledTask, RadioSchedulerTask>();
     }
