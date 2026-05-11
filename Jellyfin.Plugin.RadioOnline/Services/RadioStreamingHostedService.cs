@@ -89,6 +89,18 @@ public class RadioStreamingHostedService : BackgroundService
     private int _currentTrackIndex = -1;
 
     /// <summary>
+    /// Index of the last track successfully queued in Liquidsoap.
+    /// Used to ensure we only advance to tracks that are confirmed in the queue.
+    /// </summary>
+    private int _lastQueuedTrackIndex = -1;
+
+    /// <summary>
+    /// Index of the last track that was reported to Jellyfin.
+    /// Prevents double-reporting when advance is called multiple times for the same track.
+    /// </summary>
+    private int _lastReportedTrackIndex = -1;
+
+    /// <summary>
     /// When the current track started playing (approximately).
     /// </summary>
     private DateTime _currentTrackStartedAt;
@@ -286,7 +298,14 @@ public class RadioStreamingHostedService : BackgroundService
                     // Advance to next track if current is about to end (always, regardless of reporting)
                     if (_trackReportingActive)
                     {
-                        await AdvanceTrackAsync(config).ConfigureAwait(false);
+                        try
+                        {
+                            await AdvanceTrackAsync(config).ConfigureAwait(false);
+                        }
+                        catch (Exception advanceEx)
+                        {
+                            _logger.LogWarning(advanceEx, "Track advance error, will retry next cycle");
+                        }
                     }
 
                     // Determine poll interval
@@ -475,6 +494,7 @@ public class RadioStreamingHostedService : BackgroundService
         if (added > 0)
         {
             _currentTrackIndex = 0;
+            _lastQueuedTrackIndex = added - 1;
             _currentTrackStartedAt = DateTime.UtcNow;
             _trackReportingActive = true;
 
@@ -482,9 +502,10 @@ public class RadioStreamingHostedService : BackgroundService
                 "Queued {Added}/{Total} initial tracks for \"{Name}\" (one-by-one mode with buffer)",
                 added, _playlistTracks.Length, activeEntry.DisplayName);
 
-            // Report first track immediately
+            // Report first track immediately (only once)
             if (config.EnablePlaybackReporting)
             {
+                _lastReportedTrackIndex = 0;
                 await ReportPlaybackToJellyfinAsync(_playlistTracks[0].AudioItem, config).ConfigureAwait(false);
             }
         }
@@ -497,7 +518,11 @@ public class RadioStreamingHostedService : BackgroundService
 
     /// <summary>
     /// Advances to the next track in the playlist when the current one is about to end.
-    /// Sends the next track as buffer and reports the now-playing track.
+    /// Key design principles:
+    ///   - Index only advances when the next track is confirmed queued in Liquidsoap.
+    ///   - If queuing fails, the same track is retried on the next cycle (never skipped).
+    ///   - Tracks are only reported once (tracked via _lastReportedTrackIndex).
+    ///   - Always maintains at least 1 buffered track ahead in the queue.
     /// </summary>
     private async Task AdvanceTrackAsync(PluginConfiguration config)
     {
@@ -509,46 +534,70 @@ public class RadioStreamingHostedService : BackgroundService
         var trackRemaining = current.Duration - elapsed;
 
         // Time to advance? (current track about to end)
+        // Use negative threshold to allow multiple attempts if needed
         if (trackRemaining > TimeSpan.FromSeconds(TrackAdvanceMarginSeconds))
             return;
 
-        // Advance to next track
         var nextIndex = _currentTrackIndex + 1;
 
         if (nextIndex >= _playlistTracks.Length)
         {
-            // All tracks have been sent - no more to buffer
-            // The last track is still playing, just stop tracking new sends
             _trackReportingActive = false;
-            _logger.LogInformation("All {Count} tracks buffered for current playlist", _playlistTracks.Length);
+            _logger.LogInformation("All {Count} tracks processed for current playlist", _playlistTracks.Length);
             return;
         }
 
+        // Ensure the next track is queued in Liquidsoap BEFORE advancing the index
+        // This is the key guarantee: index only moves when the track is confirmed
+        if (nextIndex > _lastQueuedTrackIndex)
+        {
+            var nextTrack = _playlistTracks[nextIndex];
+            if (await _liquidsoapClient.AppendTrackAsync(nextTrack.LiquidsoapPath).ConfigureAwait(false))
+            {
+                _lastQueuedTrackIndex = nextIndex;
+                _logger.LogInformation("Queued track {Index}/{Total}: {Path}",
+                    nextIndex + 1, _playlistTracks.Length, nextTrack.LiquidsoapPath);
+            }
+            else
+            {
+                // Failed to queue - do NOT advance, retry next cycle (never skip)
+                _logger.LogWarning("Failed to queue track {Index}/{Total}, retrying next cycle",
+                    nextIndex + 1, _playlistTracks.Length);
+                return;
+            }
+        }
+
+        // Next track is confirmed in queue — now advance the index
         _currentTrackIndex = nextIndex;
         _currentTrackStartedAt = DateTime.UtcNow;
 
-        var nextTrack = _playlistTracks[_currentTrackIndex];
-
-        // Report the now-playing track (it was already in the buffer)
-        if (config.EnablePlaybackReporting)
+        // Report the now-playing track (only once)
+        if (config.EnablePlaybackReporting && nextIndex != _lastReportedTrackIndex)
         {
-            await ReportPlaybackToJellyfinAsync(nextTrack.AudioItem, config).ConfigureAwait(false);
+            _lastReportedTrackIndex = nextIndex;
+            await ReportPlaybackToJellyfinAsync(_playlistTracks[nextIndex].AudioItem, config).ConfigureAwait(false);
         }
 
-        // Buffer the track after next
-        var bufferIndex = _currentTrackIndex + 1;
-        if (bufferIndex < _playlistTracks.Length)
+        // Try to buffer one more track ahead (best-effort, non-blocking)
+        var bufferIndex = nextIndex + 1;
+        if (bufferIndex < _playlistTracks.Length && bufferIndex > _lastQueuedTrackIndex)
         {
             var bufferTrack = _playlistTracks[bufferIndex];
             if (await _liquidsoapClient.AppendTrackAsync(bufferTrack.LiquidsoapPath).ConfigureAwait(false))
             {
+                _lastQueuedTrackIndex = bufferIndex;
                 _logger.LogDebug("Buffered track {Index}/{Total}: {Path}",
                     bufferIndex + 1, _playlistTracks.Length, bufferTrack.LiquidsoapPath);
             }
+            else
+            {
+                // Buffer failed - not critical, will retry on next advance cycle
+                _logger.LogWarning("Failed to buffer track {Index}/{Total}, will retry later",
+                    bufferIndex + 1, _playlistTracks.Length);
+            }
         }
-        else
+        else if (bufferIndex >= _playlistTracks.Length)
         {
-            // No more tracks to buffer after this one
             _logger.LogInformation("Last track ({Index}/{Total}) now playing, no more to buffer",
                 _currentTrackIndex + 1, _playlistTracks.Length);
         }
@@ -611,6 +660,8 @@ public class RadioStreamingHostedService : BackgroundService
     {
         _playlistTracks = Array.Empty<QueuedTrack>();
         _currentTrackIndex = -1;
+        _lastQueuedTrackIndex = -1;
+        _lastReportedTrackIndex = -1;
         _trackReportingActive = false;
     }
 
