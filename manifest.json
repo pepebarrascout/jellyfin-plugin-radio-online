@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.27",
+        "changelog": "NEW: Playback reporting to Jellyfin statistics - tracks are sent one-by-one with buffer for accurate PlayCount and LastPlayedDate updates, enabling smart playlists (most played, least played, recently played)\nNEW: Configurable option 'Report playback to Jellyfin statistics' in plugin settings\nNEW: Track duration detection from Jellyfin metadata for precise advance timing\nFIX: No longer requires queue.current_track telnet command (works with all Liquidsoap versions)\nFIX: Playback reporting filters out tracks without duration metadata\nIMPROVE: Tracks sent in small batches (2 initial + 1 buffer) instead of all at once - less telnet load, faster playlist transitions",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.27/jellyfin-plugin-radio-online_0.0.0.27.zip",
+        "checksum": "ad404a9c90680f26db8e4f118b12ad11",
+        "timestamp": "2026-05-11T03:30:00Z"
+      },
+      {
         "version": "0.0.0.26",
         "changelog": "NEW: Playback reporting to Jellyfin statistics - each track played on the radio now increments PlayCount and updates LastPlayedDate, enabling smart playlists (most played, least played, recently played, etc.)\nNEW: Configurable option 'Report playback to Jellyfin statistics' in plugin settings\nNEW: Liquidsoap queue.current_track telnet command for track monitoring\nFIX: DLL now correctly reports AssemblyVersion 0.0.0.26 (was loading 0.0.0.24 due to stale Directory.Build.props)\nFIX: Playback reporting filters out off-air audio and external radio streams\nIMPROVE: Path-to-item mapping preserved through shuffle for accurate reporting",
         "targetAbi": "10.11.8.0",
