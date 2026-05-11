@@ -283,8 +283,8 @@ public class RadioStreamingHostedService : BackgroundService
                         continue;
                     }
 
-                    // Advance to next track if current is about to end
-                    if (config.EnablePlaybackReporting && _trackReportingActive)
+                    // Advance to next track if current is about to end (always, regardless of reporting)
+                    if (_trackReportingActive)
                     {
                         await AdvanceTrackAsync(config).ConfigureAwait(false);
                     }
@@ -294,7 +294,7 @@ public class RadioStreamingHostedService : BackgroundService
                         ? TimeSpan.FromSeconds(ScheduleCheckNearEndIntervalSeconds)
                         : TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds);
 
-                    // Also poll faster when near track end for precise reporting
+                    // Also poll faster when near track end for precise advance
                     if (_trackReportingActive && _currentTrackIndex >= 0 && _currentTrackIndex < _playlistTracks.Length)
                     {
                         var currentDuration = _playlistTracks[_currentTrackIndex].Duration;
@@ -530,7 +530,10 @@ public class RadioStreamingHostedService : BackgroundService
         var nextTrack = _playlistTracks[_currentTrackIndex];
 
         // Report the now-playing track (it was already in the buffer)
-        await ReportPlaybackToJellyfinAsync(nextTrack.AudioItem, config).ConfigureAwait(false);
+        if (config.EnablePlaybackReporting)
+        {
+            await ReportPlaybackToJellyfinAsync(nextTrack.AudioItem, config).ConfigureAwait(false);
+        }
 
         // Buffer the track after next
         var bufferIndex = _currentTrackIndex + 1;
