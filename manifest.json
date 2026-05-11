@@ -9,8 +9,16 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.26",
+        "changelog": "NEW: Playback reporting to Jellyfin statistics - each track played on the radio now increments PlayCount and updates LastPlayedDate, enabling smart playlists (most played, least played, recently played, etc.)\nNEW: Configurable option 'Report playback to Jellyfin statistics' in plugin settings\nNEW: Liquidsoap queue.current_track telnet command for track monitoring\nFIX: DLL now correctly reports AssemblyVersion 0.0.0.26 (was loading 0.0.0.24 due to stale Directory.Build.props)\nFIX: Playback reporting filters out off-air audio and external radio streams\nIMPROVE: Path-to-item mapping preserved through shuffle for accurate reporting",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.26/jellyfin-plugin-radio-online_0.0.0.26.zip",
+        "checksum": "817844f3b9f070285e54131315955cda",
+        "timestamp": "2026-05-11T03:15:00Z"
+      },
+      {
         "version": "0.0.0.25",
-        "changelog": "NEW: Playback reporting to Jellyfin statistics - each track played on the radio now increments PlayCount and updates LastPlayedDate, enabling smart playlists (most played, least played, recently played, etc.)\nNEW: Configurable option 'Report playback to Jellyfin statistics' in plugin settings\nNEW: Liquidsoap queue.current_track telnet command for track monitoring\nFIX: Playback reporting filters out off-air audio and external radio streams\nIMPROVE: Path-to-item mapping preserved through shuffle for accurate reporting",
+        "changelog": "NEW: Playback reporting to Jellyfin statistics\nNEW: Configurable option in plugin settings\nNEW: Liquidsoap queue.current_track telnet command\nFIX: DLL AssemblyVersion fix",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.25/jellyfin-plugin-radio-online_0.0.0.25.zip",
         "checksum": "3e8401f3f345a8823641fbec9d2bd91a",
