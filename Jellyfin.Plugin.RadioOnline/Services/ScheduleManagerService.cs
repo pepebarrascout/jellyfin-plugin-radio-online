@@ -48,8 +48,9 @@ public class ScheduleManagerService
         // that are active at the current time
         var activeEntries = scheduleEntries
             .Where(e => e.IsEnabled
-                        && e.DayOfWeek == currentDay
-                        && !string.IsNullOrEmpty(e.PlaylistId))
+                        && !e.IsPaused
+                        && !string.IsNullOrEmpty(e.PlaylistId)
+                        && e.IsActiveOnDay(currentDay))
             .Where(e =>
             {
                 var startTime = e.GetStartTimeSpan();
@@ -114,8 +115,9 @@ public class ScheduleManagerService
 
             var nextEntries = scheduleEntries
                 .Where(e => e.IsEnabled
-                            && e.DayOfWeek == checkDay
-                            && !string.IsNullOrEmpty(e.PlaylistId))
+                            && !e.IsPaused
+                            && !string.IsNullOrEmpty(e.PlaylistId)
+                            && e.IsActiveOnDay(checkDay))
                 .OrderBy(e => e.GetStartTimeSpan())
                 .ToList();
 

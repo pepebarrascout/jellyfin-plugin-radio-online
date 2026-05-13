@@ -85,14 +85,14 @@
                 </div>
             </div>
 
-            <!-- TAB: Programacion (inline editing) -->
+            <!-- TAB: Programacion -->
             <div id="roTabSchedule" class="ro-tab-content" data-tab-content="schedule" style="display:none;">
                 <div class="verticalSection">
 
                     <div class="sectionHeader">
                         <h2 class="sectionTitle">Programacion Semanal</h2>
                     </div>
-                    <p class="fieldDescription">Asigna playlists a dias y horarios especificos. La transmision se activa solo durante las horas programadas. Si dos programas se solapan, el que empieza mas tarde tiene prioridad.</p>
+                    <p class="fieldDescription">Asigna playlists a dias y horarios. Un mismo programa puede repetirse en varios dias. Si dos programas se solapan, el que empieza mas tarde tiene prioridad.</p>
 
                     <div id="roEmptySched" style="padding:1.5em;text-align:center;display:none;">
                         <p>No hay programacion configurada.</p>
@@ -160,7 +160,6 @@
     </div>
 
     <style>
-        /* ── Native selects for dynamically created schedule edit forms ── */
         .ro-native-select {
             background-color: rgba(0,0,0,0.35);
             color: inherit;
@@ -188,7 +187,6 @@
             background-color: #00a4dc;
             color: #fff;
         }
-        /* ── Native text input for schedule name ── */
         .ro-native-input {
             background-color: rgba(0,0,0,0.35);
             color: inherit;
@@ -208,13 +206,25 @@
         .ro-native-input::placeholder {
             color: rgba(255,255,255,0.4);
         }
-        /* ── Edit form row labels ── */
-        .ro-field-label {
-            font-size: 85%;
-            color: rgba(255,255,255,0.6);
-            margin-bottom: 0.2em;
+        .ro-edit-form {
+            padding: 0.8em 0;
         }
-        /* ── Action buttons for schedule items (edit/delete/save/cancel) ── */
+        .ro-edit-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5em;
+            align-items: center;
+            margin-bottom: 0.6em;
+        }
+        .ro-edit-row label {
+            display: flex;
+            align-items: center;
+            gap: 0.3em;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 90%;
+            color: #ccc;
+        }
         .ro-btn-icon {
             background: transparent;
             border: none;
@@ -241,25 +251,35 @@
         .ro-btn-icon.btn-delete:hover {
             color: #ff6b6b;
         }
-        /* ── Inline edit container ── */
-        .ro-edit-form {
-            padding: 0.8em 0;
+        /* Day badges in display view */
+        .ro-days {
+            display: inline-flex;
+            gap: 2px;
+            margin-right: 0.5em;
+            vertical-align: middle;
         }
-        .ro-edit-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5em;
+        .ro-day {
+            display: inline-flex;
             align-items: center;
-            margin-bottom: 0.6em;
+            justify-content: center;
+            width: 1.6em;
+            height: 1.6em;
+            border-radius: 3px;
+            font-size: 75%;
+            font-weight: 600;
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.3);
         }
-        .ro-edit-row label {
-            display: flex;
-            align-items: center;
-            gap: 0.3em;
-            cursor: pointer;
-            white-space: nowrap;
-            font-size: 90%;
-            color: #ccc;
+        .ro-day.on {
+            background: #00a4dc;
+            color: #fff;
+        }
+        /* Paused entry */
+        .ro-paused {
+            opacity: 0.45;
+        }
+        .ro-paused-label {
+            font-style: italic;
         }
     </style>
 
@@ -272,22 +292,12 @@
         var playlistsLoaded = false;
         var inited = false;
 
-        var dayNames = {1:'Lunes',2:'Martes',3:'Miercoles',4:'Jueves',5:'Viernes',6:'Sabado',7:'Domingo'};
-        var csharpDayNames = {'Sunday':7,'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6};
+        var dayKeys = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+        var dayLabels = {Monday:'L',Tuesday:'M',Wednesday:'X',Thursday:'J',Friday:'V',Saturday:'S',Sunday:'D'};
+        var dayFullNames = {Monday:'Lun',Tuesday:'Mar',Wednesday:'Mie',Thursday:'Jue',Friday:'Vie',Saturday:'Sab',Sunday:'Dom'};
+        var csharpDayMap = {Monday:1,Tuesday:2,Wednesday:3,Thursday:4,Friday:5,Saturday:6,Sunday:0};
 
         function esc(t){ var d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
-
-        function normalizeDay(d){
-            if(d==null) return 1;
-            if(typeof d==='number') return d===0?7:d;
-            if(typeof d==='string'){
-                if(csharpDayNames[d]!==undefined) return csharpDayNames[d];
-                var n=parseInt(d,10);
-                return isNaN(n)?1:(n===0?7:n);
-            }
-            return 1;
-        }
-        function toCSharpDay(uiDay){ return uiDay===7?0:uiDay; }
 
         function gv(k){
             if(cfg[k]!==undefined) return cfg[k];
@@ -308,11 +318,6 @@
         function minOpts(sel){
             var html='';
             for(var m=0;m<60;m+=1){ var v=(m<10?'0':'')+m; html+='<option value="'+v+'"'+(String(sel)===String(v)?' selected':'')+'>'+v+'</option>'; }
-            return html;
-        }
-        function dayOpts(sel){
-            var html='';
-            for(var d=1;d<=7;d++){ html+='<option value="'+d+'"'+(String(sel)===String(d)?' selected':'')+'>'+dayNames[d]+'</option>'; }
             return html;
         }
 
@@ -460,7 +465,6 @@
             if(playlistsLoaded) { tryRenderSchedule(); return; }
             var userId = gv('JellyfinUserId') || '';
             if(!userId) {
-                console.warn('[RadioOnline] No user selected, playlists not loaded');
                 playlistsLoaded = true;
                 playlists = [];
                 renderSchedule();
@@ -469,10 +473,8 @@
             apiGet('Plugins/RadioOnline/Playlists').then(function(d){
                 playlists=d||[];
                 playlistsLoaded=true;
-                console.log('[RadioOnline] Loaded ' + playlists.length + ' playlists');
                 renderSchedule();
             }).catch(function(e){
-                console.warn('[RadioOnline] Playlists API failed',e);
                 playlistsLoaded=true;
                 playlists=[];
                 renderSchedule();
@@ -481,6 +483,52 @@
 
         function tryRenderSchedule(){
             if(configLoaded && playlistsLoaded) renderSchedule();
+        }
+
+        // --- Schedule: Day helpers ---
+        // Get day booleans from an entry (new format or backward-compatible from old DayOfWeek)
+        function getDaysFromEntry(en){
+            var days = {};
+            for(var i=0;i<dayKeys.length;i++) days[dayKeys[i]]=false;
+            // Check new format first
+            var hasAny = false;
+            for(var j=0;j<dayKeys.length;j++){
+                var dk = dayKeys[j];
+                var val = en[dk] || en[dk.charAt(0).toLowerCase()+dk.slice(1)];
+                if(val){ days[dk]=true; hasAny=true; }
+            }
+            if(!hasAny){
+                // Backward compat: convert old DayOfWeek
+                var dw = en.DayOfWeek!==undefined ? en.DayOfWeek : (en.dayOfWeek!==undefined ? en.dayOfWeek : 1);
+                if(typeof dw==='string') dw = csharpDayMap[dw]!==undefined ? csharpDayMap[dw] : parseInt(dw,10);
+                if(dw===0) dw='Sunday'; else if(dw===1) dw='Monday'; else if(dw===2) dw='Tuesday';
+                else if(dw===3) dw='Wednesday'; else if(dw===4) dw='Thursday'; else if(dw===5) dw='Friday';
+                else if(dw===6) dw='Saturday'; else if(dw===7) dw='Sunday';
+                if(typeof dw==='string' && days.hasOwnProperty(dw)) days[dw]=true;
+            }
+            return days;
+        }
+
+        function countDays(days){
+            var c=0; for(var k in days) if(days[k]) c++; return c;
+        }
+
+        function daysToString(days){
+            var parts=[];
+            for(var i=0;i<dayKeys.length;i++){
+                if(days[dayKeys[i]]) parts.push(dayFullNames[dayKeys[i]]);
+            }
+            return parts.join(', ') || 'Sin dia';
+        }
+
+        function daysToBadges(days){
+            var html='<span class="ro-days">';
+            for(var i=0;i<dayKeys.length;i++){
+                var on = days[dayKeys[i]];
+                html+='<span class="ro-day'+(on?' on':'')+'">'+dayLabels[dayKeys[i]]+'</span>';
+            }
+            html+='</span>';
+            return html;
         }
 
         // --- Schedule rendering ---
@@ -499,12 +547,10 @@
             list.style.display='';
             if(empty) empty.style.display='none';
 
+            // Sort by start time
             var sorted=[];
             for(var i=0;i<entries.length;i++) sorted.push({e:entries[i],i:i});
             sorted.sort(function(a,b){
-                var dA=normalizeDay(a.e.DayOfWeek!==undefined?a.e.DayOfWeek:a.e.dayOfWeek);
-                var dB=normalizeDay(b.e.DayOfWeek!==undefined?b.e.DayOfWeek:b.e.dayOfWeek);
-                if(dA!==dB) return dA-dB;
                 var stA=a.e.StartTime||a.e.startTime||'';
                 var stB=b.e.StartTime||b.e.startTime||'';
                 return stA.localeCompare(stB);
@@ -516,32 +562,43 @@
             }
         }
 
-        // Build a display-only schedule entry (listItem with edit/delete buttons)
+        // Build display-only schedule entry
         function buildScheduleItem(en, idx){
-            var day=normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek);
             var stHM=parseTimeToHM(en.StartTime||en.startTime||'');
             var etHM=parseTimeToHM(en.EndTime||en.endTime||'');
             var pl=en.PlaylistId||en.playlistId||'';
             var nm=en.DisplayName||en.displayName||'';
             var shuff=en.ShufflePlayback||en.shufflePlayback||false;
+            var paused=en.IsPaused||en.isPaused||false;
+            var days=getDaysFromEntry(en);
             var plName=getPlaylistName(pl);
 
-            var title=nm||(dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m);
-            var secondary=dayNames[day]+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m;
+            var title=nm||(daysToString(days)+' '+stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m);
+            var secondary=stHM.h+':'+stHM.m+' - '+etHM.h+':'+etHM.m;
             if(pl) secondary+=' | '+plName;
             if(shuff) secondary+=' | Aleatorio';
+            if(paused) secondary+=' | Pausado';
 
             var div=document.createElement('div');
-            div.className='listItem';
+            div.className='listItem'+(paused?' ro-paused':'');
             div.setAttribute('data-i',idx);
 
-            // Body
             var body=document.createElement('div');
             body.className='listItemBody two-line';
             body.innerHTML=
-                '<div class="listItemBodyText">'+esc(title)+'</div>'+
-                '<div class="listItemBodyText secondary">'+esc(secondary)+'</div>';
+                '<div class="listItemBodyText">'+esc(title)+(paused?' <span class="ro-paused-label">(Pausado)</span>':'')+'</div>'+
+                '<div class="listItemBodyText secondary">'+daysToBadges(days)+esc(secondary)+'</div>';
             div.appendChild(body);
+
+            // Pause button
+            var btnPause=document.createElement('button');
+            btnPause.type='button';
+            btnPause.className='ro-btn-icon';
+            btnPause.title=paused?'Reanudar':'Pausar';
+            btnPause.setAttribute('data-i',idx);
+            btnPause.setAttribute('data-act','pause');
+            btnPause.innerHTML='<span class="material-icons" aria-hidden="true">'+(paused?'play_circle_outline':'pause_circle_outline')+'</span>';
+            div.appendChild(btnPause);
 
             // Edit button
             var btnEdit=document.createElement('button');
@@ -566,93 +623,111 @@
             return div;
         }
 
-        // Build inline edit form for a schedule entry (all native HTML, no emby custom elements)
+        // Build inline edit form
         function renderInlineEdit(idx){
             var entries=getEntries();
             var en=(idx>=0 && idx<entries.length) ? entries[idx] : null;
             var isNew = (idx<0 || !en);
 
-            var day= en ? normalizeDay(en.DayOfWeek!==undefined?en.DayOfWeek:en.dayOfWeek) : 1;
             var stHM= en ? parseTimeToHM(en.StartTime||en.startTime||'') : {h:'08',m:'00'};
             var etHM= en ? parseTimeToHM(en.EndTime||en.endTime||'') : {h:'12',m:'00'};
             var pl= en ? (en.PlaylistId||en.playlistId||'') : '';
             var nm= en ? (en.DisplayName||en.displayName||'') : '';
             var shuff= en ? !!(en.ShufflePlayback||en.shufflePlayback) : false;
+            var days= en ? getDaysFromEntry(en) : {Monday:false,Tuesday:false,Wednesday:false,Thursday:false,Friday:false,Saturday:false,Sunday:false};
+            var eid= en ? (en.Id||en.id||'') : '';
 
             var div=document.createElement('div');
             div.className='listItem';
             div.setAttribute('data-editing','true');
             div.setAttribute('data-idx',idx);
 
-            // Form container
             var form=document.createElement('div');
             form.className='listItemBody ro-edit-form';
             form.style.flex='1';
 
-            // Row 1: Day + Time selectors
+            // Row 1: Day checkboxes
             var row1=document.createElement('div');
             row1.className='ro-edit-row';
+            for(var i=0;i<dayKeys.length;i++){
+                var lbl=document.createElement('label');
+                var chk=document.createElement('input');
+                chk.type='checkbox';
+                chk.setAttribute('data-day',dayKeys[i]);
+                if(days[dayKeys[i]]) chk.checked=true;
+                lbl.appendChild(chk);
+                lbl.appendChild(document.createTextNode(' '+dayFullNames[dayKeys[i]]));
+                row1.appendChild(lbl);
+            }
+            form.appendChild(row1);
 
-            var selDay=document.createElement('select');
-            selDay.className='ro-native-select';
-            selDay.setAttribute('data-field','day');
-            selDay.innerHTML=dayOpts(day);
-            selDay.style.minWidth='100px';
-            row1.appendChild(selDay);
+            // Row 2: Name input
+            var row2=document.createElement('div');
+            var inpName=document.createElement('input');
+            inpName.type='text';
+            inpName.className='ro-native-input';
+            inpName.setAttribute('data-field','name');
+            inpName.value=nm;
+            inpName.placeholder='Nombre del programa (opcional)';
+            row2.appendChild(inpName);
+            form.appendChild(row2);
+
+            // Row 3: Time selectors
+            var row3=document.createElement('div');
+            row3.className='ro-edit-row';
 
             var lblDe=document.createElement('span');
             lblDe.textContent='De:';
             lblDe.style.fontWeight='bold';
             lblDe.style.fontSize='90%';
-            lblDe.style.marginLeft='0.3em';
-            row1.appendChild(lblDe);
+            row3.appendChild(lblDe);
 
             var selSH=document.createElement('select');
             selSH.className='ro-native-select';
             selSH.setAttribute('data-field','startH');
             selSH.innerHTML=hourOpts(stHM.h);
-            row1.appendChild(selSH);
+            row3.appendChild(selSH);
 
             var colon1=document.createElement('span');
             colon1.textContent=':';
             colon1.style.fontWeight='bold';
-            row1.appendChild(colon1);
+            row3.appendChild(colon1);
 
             var selSM=document.createElement('select');
             selSM.className='ro-native-select';
             selSM.setAttribute('data-field','startM');
             selSM.innerHTML=minOpts(stHM.m);
-            row1.appendChild(selSM);
+            row3.appendChild(selSM);
 
             var lblA=document.createElement('span');
             lblA.textContent='a';
             lblA.style.fontWeight='bold';
             lblA.style.fontSize='90%';
             lblA.style.marginLeft='0.3em';
-            row1.appendChild(lblA);
+            row3.appendChild(lblA);
 
             var selEH=document.createElement('select');
             selEH.className='ro-native-select';
             selEH.setAttribute('data-field','endH');
             selEH.innerHTML=hourOpts(etHM.h);
-            row1.appendChild(selEH);
+            row3.appendChild(selEH);
 
             var colon2=document.createElement('span');
             colon2.textContent=':';
             colon2.style.fontWeight='bold';
-            row1.appendChild(colon2);
+            row3.appendChild(colon2);
 
             var selEM=document.createElement('select');
             selEM.className='ro-native-select';
             selEM.setAttribute('data-field','endM');
             selEM.innerHTML=minOpts(etHM.m);
-            row1.appendChild(selEM);
+            row3.appendChild(selEM);
 
-            form.appendChild(row1);
+            form.appendChild(row3);
 
-            // Row 2: Playlist + Shuffle
-            var row2=document.createElement('div');
-            row2.className='ro-edit-row';
+            // Row 4: Playlist + Shuffle
+            var row4=document.createElement('div');
+            row4.className='ro-edit-row';
 
             var selPL=document.createElement('select');
             selPL.className='ro-native-select';
@@ -664,7 +739,7 @@
                 plOpts+='<option value="'+playlists[p].id+'"'+(playlists[p].id===pl?' selected':'')+'>'+esc(playlists[p].name)+'</option>';
             }
             selPL.innerHTML=plOpts;
-            row2.appendChild(selPL);
+            row4.appendChild(selPL);
 
             var lblShuff=document.createElement('label');
             var chkShuff=document.createElement('input');
@@ -673,21 +748,9 @@
             if(shuff) chkShuff.checked=true;
             lblShuff.appendChild(chkShuff);
             lblShuff.appendChild(document.createTextNode(' Aleatorio'));
-            row2.appendChild(lblShuff);
+            row4.appendChild(lblShuff);
 
-            form.appendChild(row2);
-
-            // Row 3: Name input
-            var row3=document.createElement('div');
-            row3.style.marginBottom='0.5em';
-            var inpName=document.createElement('input');
-            inpName.type='text';
-            inpName.className='ro-native-input';
-            inpName.setAttribute('data-field','name');
-            inpName.value=nm;
-            inpName.placeholder='Nombre del programa (opcional)';
-            row3.appendChild(inpName);
-            form.appendChild(row3);
+            form.appendChild(row4);
 
             div.appendChild(form);
 
@@ -716,7 +779,17 @@
             var entries=getEntries();
             var idx=parseInt(div.getAttribute('data-idx'),10);
 
-            var day=parseInt(div.querySelector('[data-field="day"]').value,10);
+            // Collect day checkboxes
+            var days={};
+            var dayChecks=div.querySelectorAll('[data-day]');
+            var hasDay=false;
+            for(var d=0;d<dayChecks.length;d++){
+                var key=dayChecks[d].getAttribute('data-day');
+                var val=dayChecks[d].checked;
+                days[key]=val;
+                if(val) hasDay=true;
+            }
+
             var stH=div.querySelector('[data-field="startH"]').value;
             var stM=div.querySelector('[data-field="startM"]').value;
             var etH=div.querySelector('[data-field="endH"]').value;
@@ -727,29 +800,49 @@
             var shuffle=div.querySelector('[data-field="shuffle"]').checked;
             var nm=(div.querySelector('[data-field="name"]').value||'').trim();
 
+            if(!hasDay){ Dashboard.alert({title:'Error',message:'Selecciona al menos un dia.'}); return false; }
             if(st>=et){ Dashboard.alert({title:'Error',message:'La hora de fin debe ser despues de la hora de inicio.'}); return false; }
             if(!pl){ Dashboard.alert({title:'Error',message:'Debes seleccionar una playlist.'}); return false; }
 
-            var name=nm||(dayNames[day]+' '+st+'-'+et);
+            // Build display name
+            var dayStr=daysToString(days);
+            var name=nm||(dayStr+' '+st+'-'+et);
+
+            // Generate Id if missing
+            var id=idx>=0&&idx<entries.length ? (entries[idx].Id||entries[idx].id||'') : '';
+
+            var entryObj={
+                Monday:days.Monday||false, Tuesday:days.Tuesday||false, Wednesday:days.Wednesday||false,
+                Thursday:days.Thursday||false, Friday:days.Friday||false, Saturday:days.Saturday||false, Sunday:days.Sunday||false,
+                StartTime:st, startTime:st,
+                EndTime:et, endTime:et,
+                PlaylistId:pl, playlistId:pl,
+                DisplayName:name, displayName:name,
+                ShufflePlayback:shuffle, shufflePlayback:shuffle,
+                IsEnabled:true, isEnabled:true,
+                IsPaused:false, isPaused:false
+            };
+
+            if(!id){
+                // Generate new GUID (v4 random)
+                entryObj.Id='xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){
+                    var r=Math.random()*16|0;
+                    return (c==='x'?r:(r&0x3|0x8)).toString(16);
+                });
+                entryObj.id=entryObj.Id;
+            } else {
+                entryObj.Id=id;
+                entryObj.id=id;
+                // Preserve pause state
+                var paused = entries[idx].IsPaused||entries[idx].isPaused||false;
+                entryObj.IsPaused=paused;
+                entryObj.isPaused=paused;
+            }
 
             if(idx>=0 && idx<entries.length){
-                entries[idx].DayOfWeek=toCSharpDay(day);
-                entries[idx].dayOfWeek=day;
-                entries[idx].StartTime=st; entries[idx].startTime=st;
-                entries[idx].EndTime=et; entries[idx].endTime=et;
-                entries[idx].PlaylistId=pl; entries[idx].playlistId=pl;
-                entries[idx].DisplayName=name; entries[idx].displayName=name;
-                entries[idx].ShufflePlayback=shuffle; entries[idx].shufflePlayback=shuffle;
+                entries[idx]=entryObj;
             } else {
-                entries.push({
-                    DayOfWeek:toCSharpDay(day), dayOfWeek:day,
-                    StartTime:st, startTime:st,
-                    EndTime:et, endTime:et,
-                    PlaylistId:pl, playlistId:pl,
-                    DisplayName:name, displayName:name,
-                    ShufflePlayback:shuffle, shufflePlayback:shuffle,
-                    IsEnabled:true, isEnabled:true
-                });
+                entries.push(entryObj);
             }
 
             setEntries(entries);
@@ -775,6 +868,18 @@
                 entries.splice(idx,1);
                 setEntries(entries);
                 renderSchedule();
+            } else if(act==='pause'){
+                var itemPause=btn.closest('[data-i]');
+                if(!itemPause) return;
+                var idxP=parseInt(itemPause.getAttribute('data-i'),10);
+                if(isNaN(idxP)) return;
+                var entriesP=getEntries();
+                if(idxP<0||idxP>=entriesP.length) return;
+                var curPaused=!!(entriesP[idxP].IsPaused||entriesP[idxP].isPaused);
+                entriesP[idxP].IsPaused=!curPaused;
+                entriesP[idxP].isPaused=!curPaused;
+                setEntries(entriesP);
+                renderSchedule();
             } else if(act==='edit'){
                 var itemEdit=btn.closest('[data-i]');
                 if(!itemEdit) return;
@@ -798,13 +903,9 @@
 
         // --- Add new entry ---
         function addNewEntry(){
-            var entries=getEntries();
             var editDiv=renderInlineEdit(-1);
             var list=document.getElementById('roSchedList');
             if(!list) return;
-            if(entries.length===0){
-                list.style.display='';
-            }
             list.appendChild(editDiv);
             editDiv.scrollIntoView({behavior:'smooth',block:'center'});
         }

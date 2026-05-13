@@ -665,10 +665,14 @@ public class RadioStreamingHostedService : BackgroundService
     }
 
     /// <summary>
-    /// Builds a unique key for a schedule slot using day, start time, end time, and playlist ID.
+    /// Builds a unique key for a schedule entry.
+    /// Uses the entry's Id when available (v0.0.0.32+ multi-day entries).
+    /// Falls back to day+time+playlist for legacy entries without an Id.
     /// </summary>
     private static string BuildScheduleKey(ScheduleEntry entry)
     {
+        if (entry.Id != Guid.Empty)
+            return entry.Id.ToString("N");
         return $"{entry.DayOfWeek}|{entry.StartTime}|{entry.EndTime}|{entry.PlaylistId}";
     }
 
