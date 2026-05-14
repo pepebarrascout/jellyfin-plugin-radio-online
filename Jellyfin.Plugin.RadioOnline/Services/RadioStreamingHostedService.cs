@@ -136,7 +136,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.33 — Queue depth verification + proactive reconnection + 3-track buffer");
+        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.34 — Proactive reconnection + 3-track buffer + diagnostic queue monitoring");
 
         // Wait for Jellyfin to fully initialize
         try
@@ -550,9 +550,13 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
-        // ── Verify Liquidsoap's actual queue depth (not just local index) ──
-        // This catches the case where local tracking thinks tracks are buffered
-        // but Liquidsoap's queue is actually empty (stale connection, missed failure).
+        // ── Diagnostic: log Liquidsoap's actual queue depth ──
+        // NOTE: We do NOT modify _lastQueuedTrackIndex based on queue.length because
+        // Liquidsoap's queue.count semantics are unreliable during crossfade transitions
+        // (the playing track may or may not be counted depending on timing). Resetting
+        // the index backward causes duplicate tracks and out-of-order playback.
+        // The proactive reconnection + 3-track buffer + 3s timeout are sufficient
+        // to prevent gaps. Local index tracking remains the source of truth.
         try
         {
             var actualQueueLength = await _liquidsoapClient.GetQueueLengthAsync().ConfigureAwait(false);
@@ -561,18 +565,9 @@ public class RadioStreamingHostedService : BackgroundService
                 var expectedBufferAhead = _lastQueuedTrackIndex - _currentTrackIndex;
                 if (actualQueueLength < expectedBufferAhead)
                 {
-                    // Liquidsoap has fewer tracks than we thought — reset tracking
-                    // to resync: assume queue only has the tracks Liquidsoap reports.
                     _logger.LogWarning(
-                        "Queue depth mismatch: Liquidsoap reports {Actual} tracks but local index expects {Expected} ahead of current. Resetting queue index to resync.",
+                        "Queue depth diagnostic: Liquidsoap reports {Actual} tracks pending, local index expects {Expected} ahead of current (may be crossfade timing difference)",
                         actualQueueLength, expectedBufferAhead);
-
-                    // Recalculate _lastQueuedTrackIndex based on actual queue state
-                    // actualQueueLength includes what's playing + buffered, so:
-                    // buffered = actualQueueLength - 1 (one is currently playing)
-                    // lastQueued = currentTrackIndex + buffered
-                    var bufferedInQueue = Math.Max(0, actualQueueLength - 1);
-                    _lastQueuedTrackIndex = _currentTrackIndex + bufferedInQueue;
                 }
             }
         }
