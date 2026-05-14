@@ -25,6 +25,18 @@ public class LiquidsoapClient : IDisposable
     private bool _disposed;
 
     /// <summary>
+    /// Timestamp of the last successful connection to Liquidsoap.
+    /// Used for proactive reconnection before the TCP connection goes stale.
+    /// </summary>
+    private DateTime _lastConnectionTime;
+
+    /// <summary>
+    /// Maximum age of a TCP connection before proactive reconnection.
+    /// Prevents half-open connections from causing silent command failures.
+    /// </summary>
+    private static readonly TimeSpan ConnectionMaxAge = TimeSpan.FromMinutes(2);
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="LiquidsoapClient"/> class.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
@@ -36,7 +48,7 @@ public class LiquidsoapClient : IDisposable
         _host = host;
         _port = port;
         _connectTimeoutMs = 5000;
-        _readTimeoutMs = 10000;
+        _readTimeoutMs = 3000;
     }
 
     /// <summary>
@@ -152,6 +164,32 @@ public class LiquidsoapClient : IDisposable
     {
         var response = await SendCommandAsync("queue.current_track").ConfigureAwait(false);
         return response.Trim();
+    }
+
+    /// <summary>
+    /// Gets the current number of tracks in the Liquidsoap queue.
+    /// Uses the queue.length Telnet command (requires radio.liq to register it).
+    /// Returns -1 on failure.
+    /// </summary>
+    /// <returns>The number of tracks in the queue, or -1 if the query failed.</returns>
+    public async Task<int> GetQueueLengthAsync()
+    {
+        try
+        {
+            var response = await SendCommandAsync("queue.length").ConfigureAwait(false);
+            if (int.TryParse(response.Trim(), out var length))
+            {
+                return length;
+            }
+
+            _logger.LogWarning("Failed to parse queue length response: {Response}", response);
+            return -1;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error querying queue length");
+            return -1;
+        }
     }
 
     /// <summary>
@@ -321,23 +359,36 @@ public class LiquidsoapClient : IDisposable
         if (_disposed)
             return;
 
-        // Check if existing connection is still alive
+        // Check if existing connection should be proactively renewed
         if (_tcpClient != null)
         {
-            try
+            // Proactive reconnection: force a fresh connection every ConnectionMaxAge
+            // to prevent half-open connections from causing silent command failures.
+            // Socket.Poll is unreliable for detecting stale TCP connections.
+            if ((DateTime.UtcNow - _lastConnectionTime) > ConnectionMaxAge)
             {
-                // Socket.Poll checks if the socket is still connected
-                if (_tcpClient.Connected && _tcpClient.Client.Poll(0, SelectMode.SelectWrite))
+                _logger.LogDebug("Proactive reconnect: connection age {Age}s exceeded max {Max}s",
+                    (int)(DateTime.UtcNow - _lastConnectionTime).TotalSeconds,
+                    (int)ConnectionMaxAge.TotalSeconds);
+                Disconnect();
+            }
+            else
+            {
+                try
                 {
-                    return; // Connection is still good
+                    // Still within age limit — check socket is connected
+                    if (_tcpClient.Connected && _tcpClient.Client.Poll(0, SelectMode.SelectWrite))
+                    {
+                        return; // Connection appears good and is fresh enough
+                    }
                 }
-            }
-            catch
-            {
-                // Connection is dead
-            }
+                catch
+                {
+                    // Connection is dead
+                }
 
-            Disconnect();
+                Disconnect();
+            }
         }
 
         // Create new connection
@@ -354,6 +405,7 @@ public class LiquidsoapClient : IDisposable
             if (connectTask.Wait(_connectTimeoutMs))
             {
                 _stream = _tcpClient.GetStream();
+                _lastConnectionTime = DateTime.UtcNow;
                 _logger.LogInformation("Connected to Liquidsoap Telnet at {Host}:{Port}", _host, _port);
             }
             else
@@ -390,6 +442,7 @@ public class LiquidsoapClient : IDisposable
 
         _stream = null;
         _tcpClient = null;
+        _lastConnectionTime = DateTime.MinValue;
     }
 
     /// <summary>

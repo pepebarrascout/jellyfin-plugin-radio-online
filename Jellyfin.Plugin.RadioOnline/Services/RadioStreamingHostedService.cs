@@ -15,7 +15,8 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 /// <summary>
 /// Background hosted service that manages the radio streaming loop using Liquidsoap.
 /// Monitors the weekly schedule and sends tracks to Liquidsoap's queue via Telnet.
-/// Tracks are sent one-by-one with a 1-track buffer for accurate playback reporting.
+/// Tracks are sent one-by-one with a 2-track buffer for resilience against connection issues.
+/// Queue depth is verified against Liquidsoap's actual state to prevent silent underruns.
 /// </summary>
 public class RadioStreamingHostedService : BackgroundService
 {
@@ -75,7 +76,7 @@ public class RadioStreamingHostedService : BackgroundService
 
     /// <summary>
     /// Stores the playlist tracks with metadata for sequential playback reporting.
-    /// Tracks are sent one at a time with a 1-track buffer.
+    /// Tracks are sent one at a time with a 2-track buffer ahead of the playing track.
     /// </summary>
     private record struct QueuedTrack(string LiquidsoapPath, Audio AudioItem, TimeSpan Duration);
 
@@ -135,7 +136,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.31 — PlayCount via ISessionManager only (no manual UserData)");
+        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.33 — Queue depth verification + proactive reconnection + 3-track buffer");
 
         // Wait for Jellyfin to fully initialize
         try
@@ -480,8 +481,8 @@ public class RadioStreamingHostedService : BackgroundService
             await RetryClearQueueAsync().ConfigureAwait(false);
         }
 
-        // Send first 2 tracks (1 playing + 1 buffer)
-        var initialCount = Math.Min(2, _playlistTracks.Length);
+        // Send first 3 tracks (1 playing + 2 buffer) for resilience against connection issues
+        var initialCount = Math.Min(3, _playlistTracks.Length);
         var added = 0;
         for (var i = 0; i < initialCount; i++)
         {
@@ -500,7 +501,7 @@ public class RadioStreamingHostedService : BackgroundService
             _trackReportingActive = true;
 
             _logger.LogInformation(
-                "Queued {Added}/{Total} initial tracks for \"{Name}\" (one-by-one mode with buffer)",
+                "Queued {Added}/{Total} initial tracks for \"{Name}\" (one-by-one mode, 2-track buffer)",
                 added, _playlistTracks.Length, activeEntry.DisplayName);
 
             // Report first track immediately (only once)
@@ -520,10 +521,11 @@ public class RadioStreamingHostedService : BackgroundService
     /// <summary>
     /// Advances to the next track in the playlist when the current one is about to end.
     /// Key design principles:
+    ///   - Verifies Liquidsoap's actual queue depth before trusting local index.
     ///   - Index only advances when the next track is confirmed queued in Liquidsoap.
     ///   - If queuing fails, the same track is retried on the next cycle (never skipped).
     ///   - Tracks are only reported once (tracked via _lastReportedTrackIndex).
-    ///   - Always maintains at least 1 buffered track ahead in the queue.
+    ///   - Always maintains at least 2 buffered tracks ahead in the queue.
     /// </summary>
     private async Task AdvanceTrackAsync(PluginConfiguration config)
     {
@@ -546,6 +548,37 @@ public class RadioStreamingHostedService : BackgroundService
             _trackReportingActive = false;
             _logger.LogInformation("All {Count} tracks processed for current playlist", _playlistTracks.Length);
             return;
+        }
+
+        // ── Verify Liquidsoap's actual queue depth (not just local index) ──
+        // This catches the case where local tracking thinks tracks are buffered
+        // but Liquidsoap's queue is actually empty (stale connection, missed failure).
+        try
+        {
+            var actualQueueLength = await _liquidsoapClient.GetQueueLengthAsync().ConfigureAwait(false);
+            if (actualQueueLength >= 0)
+            {
+                var expectedBufferAhead = _lastQueuedTrackIndex - _currentTrackIndex;
+                if (actualQueueLength < expectedBufferAhead)
+                {
+                    // Liquidsoap has fewer tracks than we thought — reset tracking
+                    // to resync: assume queue only has the tracks Liquidsoap reports.
+                    _logger.LogWarning(
+                        "Queue depth mismatch: Liquidsoap reports {Actual} tracks but local index expects {Expected} ahead of current. Resetting queue index to resync.",
+                        actualQueueLength, expectedBufferAhead);
+
+                    // Recalculate _lastQueuedTrackIndex based on actual queue state
+                    // actualQueueLength includes what's playing + buffered, so:
+                    // buffered = actualQueueLength - 1 (one is currently playing)
+                    // lastQueued = currentTrackIndex + buffered
+                    var bufferedInQueue = Math.Max(0, actualQueueLength - 1);
+                    _lastQueuedTrackIndex = _currentTrackIndex + bufferedInQueue;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Queue length check failed, continuing with local tracking");
         }
 
         // Ensure the next track is queued in Liquidsoap BEFORE advancing the index
@@ -579,25 +612,34 @@ public class RadioStreamingHostedService : BackgroundService
             await ReportTrackPlaybackAsync(_playlistTracks[nextIndex].AudioItem, config).ConfigureAwait(false);
         }
 
-        // Try to buffer one more track ahead (best-effort, non-blocking)
-        var bufferIndex = nextIndex + 1;
-        if (bufferIndex < _playlistTracks.Length && bufferIndex > _lastQueuedTrackIndex)
+        // Try to buffer up to 2 tracks ahead (best-effort, non-blocking)
+        // This gives resilience: if one buffer send fails, the other still covers the gap
+        for (var offset = 1; offset <= 2; offset++)
         {
-            var bufferTrack = _playlistTracks[bufferIndex];
-            if (await _liquidsoapClient.AppendTrackAsync(bufferTrack.LiquidsoapPath).ConfigureAwait(false))
+            var bufferIndex = nextIndex + offset;
+            if (bufferIndex >= _playlistTracks.Length)
+                break;
+
+            if (bufferIndex > _lastQueuedTrackIndex)
             {
-                _lastQueuedTrackIndex = bufferIndex;
-                _logger.LogDebug("Buffered track {Index}/{Total}: {Path}",
-                    bufferIndex + 1, _playlistTracks.Length, bufferTrack.LiquidsoapPath);
-            }
-            else
-            {
-                // Buffer failed - not critical, will retry on next advance cycle
-                _logger.LogWarning("Failed to buffer track {Index}/{Total}, will retry later",
-                    bufferIndex + 1, _playlistTracks.Length);
+                var bufferTrack = _playlistTracks[bufferIndex];
+                if (await _liquidsoapClient.AppendTrackAsync(bufferTrack.LiquidsoapPath).ConfigureAwait(false))
+                {
+                    _lastQueuedTrackIndex = bufferIndex;
+                    _logger.LogDebug("Buffered track {Index}/{Total}: {Path}",
+                        bufferIndex + 1, _playlistTracks.Length, bufferTrack.LiquidsoapPath);
+                }
+                else
+                {
+                    // Buffer failed - not critical, will retry on next advance cycle
+                    _logger.LogWarning("Failed to buffer track {Index}/{Total}, will retry later",
+                        bufferIndex + 1, _playlistTracks.Length);
+                    // Don't break — try the next buffer position too
+                }
             }
         }
-        else if (bufferIndex >= _playlistTracks.Length)
+
+        if (nextIndex + 1 >= _playlistTracks.Length)
         {
             _logger.LogInformation("Last track ({Index}/{Total}) now playing, no more to buffer",
                 _currentTrackIndex + 1, _playlistTracks.Length);
