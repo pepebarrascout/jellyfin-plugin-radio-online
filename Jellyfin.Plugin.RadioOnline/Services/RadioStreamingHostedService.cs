@@ -111,6 +111,12 @@ public class RadioStreamingHostedService : BackgroundService
     private bool _trackReportingActive;
 
     /// <summary>
+    /// Timestamp of the last track sync check with Liquidsoap.
+    /// Used to limit sync verification frequency (every 60 seconds).
+    /// </summary>
+    private DateTime _lastTrackSyncCheck = DateTime.MinValue;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="RadioStreamingHostedService"/> class.
     /// </summary>
     public RadioStreamingHostedService(
@@ -136,7 +142,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.34 — Proactive reconnection + 3-track buffer + diagnostic queue monitoring");
+        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.34 — Proactive reconnection + 3-track buffer + track sync verification");
 
         // Wait for Jellyfin to fully initialize
         try
@@ -302,6 +308,14 @@ public class RadioStreamingHostedService : BackgroundService
                         try
                         {
                             await AdvanceTrackAsync(config).ConfigureAwait(false);
+
+                            // Verify track sync with Liquidsoap (catches drift from metadata duration mismatch)
+                            // Liquidsoap plays based on actual audio duration; we track based on metadata duration.
+                            // When they differ, Jellyfin shows the wrong song. This check corrects the drift.
+                            if (_currentTrackIndex >= 0 && _currentTrackIndex < _playlistTracks.Length)
+                            {
+                                await VerifyTrackSyncAsync(config).ConfigureAwait(false);
+                            }
                         }
                         catch (Exception advanceEx)
                         {
@@ -499,6 +513,7 @@ public class RadioStreamingHostedService : BackgroundService
             _lastQueuedTrackIndex = added - 1;
             _currentTrackStartedAt = DateTime.UtcNow;
             _trackReportingActive = true;
+            _lastTrackSyncCheck = DateTime.UtcNow; // Skip sync check right after load
 
             _logger.LogInformation(
                 "Queued {Added}/{Total} initial tracks for \"{Name}\" (one-by-one mode, 2-track buffer)",
@@ -638,6 +653,68 @@ public class RadioStreamingHostedService : BackgroundService
         {
             _logger.LogInformation("Last track ({Index}/{Total}) now playing, no more to buffer",
                 _currentTrackIndex + 1, _playlistTracks.Length);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that the plugin's track tracking is synchronized with what Liquidsoap
+    /// is actually playing. Catches drift caused by metadata duration vs actual audio
+    /// duration mismatch. When drift is detected, fast-forwards _currentTrackIndex to
+    /// match Liquidsoap's current track and reports the correct song to Jellyfin.
+    /// Checks every 60 seconds to minimize telnet overhead.
+    /// </summary>
+    private async Task VerifyTrackSyncAsync(PluginConfiguration config)
+    {
+        // Check every 60 seconds to avoid excessive telnet commands
+        if ((DateTime.UtcNow - _lastTrackSyncCheck) < TimeSpan.FromSeconds(60))
+            return;
+        _lastTrackSyncCheck = DateTime.UtcNow;
+
+        try
+        {
+            var currentPath = await _liquidsoapClient.GetCurrentTrackAsync().ConfigureAwait(false);
+            if (string.IsNullOrEmpty(currentPath) || currentPath.Equals("none", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            // Find matching track in our playlist
+            var matchIndex = -1;
+            for (var i = 0; i < _playlistTracks.Length; i++)
+            {
+                if (_playlistTracks[i].LiquidsoapPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchIndex = i;
+                    break;
+                }
+            }
+
+            if (matchIndex < 0)
+                return; // Track not found in playlist (e.g., offair.ogg or different playlist)
+
+            if (matchIndex <= _currentTrackIndex)
+                return; // No drift or Liquidsoap is behind — nothing to do
+
+            // Liquidsoap is ahead of our tracking — fast-forward
+            _logger.LogInformation(
+                "Track sync drift detected: Liquidsoap is playing track {Match}/{Total} (\"{Path}\") but local index is at {Current}. Fast-forwarding to correct Jellyfin display.",
+                matchIndex + 1, _playlistTracks.Length, currentPath, _currentTrackIndex + 1);
+
+            // Report the previously-tracked track as stopped
+            await _playbackSession.ReportPlaybackStoppedAsync().ConfigureAwait(false);
+
+            // Fast-forward our index to match Liquidsoap's actual state
+            _currentTrackIndex = matchIndex;
+            _currentTrackStartedAt = DateTime.UtcNow;
+            _lastReportedTrackIndex = matchIndex;
+
+            // Report the actually-playing track to Jellyfin
+            if (config.EnablePlaybackReporting)
+            {
+                await ReportTrackPlaybackAsync(_playlistTracks[matchIndex].AudioItem, config).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Track sync verification failed");
         }
     }
 
