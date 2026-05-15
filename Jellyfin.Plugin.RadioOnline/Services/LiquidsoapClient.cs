@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -201,6 +202,32 @@ public class LiquidsoapClient : IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error querying queue length");
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// Gets the remaining playback time in seconds of the currently playing track.
+    /// Uses the queue.remaining Telnet command (requires radio.liq to register it).
+    /// Returns -1 on failure.
+    /// </summary>
+    /// <returns>Remaining seconds (float), or -1 if the query failed.</returns>
+    public async Task<double> GetQueueRemainingAsync()
+    {
+        try
+        {
+            var response = await SendCommandAsync("queue.remaining").ConfigureAwait(false);
+            if (double.TryParse(response.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var remaining))
+            {
+                return remaining;
+            }
+
+            _logger.LogWarning("Failed to parse queue remaining response: {Response}", response);
+            return -1;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error querying queue remaining");
             return -1;
         }
     }
