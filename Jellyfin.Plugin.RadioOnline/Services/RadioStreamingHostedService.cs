@@ -428,7 +428,7 @@ public class RadioStreamingHostedService : BackgroundService
         }
 
         // ── FRESH START: Clear queue and load from track 0 ──
-        ResetState();
+        _nextTrackToSend = 0;
 
         await RetryClearQueueAsync().ConfigureAwait(false);
 
