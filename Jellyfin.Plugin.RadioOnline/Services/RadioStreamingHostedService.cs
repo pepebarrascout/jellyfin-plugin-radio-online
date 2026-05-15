@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.RadioOnline.Configuration;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.Session;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -14,9 +13,18 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 
 /// <summary>
 /// Background hosted service that manages the radio streaming loop using Liquidsoap.
-/// Monitors the weekly schedule and sends tracks to Liquidsoap's queue via Telnet.
-/// Tracks are sent one-by-one with a 2-track buffer for resilience against connection issues.
-/// Queue depth is verified against Liquidsoap's actual state to prevent silent underruns.
+/// Sends tracks to Liquidsoap's queue via Telnet based on the weekly schedule.
+///
+/// Architecture (v0.0.0.37 — Liquidsoap push metadata):
+///   - SENDING: This service sends tracks to Liquidsoap via Telnet (queue.append).
+///   - REPORTING: Liquidsoap tells US what's playing via HTTP POST to TrackChangeController.
+///   - No guessing, no sync, no resync — Liquidsoap is the single source of truth.
+///   - This service only manages the buffer: keep queue.length >= 3 at all times.
+///
+/// On fresh start (plugin restart):
+///   - Query queue.current_track to find current position in playlist
+///   - Query queue.length to know what's already buffered
+///   - Continue sending from where Liquidsoap is
 /// </summary>
 public class RadioStreamingHostedService : BackgroundService
 {
@@ -25,7 +33,6 @@ public class RadioStreamingHostedService : BackgroundService
     private readonly ScheduleManagerService _scheduleManager;
     private readonly AudioProviderService _audioProvider;
     private readonly RadioStateService _state;
-    private readonly IUserManager _userManager;
     private readonly RadioPlaybackSessionService _playbackSession;
 
     /// <summary>
@@ -35,7 +42,6 @@ public class RadioStreamingHostedService : BackgroundService
 
     /// <summary>
     /// Interval for checking schedule changes when near the end of a slot.
-    /// Checks every second for precise schedule ending.
     /// </summary>
     private const int ScheduleCheckNearEndIntervalSeconds = 1;
 
@@ -45,19 +51,10 @@ public class RadioStreamingHostedService : BackgroundService
     private const int NearEndThresholdSeconds = 30;
 
     /// <summary>
-    /// Crossfade duration in seconds (must match radio.liq).
+    /// Minimum number of tracks to keep in Liquidsoap's queue (buffer depth).
+    /// When queue.length drops below this, refill immediately.
     /// </summary>
-    private const int CrossfadeSeconds = 3;
-
-    /// <summary>
-    /// Margin before track end to advance to next track (seconds).
-    /// </summary>
-    private const int TrackAdvanceMarginSeconds = 5;
-
-    /// <summary>
-    /// Default duration for tracks without metadata (3 minutes).
-    /// </summary>
-    private static readonly TimeSpan DefaultTrackDuration = TimeSpan.FromMinutes(3);
+    private const int MinBufferDepth = 3;
 
     /// <summary>
     /// Tracks the currently active schedule slot to detect changes.
@@ -75,53 +72,19 @@ public class RadioStreamingHostedService : BackgroundService
     private bool _warnedLiquidsoapDown;
 
     /// <summary>
-    /// Stores the playlist tracks with metadata for sequential playback reporting.
-    /// Tracks are sent one at a time with a 2-track buffer ahead of the playing track.
+    /// Stores the playlist tracks with their Liquidsoap paths.
+    /// Used for buffer management — knowing which track to send next.
     /// </summary>
-    private record struct QueuedTrack(string LiquidsoapPath, Audio AudioItem, TimeSpan Duration);
+    private record struct QueuedTrack(string LiquidsoapPath);
 
     private QueuedTrack[] _playlistTracks = Array.Empty<QueuedTrack>();
 
     /// <summary>
-    /// Index of the currently playing track in _playlistTracks.
-    /// -1 means no track is being tracked.
+    /// Index of the next track to send to Liquidsoap's queue.
+    /// Incremented after each successful queue.append.
+    /// This does NOT represent what's currently playing — Liquidsoap tells us that via HTTP push.
     /// </summary>
-    private int _currentTrackIndex = -1;
-
-    /// <summary>
-    /// Index of the last track successfully queued in Liquidsoap.
-    /// Used to ensure we only advance to tracks that are confirmed in the queue.
-    /// </summary>
-    private int _lastQueuedTrackIndex = -1;
-
-    /// <summary>
-    /// Index of the last track that was reported to Jellyfin.
-    /// Prevents double-reporting when advance is called multiple times for the same track.
-    /// </summary>
-    private int _lastReportedTrackIndex = -1;
-
-    /// <summary>
-    /// When the current track started playing (approximately).
-    /// </summary>
-    private DateTime _currentTrackStartedAt;
-
-    /// <summary>
-    /// Whether the sequential track reporting system is active.
-    /// </summary>
-    private bool _trackReportingActive;
-
-    /// <summary>
-    /// Timestamp of the last track sync check with Liquidsoap.
-    /// Used to limit sync verification frequency (every 60 seconds).
-    /// </summary>
-    private DateTime _lastTrackSyncCheck = DateTime.MinValue;
-
-    /// <summary>
-    /// When true, the next VerifyTrackSyncAsync will perform a full bidirectional resync
-    /// instead of just the periodic forward-drift check.
-    /// Set to true on Liquidsoap reconnection events to immediately correct any desync.
-    /// </summary>
-    private volatile bool _reconnectResyncNeeded;
+    private int _nextTrackToSend;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RadioStreamingHostedService"/> class.
@@ -132,7 +95,6 @@ public class RadioStreamingHostedService : BackgroundService
         ScheduleManagerService scheduleManager,
         AudioProviderService audioProvider,
         RadioStateService state,
-        IUserManager userManager,
         RadioPlaybackSessionService playbackSession)
     {
         _logger = logger;
@@ -140,9 +102,7 @@ public class RadioStreamingHostedService : BackgroundService
         _scheduleManager = scheduleManager;
         _audioProvider = audioProvider;
         _state = state;
-        _userManager = userManager;
         _playbackSession = playbackSession;
-        _liquidsoapClient.OnReconnected += () => _reconnectResyncNeeded = true;
     }
 
     /// <summary>
@@ -150,7 +110,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.36 — Resume on restart + bidirectional resync");
+        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.37 — Push metadata architecture");
 
         // Wait for Jellyfin to fully initialize
         try
@@ -184,7 +144,7 @@ public class RadioStreamingHostedService : BackgroundService
 
                     _state.IsStreaming = false;
                     _currentScheduleKey = null;
-                    ResetTrackingState();
+                    ResetState();
 
                     await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken).ConfigureAwait(false);
                     continue;
@@ -231,7 +191,12 @@ public class RadioStreamingHostedService : BackgroundService
                     {
                         _logger.LogInformation("Liquidsoap reconectado en {Host}:{Port}", config.LiquidsoapHost, config.LiquidsoapPort);
                         _warnedLiquidsoapDown = false;
-                        _reconnectResyncNeeded = true;
+
+                        // After reconnect, re-sync our next-to-send position
+                        if (_state.IsStreaming && _playlistTracks.Length > 0)
+                        {
+                            await ReSyncSendPositionAsync().ConfigureAwait(false);
+                        }
                     }
                 }
 
@@ -247,7 +212,7 @@ public class RadioStreamingHostedService : BackgroundService
                         await StopCurrentStreamingAsync(stoppingToken).ConfigureAwait(false);
                     }
 
-                    ResetTrackingState();
+                    ResetState();
 
                     // Wait until next schedule
                     var timeUntil = _scheduleManager.GetTimeUntilNextScheduleEntry(config.ScheduleEntries);
@@ -311,43 +276,13 @@ public class RadioStreamingHostedService : BackgroundService
                         continue;
                     }
 
-                    // Advance to next track if current is about to end (always, regardless of reporting)
-                    if (_trackReportingActive)
-                    {
-                        try
-                        {
-                            await AdvanceTrackAsync(config).ConfigureAwait(false);
-
-                            // Verify track sync with Liquidsoap (catches drift from metadata duration mismatch)
-                            // Liquidsoap plays based on actual audio duration; we track based on metadata duration.
-                            // When they differ, Jellyfin shows the wrong song. This check corrects the drift.
-                            if (_currentTrackIndex >= 0 && _currentTrackIndex < _playlistTracks.Length)
-                            {
-                                await VerifyTrackSyncAsync(config).ConfigureAwait(false);
-                            }
-                        }
-                        catch (Exception advanceEx)
-                        {
-                            _logger.LogWarning(advanceEx, "Track advance error, will retry next cycle");
-                        }
-                    }
+                    // ── Buffer refill: keep Liquidsoap's queue full ──
+                    await RefillQueueAsync().ConfigureAwait(false);
 
                     // Determine poll interval
                     var pollInterval = remaining < TimeSpan.FromSeconds(NearEndThresholdSeconds)
                         ? TimeSpan.FromSeconds(ScheduleCheckNearEndIntervalSeconds)
                         : TimeSpan.FromSeconds(ScheduleCheckIntervalSeconds);
-
-                    // Also poll faster when near track end for precise advance
-                    if (_trackReportingActive && _currentTrackIndex >= 0 && _currentTrackIndex < _playlistTracks.Length)
-                    {
-                        var currentDuration = _playlistTracks[_currentTrackIndex].Duration;
-                        var elapsed = DateTime.UtcNow - _currentTrackStartedAt;
-                        var trackRemaining = currentDuration - elapsed;
-                        if (trackRemaining < TimeSpan.FromSeconds(10) && trackRemaining > TimeSpan.Zero)
-                        {
-                            pollInterval = TimeSpan.FromSeconds(1);
-                        }
-                    }
 
                     await Task.Delay(pollInterval, stoppingToken).ConfigureAwait(false);
                     continue;
@@ -374,7 +309,7 @@ public class RadioStreamingHostedService : BackgroundService
 
                 _state.IsStreaming = false;
                 _currentScheduleKey = null;
-                ResetTrackingState();
+                ResetState();
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
@@ -405,10 +340,9 @@ public class RadioStreamingHostedService : BackgroundService
 
     /// <summary>
     /// Loads a playlist's tracks into the Liquidsoap queue.
-    /// On fresh start (plugin restart), attempts to RESUME from wherever Liquidsoap
-    /// currently is in the playlist, instead of clearing and restarting from track 0.
-    /// Resume only works for non-shuffle playlists (shuffle order is random each time).
-    /// Falls back to clear-and-restart if Liquidsoap is playing something else or off-air.
+    /// On fresh start (plugin restart), attempts to RESUME by querying what
+    /// Liquidsoap is currently playing and continuing from that position.
+    /// Does NOT clear the queue on resume — Liquidsoap keeps playing uninterrupted.
     /// </summary>
     private async Task LoadPlaylistToLiquidsoapAsync(
         PluginConfiguration config,
@@ -429,16 +363,14 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
-        // Collect valid file paths with metadata
+        // Collect valid file paths
         var filePaths = new List<string>();
-        var pathToItemMap = new Dictionary<string, Audio>();
         foreach (var item in playlistItems)
         {
             var path = _audioProvider.GetAudioFilePath(item);
             if (path != null)
             {
                 filePaths.Add(path);
-                pathToItemMap[path] = item;
             }
         }
 
@@ -450,25 +382,21 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
-        // Shuffle playback if enabled (cannot resume shuffled playlists — order changes each time)
+        // Shuffle playback if enabled
         if (activeEntry.ShufflePlayback)
         {
             ShuffleList(filePaths);
             _logger.LogInformation("Shuffle enabled for \"{Name}\" - randomized {Count} tracks", activeEntry.DisplayName, filePaths.Count);
         }
 
-        // Translate paths and build track list with durations
+        // Translate paths
         var trackList = new List<QueuedTrack>();
         foreach (var jellyfinPath in filePaths)
         {
             var liqPath = TranslatePath(jellyfinPath, config);
-            if (liqPath != null && pathToItemMap.TryGetValue(jellyfinPath, out var audioItem))
+            if (liqPath != null)
             {
-                var duration = audioItem.RunTimeTicks.HasValue && audioItem.RunTimeTicks.Value > 0
-                    ? TimeSpan.FromTicks(audioItem.RunTimeTicks.Value)
-                    : DefaultTrackDuration;
-
-                trackList.Add(new QueuedTrack(liqPath, audioItem, duration));
+                trackList.Add(new QueuedTrack(liqPath));
             }
         }
 
@@ -480,12 +408,17 @@ public class RadioStreamingHostedService : BackgroundService
             return;
         }
 
-        var newTrackList = trackList.ToArray();
+        _playlistTracks = trackList.ToArray();
 
-        // ── RESUME: On fresh start, check if Liquidsoap is already playing a track from this playlist ──
+        _logger.LogInformation(
+            "Loading \"{Name}\" ({Day} {Start}-{End}) - {Count} tracks{Shuffle} to Liquidsoap",
+            activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime,
+            _playlistTracks.Length, activeEntry.ShufflePlayback ? " [SHUFFLE]" : "");
+
+        // ── RESUME: On fresh start, check if Liquidsoap is already playing from this playlist ──
         if (isFreshStart && !activeEntry.ShufflePlayback)
         {
-            var resumed = await TryResumeCurrentPlaylistAsync(newTrackList, config).ConfigureAwait(false);
+            var resumed = await TryResumeAsync().ConfigureAwait(false);
             if (resumed)
             {
                 _currentScheduleKey = scheduleKey;
@@ -494,42 +427,21 @@ public class RadioStreamingHostedService : BackgroundService
             }
         }
 
-        // ── FRESH START: Clear queue and begin from track 0 ──
-        ResetTrackingState();
-        _playlistTracks = newTrackList;
+        // ── FRESH START: Clear queue and load from track 0 ──
+        ResetState();
 
-        _logger.LogInformation(
-            "Loading \"{Name}\" ({Day} {Start}-{End}) - {Count} tracks{Shuffle} to Liquidsoap",
-            activeEntry.DisplayName, activeEntry.DayOfWeek, activeEntry.StartTime, activeEntry.EndTime,
-            _playlistTracks.Length, activeEntry.ShufflePlayback ? " [SHUFFLE]" : "");
+        await RetryClearQueueAsync().ConfigureAwait(false);
 
-        if (_state.IsStreaming)
-        {
-            await RetryClearQueueAsync().ConfigureAwait(false);
-
-            try
-            {
-                await _liquidsoapClient.SkipAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to skip current track before playlist change");
-            }
-
-            await Task.Delay(500, cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            await RetryClearQueueAsync().ConfigureAwait(false);
-        }
-
-        // Send first 3 tracks (1 playing + 2 buffer) for resilience against connection issues
-        var initialCount = Math.Min(3, _playlistTracks.Length);
+        // Send first MinBufferDepth tracks
+        var initialCount = Math.Min(MinBufferDepth, _playlistTracks.Length);
         var added = 0;
         for (var i = 0; i < initialCount; i++)
         {
             if (await _liquidsoapClient.AppendTrackAsync(_playlistTracks[i].LiquidsoapPath).ConfigureAwait(false))
+            {
                 added++;
+                _nextTrackToSend = i + 1;
+            }
         }
 
         _currentScheduleKey = scheduleKey;
@@ -537,41 +449,23 @@ public class RadioStreamingHostedService : BackgroundService
 
         if (added > 0)
         {
-            _currentTrackIndex = 0;
-            _lastQueuedTrackIndex = added - 1;
-            _currentTrackStartedAt = DateTime.UtcNow;
-            _trackReportingActive = true;
-            _lastTrackSyncCheck = DateTime.UtcNow; // Skip sync check right after load
-
             _logger.LogInformation(
-                "Queued {Added}/{Total} initial tracks for \"{Name}\" (one-by-one mode, 2-track buffer)",
-                added, _playlistTracks.Length, activeEntry.DisplayName);
-
-            // Report first track immediately (only once)
-            if (config.EnablePlaybackReporting)
-            {
-                _lastReportedTrackIndex = 0;
-                await ReportTrackPlaybackAsync(_playlistTracks[0].AudioItem, config).ConfigureAwait(false);
-            }
+                "Queued {Added}/{Total} initial tracks for \"{Name}\" (buffer: {Buffer})",
+                added, _playlistTracks.Length, activeEntry.DisplayName, MinBufferDepth);
         }
         else
         {
             _logger.LogError("Failed to queue any tracks for \"{Name}\"", activeEntry.DisplayName);
-            ResetTrackingState();
+            ResetState();
         }
     }
 
     /// <summary>
-    /// Attempts to resume playback from where Liquidsoap currently is in the playlist.
-    /// Only called on fresh start (plugin restart) for non-shuffle playlists.
-    /// Queries queue.current_track to find what Liquidsoap is playing, matches it
-    /// against the playlist, and resumes tracking from that position.
+    /// Attempts to resume from where Liquidsoap currently is in the playlist.
+    /// Queries queue.current_track and queue.length to determine the position.
     /// Does NOT clear the queue or skip — Liquidsoap keeps playing uninterrupted.
     /// </summary>
-    /// <param name="trackList">The playlist tracks (already built, not yet assigned to _playlistTracks).</param>
-    /// <param name="config">Plugin configuration.</param>
-    /// <returns>True if successfully resumed, false if should start fresh from track 0.</returns>
-    private async Task<bool> TryResumeCurrentPlaylistAsync(QueuedTrack[] trackList, PluginConfiguration config)
+    private async Task<bool> TryResumeAsync()
     {
         try
         {
@@ -579,240 +473,11 @@ public class RadioStreamingHostedService : BackgroundService
             var currentPath = await _liquidsoapClient.GetCurrentTrackAsync().ConfigureAwait(false);
             if (string.IsNullOrEmpty(currentPath) || currentPath.Equals("none", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogInformation("Resume check: Liquidsoap not playing anything, starting from track 0");
+                _logger.LogInformation("Resume check: Liquidsoap not playing anything, starting fresh");
                 return false;
             }
 
-            // Find matching track in our playlist (exact match on LiquidsoapPath)
-            var matchIndex = -1;
-            for (var i = 0; i < trackList.Length; i++)
-            {
-                if (trackList[i].LiquidsoapPath.Equals(currentPath, StringComparison.Ordinal))
-                {
-                    matchIndex = i;
-                    break;
-                }
-            }
-
-            if (matchIndex < 0)
-            {
-                _logger.LogInformation(
-                    "Resume check: Liquidsoap playing \"{Path}\" which is not in the playlist, starting from track 0",
-                    currentPath);
-                return false;
-            }
-
-            // ── FOUND MATCH — RESUME from this position ──
-            _logger.LogInformation(
-                "RESUME: Liquidsoap is playing track {Index}/{Total} (\"{Path}\"), resuming from this position without interrupting audio",
-                matchIndex + 1, trackList.Length, currentPath);
-
-            // Set up tracking state at the resume position
-            _playlistTracks = trackList;
-            _currentTrackIndex = matchIndex;
-            _lastQueuedTrackIndex = matchIndex; // Conservative: assume nothing is buffered beyond current
-            _trackReportingActive = true;
-            _lastTrackSyncCheck = DateTime.UtcNow;
-            _reconnectResyncNeeded = false;
-
-            // Calculate when the current track started using queue.remaining
-            var remaining = await _liquidsoapClient.GetQueueRemainingAsync().ConfigureAwait(false);
-            if (remaining > 0)
-            {
-                var trackDuration = trackList[matchIndex].Duration.TotalSeconds;
-                var elapsed = trackDuration - remaining;
-                _currentTrackStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(Math.Max(0, elapsed));
-                _logger.LogInformation(
-                    "Track started approximately {Elapsed:F0}s ago (remaining: {Remaining:F1}s, duration: {Duration:F1}s)",
-                    elapsed, remaining, trackDuration);
-            }
-            else
-            {
-                _currentTrackStartedAt = DateTime.UtcNow;
-                _logger.LogDebug("Could not determine track remaining time, assuming just started");
-            }
-
-            // Estimate _lastQueuedTrackIndex from queue.length to avoid re-queuing tracks
-            // Liquidsoap already has in its buffer
-            var queueLength = await _liquidsoapClient.GetQueueLengthAsync().ConfigureAwait(false);
-            if (queueLength > 0)
-            {
-                _lastQueuedTrackIndex = Math.Min(matchIndex + queueLength, trackList.Length - 1);
-                _logger.LogInformation(
-                    "Queue has {QueueLength} track(s) pending, set lastQueued to index {LastQueued}",
-                    queueLength, _lastQueuedTrackIndex);
-            }
-
-            // Report the current track to Jellyfin
-            if (config.EnablePlaybackReporting)
-            {
-                _lastReportedTrackIndex = matchIndex;
-                await ReportTrackPlaybackAsync(trackList[matchIndex].AudioItem, config).ConfigureAwait(false);
-            }
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Resume check failed, starting from track 0");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Advances to the next track in the playlist when the current one is about to end.
-    /// Key design principles:
-    ///   - Verifies Liquidsoap's actual queue depth before trusting local index.
-    ///   - Index only advances when the next track is confirmed queued in Liquidsoap.
-    ///   - If queuing fails, the same track is retried on the next cycle (never skipped).
-    ///   - Tracks are only reported once (tracked via _lastReportedTrackIndex).
-    ///   - Always maintains at least 2 buffered tracks ahead in the queue.
-    /// </summary>
-    private async Task AdvanceTrackAsync(PluginConfiguration config)
-    {
-        if (_currentTrackIndex < 0 || _currentTrackIndex >= _playlistTracks.Length)
-            return;
-
-        var current = _playlistTracks[_currentTrackIndex];
-        var elapsed = DateTime.UtcNow - _currentTrackStartedAt;
-        var trackRemaining = current.Duration - elapsed;
-
-        // Time to advance? (current track about to end)
-        // Use negative threshold to allow multiple attempts if needed
-        if (trackRemaining > TimeSpan.FromSeconds(TrackAdvanceMarginSeconds))
-            return;
-
-        var nextIndex = _currentTrackIndex + 1;
-
-        if (nextIndex >= _playlistTracks.Length)
-        {
-            _trackReportingActive = false;
-            _logger.LogInformation("All {Count} tracks processed for current playlist", _playlistTracks.Length);
-            return;
-        }
-
-        // ── Diagnostic: log Liquidsoap's actual queue depth ──
-        // NOTE: We do NOT modify _lastQueuedTrackIndex based on queue.length because
-        // Liquidsoap's queue.count semantics are unreliable during crossfade transitions
-        // (the playing track may or may not be counted depending on timing). Resetting
-        // the index backward causes duplicate tracks and out-of-order playback.
-        // The proactive reconnection + 3-track buffer + 3s timeout are sufficient
-        // to prevent gaps. Local index tracking remains the source of truth.
-        try
-        {
-            var actualQueueLength = await _liquidsoapClient.GetQueueLengthAsync().ConfigureAwait(false);
-            if (actualQueueLength >= 0)
-            {
-                var expectedBufferAhead = _lastQueuedTrackIndex - _currentTrackIndex;
-                if (actualQueueLength < expectedBufferAhead)
-                {
-                    _logger.LogWarning(
-                        "Queue depth diagnostic: Liquidsoap reports {Actual} tracks pending, local index expects {Expected} ahead of current (may be crossfade timing difference)",
-                        actualQueueLength, expectedBufferAhead);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Queue length check failed, continuing with local tracking");
-        }
-
-        // Ensure the next track is queued in Liquidsoap BEFORE advancing the index
-        // This is the key guarantee: index only moves when the track is confirmed
-        if (nextIndex > _lastQueuedTrackIndex)
-        {
-            var nextTrack = _playlistTracks[nextIndex];
-            if (await _liquidsoapClient.AppendTrackAsync(nextTrack.LiquidsoapPath).ConfigureAwait(false))
-            {
-                _lastQueuedTrackIndex = nextIndex;
-                _logger.LogInformation("Queued track {Index}/{Total}: {Path}",
-                    nextIndex + 1, _playlistTracks.Length, nextTrack.LiquidsoapPath);
-            }
-            else
-            {
-                // Failed to queue - do NOT advance, retry next cycle (never skip)
-                _logger.LogWarning("Failed to queue track {Index}/{Total}, retrying next cycle",
-                    nextIndex + 1, _playlistTracks.Length);
-                return;
-            }
-        }
-
-        // Next track is confirmed in queue — now advance the index
-        _currentTrackIndex = nextIndex;
-        _currentTrackStartedAt = DateTime.UtcNow;
-
-        // Report the now-playing track (only once)
-        if (config.EnablePlaybackReporting && nextIndex != _lastReportedTrackIndex)
-        {
-            _lastReportedTrackIndex = nextIndex;
-            await ReportTrackPlaybackAsync(_playlistTracks[nextIndex].AudioItem, config).ConfigureAwait(false);
-        }
-
-        // Try to buffer up to 2 tracks ahead (best-effort, non-blocking)
-        // This gives resilience: if one buffer send fails, the other still covers the gap
-        for (var offset = 1; offset <= 2; offset++)
-        {
-            var bufferIndex = nextIndex + offset;
-            if (bufferIndex >= _playlistTracks.Length)
-                break;
-
-            if (bufferIndex > _lastQueuedTrackIndex)
-            {
-                var bufferTrack = _playlistTracks[bufferIndex];
-                if (await _liquidsoapClient.AppendTrackAsync(bufferTrack.LiquidsoapPath).ConfigureAwait(false))
-                {
-                    _lastQueuedTrackIndex = bufferIndex;
-                    _logger.LogDebug("Buffered track {Index}/{Total}: {Path}",
-                        bufferIndex + 1, _playlistTracks.Length, bufferTrack.LiquidsoapPath);
-                }
-                else
-                {
-                    // Buffer failed - not critical, will retry on next advance cycle
-                    _logger.LogWarning("Failed to buffer track {Index}/{Total}, will retry later",
-                        bufferIndex + 1, _playlistTracks.Length);
-                    // Don't break — try the next buffer position too
-                }
-            }
-        }
-
-        if (nextIndex + 1 >= _playlistTracks.Length)
-        {
-            _logger.LogInformation("Last track ({Index}/{Total}) now playing, no more to buffer",
-                _currentTrackIndex + 1, _playlistTracks.Length);
-        }
-    }
-
-    /// <summary>
-    /// Verifies that the plugin's track tracking is synchronized with what Liquidsoap
-    /// is actually playing. Performs fully bidirectional resync:
-    ///   - If Liquidsoap is AHEAD (matchIndex > _currentTrackIndex): fast-forward,
-    ///     reporting ALL intermediate tracks as stopped.
-    ///   - If plugin is AHEAD (matchIndex < _currentTrackIndex): log a warning but
-    ///     do NOT change _currentTrackIndex backward — it will converge naturally.
-    ///   - If already in sync: do nothing.
-    ///   - If no match found (e.g., offair.ogg): return silently.
-    /// When _reconnectResyncNeeded is true, bypasses the 60-second throttle.
-    /// Checks every 60 seconds normally to minimize telnet overhead.
-    /// </summary>
-    private async Task VerifyTrackSyncAsync(PluginConfiguration config)
-    {
-        // When a reconnect happened, perform the resync immediately (bypass throttle)
-        if (!_reconnectResyncNeeded)
-        {
-            // Normal periodic check every 60 seconds to avoid excessive telnet commands
-            if ((DateTime.UtcNow - _lastTrackSyncCheck) < TimeSpan.FromSeconds(60))
-                return;
-        }
-        _lastTrackSyncCheck = DateTime.UtcNow;
-        _reconnectResyncNeeded = false;
-
-        try
-        {
-            var currentPath = await _liquidsoapClient.GetCurrentTrackAsync().ConfigureAwait(false);
-            if (string.IsNullOrEmpty(currentPath) || currentPath.Equals("none", StringComparison.OrdinalIgnoreCase))
-                return;
-
-            // Find matching track in our playlist (exact match on LiquidsoapPath)
+            // Find matching track in our playlist
             var matchIndex = -1;
             for (var i = 0; i < _playlistTracks.Length; i++)
             {
@@ -824,108 +489,158 @@ public class RadioStreamingHostedService : BackgroundService
             }
 
             if (matchIndex < 0)
-                return; // Track not found in playlist (e.g., offair.ogg or non-playlist track)
-
-            if (matchIndex == _currentTrackIndex)
-                return; // Already in sync — nothing to do
-
-            if (matchIndex > _currentTrackIndex)
             {
-                // Liquidsoap is AHEAD — fast-forward with full intermediate track reporting
                 _logger.LogInformation(
-                    "Track resync: Liquidsoap is playing track {Match}/{Total} (\"{Path}\") but local index is at {Current}. Fast-forwarding and reporting {Skipped} skipped track(s).",
-                    matchIndex + 1, _playlistTracks.Length, currentPath, _currentTrackIndex + 1,
-                    matchIndex - _currentTrackIndex);
-
-                // Report ALL intermediate tracks as stopped
-                await _playbackSession.ReportPlaybackStoppedAsync().ConfigureAwait(false);
-
-                // Fast-forward our index to match Liquidsoap's actual state
-                _currentTrackIndex = matchIndex;
-                _currentTrackStartedAt = DateTime.UtcNow;
-                _lastReportedTrackIndex = matchIndex;
-
-                // Report the actually-playing track to Jellyfin
-                if (config.EnablePlaybackReporting)
-                {
-                    await ReportTrackPlaybackAsync(_playlistTracks[matchIndex].AudioItem, config).ConfigureAwait(false);
-                }
+                    "Resume check: Liquidsoap playing \"{Path}\" which is not in playlist, starting fresh",
+                    currentPath);
+                return false;
             }
-            else
+
+            // FOUND MATCH — resume from this position
+            _logger.LogInformation(
+                "RESUME: Liquidsoap is playing track {Index}/{Total} (\"{Path}\"), continuing without interrupting audio",
+                matchIndex + 1, _playlistTracks.Length, currentPath);
+
+            // Set next-to-send based on current position + what's already queued
+            _nextTrackToSend = matchIndex + 1;
+
+            // Check how many are already in the buffer
+            var queueLength = await _liquidsoapClient.GetQueueLengthAsync().ConfigureAwait(false);
+            if (queueLength > 0)
             {
-                // Plugin is AHEAD — we reported a song that Liquidsoap hasn't actually played yet.
-                // Don't change _currentTrackIndex backward. Log a warning; the index will
-                // naturally converge when Liquidsoap catches up.
-                _logger.LogWarning(
-                    "Track resync: Plugin index is at {Current}/{Total} but Liquidsoap is still playing track {Match} (\"{Path}\"). " +
-                    "Not moving index backward — will converge naturally when Liquidsoap advances.",
-                    _currentTrackIndex + 1, _playlistTracks.Length, matchIndex + 1, currentPath);
+                _nextTrackToSend = matchIndex + queueLength + 1;
+                _logger.LogInformation(
+                    "Queue has {QueueLength} track(s) buffered, next track to send: {Next}",
+                    queueLength, _nextTrackToSend);
             }
+
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Track sync verification failed");
+            _logger.LogDebug(ex, "Resume check failed, starting fresh");
+            return false;
         }
     }
 
     /// <summary>
-    /// Reports a track play to Jellyfin's playback session system.
-    /// Creates a virtual session (if not yet active) and fires PlaybackStart/PlaybackStopped events.
-    /// This makes the radio appear as an active client in Jellyfin's dashboard and triggers
-    /// scrobbling plugins (Last.fm, ListenBrainz) to detect the playback activity.
-    /// PlayCount, LastPlayedDate and scrobbling are all handled by Jellyfin's internal
-    /// playback event handlers (OnPlaybackStart / OnPlaybackStopped) — no manual UserData needed.
+    /// After reconnect, re-synchronize our _nextTrackToSend position
+    /// to avoid sending duplicate tracks to Liquidsoap.
     /// </summary>
-    private async Task ReportTrackPlaybackAsync(Audio audioItem, PluginConfiguration config)
+    private async Task ReSyncSendPositionAsync()
     {
-        if (!Guid.TryParse(config.JellyfinUserId, out var userId))
+        try
         {
-            _logger.LogWarning("Invalid user ID for playback reporting");
-            return;
-        }
+            var currentPath = await _liquidsoapClient.GetCurrentTrackAsync().ConfigureAwait(false);
+            var queueLength = await _liquidsoapClient.GetQueueLengthAsync().ConfigureAwait(false);
 
-        var user = _userManager.GetUserById(userId);
-        if (user == null)
-        {
-            _logger.LogWarning("User not found for playback reporting: {UserId}", userId);
-            return;
+            if (string.IsNullOrEmpty(currentPath) || queueLength < 0)
+            {
+                _logger.LogDebug("ReSync: could not query Liquidsoap state");
+                return;
+            }
+
+            // Find current track in playlist
+            var matchIndex = -1;
+            for (var i = 0; i < _playlistTracks.Length; i++)
+            {
+                if (_playlistTracks[i].LiquidsoapPath.Equals(currentPath, StringComparison.Ordinal))
+                {
+                    matchIndex = i;
+                    break;
+                }
+            }
+
+            if (matchIndex >= 0)
+            {
+                var newPosition = matchIndex + queueLength + 1;
+                if (newPosition > _nextTrackToSend)
+                {
+                    _logger.LogInformation(
+                        "ReSync: adjusted nextTrackToSend from {Old} to {New} (current={Current}, queued={Queued})",
+                        _nextTrackToSend, newPosition, matchIndex + 1, queueLength);
+                    _nextTrackToSend = newPosition;
+                }
+            }
         }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "ReSync check failed");
+        }
+    }
+
+    /// <summary>
+    /// Keeps Liquidsoap's queue buffer full.
+    /// Queries queue.length and sends tracks if below MinBufferDepth.
+    /// Simple, reliable, no timing — just keep the buffer full.
+    /// </summary>
+    private async Task RefillQueueAsync()
+    {
+        if (_playlistTracks.Length == 0 || _nextTrackToSend >= _playlistTracks.Length)
+            return;
 
         try
         {
-            // Ensure virtual session exists (creates or reuses)
-            var sessionReady = await _playbackSession.EnsureSessionAsync(user).ConfigureAwait(false);
-            if (sessionReady)
+            var queueLength = await _liquidsoapClient.GetQueueLengthAsync().ConfigureAwait(false);
+
+            if (queueLength < 0)
             {
-                // Fire PlaybackStart event (now-playing in dashboard + scrobble registration)
-                // On track change, this automatically stops the previous track (PlaybackStopped),
-                // which triggers Jellyfin's internal PlayCount++ for the previous track.
-                await _playbackSession.ReportPlaybackStartAsync(audioItem).ConfigureAwait(false);
+                // Query failed — try sending one track as precaution
+                _logger.LogDebug("Queue length query failed, attempting buffer fill");
+                await SendNextTrackAsync().ConfigureAwait(false);
+                return;
             }
 
-            _logger.LogInformation(
-                "Reported playback start: {Artist} - {Title}",
-                audioItem.Artists != null && audioItem.Artists.Count > 0
-                    ? string.Join(", ", audioItem.Artists)
-                    : "Unknown Artist",
-                audioItem.Name ?? "Unknown");
+            // Calculate how many tracks we need to send
+            var needed = MinBufferDepth - queueLength;
+
+            while (needed > 0 && _nextTrackToSend < _playlistTracks.Length)
+            {
+                await SendNextTrackAsync().ConfigureAwait(false);
+                needed--;
+            }
+
+            // Check if we've reached the end of the playlist
+            if (_nextTrackToSend >= _playlistTracks.Length)
+            {
+                _logger.LogInformation("All {Count} tracks sent to Liquidsoap queue for current playlist", _playlistTracks.Length);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to report playback for {ItemName}", audioItem.Name);
+            _logger.LogWarning(ex, "Queue refill error, will retry next cycle");
         }
     }
 
     /// <summary>
-    /// Resets all track tracking state.
+    /// Sends the next track in the playlist to Liquidsoap's queue.
     /// </summary>
-    private void ResetTrackingState()
+    private async Task<bool> SendNextTrackAsync()
+    {
+        if (_nextTrackToSend >= _playlistTracks.Length)
+            return false;
+
+        var track = _playlistTracks[_nextTrackToSend];
+        if (await _liquidsoapClient.AppendTrackAsync(track.LiquidsoapPath).ConfigureAwait(false))
+        {
+            _logger.LogInformation("Queued track {Index}/{Total}: {Path}",
+                _nextTrackToSend + 1, _playlistTracks.Length, track.LiquidsoapPath);
+            _nextTrackToSend++;
+            return true;
+        }
+
+        _logger.LogWarning("Failed to queue track {Index}/{Total}, retrying next cycle",
+            _nextTrackToSend + 1, _playlistTracks.Length);
+        return false;
+    }
+
+    /// <summary>
+    /// Resets all tracking state.
+    /// </summary>
+    private void ResetState()
     {
         _playlistTracks = Array.Empty<QueuedTrack>();
-        _currentTrackIndex = -1;
-        _lastQueuedTrackIndex = -1;
-        _lastReportedTrackIndex = -1;
-        _trackReportingActive = false;
+        _nextTrackToSend = 0;
     }
 
     /// <summary>
@@ -973,7 +688,7 @@ public class RadioStreamingHostedService : BackgroundService
 
         _state.IsStreaming = false;
         _currentScheduleKey = null;
-        ResetTrackingState();
+        ResetState();
     }
 
     /// <summary>
@@ -1085,7 +800,7 @@ public class RadioStreamingHostedService : BackgroundService
         _liquidsoapClient.Disconnect();
         _state.IsStreaming = false;
         _currentScheduleKey = null;
-        ResetTrackingState();
+        ResetState();
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 }

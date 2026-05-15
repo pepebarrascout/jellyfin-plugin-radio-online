@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -15,19 +14,6 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 /// </summary>
 public class LiquidsoapClient : IDisposable
 {
-    /// <summary>
-    /// Fired when a NEW TCP connection is established after a previous connection existed.
-    /// Does NOT fire on the very first connection — only on reconnections.
-    /// Used by the streaming service to trigger track resync after connection loss.
-    /// </summary>
-    public event Action? OnReconnected;
-
-    /// <summary>
-    /// Gets whether a previous connection to Liquidsoap has existed (and was subsequently dropped).
-    /// Returns true when a reconnect event would be meaningful (i.e., there was a prior connection).
-    /// </summary>
-    public bool HadPreviousConnection => _lastConnectionTime != DateTime.MinValue;
-
     private readonly ILogger<LiquidsoapClient> _logger;
     private TcpClient? _tcpClient;
     private NetworkStream? _stream;
@@ -207,32 +193,6 @@ public class LiquidsoapClient : IDisposable
     }
 
     /// <summary>
-    /// Gets the remaining playback time in seconds of the currently playing track.
-    /// Uses the queue.remaining Telnet command (requires radio.liq to register it).
-    /// Returns -1 on failure.
-    /// </summary>
-    /// <returns>Remaining seconds (float), or -1 if the query failed.</returns>
-    public async Task<double> GetQueueRemainingAsync()
-    {
-        try
-        {
-            var response = await SendCommandAsync("queue.remaining").ConfigureAwait(false);
-            if (double.TryParse(response.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var remaining))
-            {
-                return remaining;
-            }
-
-            _logger.LogWarning("Failed to parse queue remaining response: {Response}", response);
-            return -1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error querying queue remaining");
-            return -1;
-        }
-    }
-
-    /// <summary>
     /// Tests the connection to the Liquidsoap server.
     /// </summary>
     /// <returns>True if the connection is working.</returns>
@@ -393,16 +353,11 @@ public class LiquidsoapClient : IDisposable
     /// <summary>
     /// Ensures a TCP connection to the Liquidsoap Telnet server is active.
     /// Creates a new connection if needed or reconnects if the existing one is dead.
-    /// Fires <see cref="OnReconnected"/> when a new connection is established after a previous one existed.
     /// </summary>
     private void EnsureConnected()
     {
         if (_disposed)
             return;
-
-        // Capture whether a previous connection existed BEFORE any Disconnect() calls reset the flag.
-        // This allows us to distinguish first-connect from reconnect.
-        var hadPreviousConnection = _lastConnectionTime != DateTime.MinValue;
 
         // Check if existing connection should be proactively renewed
         if (_tcpClient != null)
@@ -452,15 +407,6 @@ public class LiquidsoapClient : IDisposable
                 _stream = _tcpClient.GetStream();
                 _lastConnectionTime = DateTime.UtcNow;
                 _logger.LogInformation("Connected to Liquidsoap Telnet at {Host}:{Port}", _host, _port);
-
-                // Fire reconnect event only if this is NOT the very first connection.
-                // hadPreviousConnection is captured before any Disconnect() that may have
-                // reset _lastConnectionTime to DateTime.MinValue.
-                if (hadPreviousConnection)
-                {
-                    _logger.LogInformation("Liquidsoap reconnected after previous connection loss");
-                    OnReconnected?.Invoke();
-                }
             }
             else
             {
