@@ -277,3 +277,25 @@ Verifica con `ss -tlnp | grep 8080`:
 | `queue.append /ruta/archivo.m4a` | Agregar cancion a la cola | `echo "queue.append /music/song.m4a" \| nc localhost 8080` |
 | `queue.skip` | Saltar cancion actual | `echo "queue.skip" \| nc localhost 8080` |
 | `queue.clear` | Limpiar toda la cola | `echo "queue.clear" \| nc localhost 8080` |
+| `queue.current_track` | Obtener la ruta de la cancion reproduciendose actualmente | `echo "queue.current_track" \| nc localhost 8080` |
+
+### Comando queue.current_track
+
+El plugin usa `queue.current_track` para verificar periodicamente que la cancion que Jellyfin muestra en el dashboard coincide con lo que Liquidsoap esta reproduciendo realmente. Si se detecta una desincronizacion (por ejemplo, despues de una caida de conexion TCP), el plugin corrige su indice interno para que coincida con el estado real de Liquidsoap.
+
+Para habilitar este comando, agrega esta linea a tu `radio.liq`:
+
+```
+def cmd_current_track(x) =
+  source = music_queue.current()
+  if source == null then
+    "none"
+  else
+    request = source.annotate
+    request.uri
+  end
+end
+server.register("queue.current_track", cmd_current_track)
+```
+
+**Nota**: Si prefieres no agregar este comando, el plugin seguira funcionando pero no podra detectar ni corregir desincronizaciones automaticamente.

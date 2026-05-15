@@ -117,6 +117,13 @@ public class RadioStreamingHostedService : BackgroundService
     private DateTime _lastTrackSyncCheck = DateTime.MinValue;
 
     /// <summary>
+    /// When true, the next VerifyTrackSyncAsync will perform a full bidirectional resync
+    /// instead of just the periodic forward-drift check.
+    /// Set to true on Liquidsoap reconnection events to immediately correct any desync.
+    /// </summary>
+    private volatile bool _reconnectResyncNeeded;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="RadioStreamingHostedService"/> class.
     /// </summary>
     public RadioStreamingHostedService(
@@ -135,6 +142,7 @@ public class RadioStreamingHostedService : BackgroundService
         _state = state;
         _userManager = userManager;
         _playbackSession = playbackSession;
+        _liquidsoapClient.OnReconnected += () => _reconnectResyncNeeded = true;
     }
 
     /// <summary>
@@ -142,7 +150,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.34 — Proactive reconnection + 3-track buffer + track sync verification");
+        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.35 — Bidirectional resync + reconnect recovery");
 
         // Wait for Jellyfin to fully initialize
         try
@@ -223,6 +231,7 @@ public class RadioStreamingHostedService : BackgroundService
                     {
                         _logger.LogInformation("Liquidsoap reconectado en {Host}:{Port}", config.LiquidsoapHost, config.LiquidsoapPort);
                         _warnedLiquidsoapDown = false;
+                        _reconnectResyncNeeded = true;
                     }
                 }
 
@@ -658,17 +667,27 @@ public class RadioStreamingHostedService : BackgroundService
 
     /// <summary>
     /// Verifies that the plugin's track tracking is synchronized with what Liquidsoap
-    /// is actually playing. Catches drift caused by metadata duration vs actual audio
-    /// duration mismatch. When drift is detected, fast-forwards _currentTrackIndex to
-    /// match Liquidsoap's current track and reports the correct song to Jellyfin.
-    /// Checks every 60 seconds to minimize telnet overhead.
+    /// is actually playing. Performs fully bidirectional resync:
+    ///   - If Liquidsoap is AHEAD (matchIndex > _currentTrackIndex): fast-forward,
+    ///     reporting ALL intermediate tracks as stopped.
+    ///   - If plugin is AHEAD (matchIndex < _currentTrackIndex): log a warning but
+    ///     do NOT change _currentTrackIndex backward — it will converge naturally.
+    ///   - If already in sync: do nothing.
+    ///   - If no match found (e.g., offair.ogg): return silently.
+    /// When _reconnectResyncNeeded is true, bypasses the 60-second throttle.
+    /// Checks every 60 seconds normally to minimize telnet overhead.
     /// </summary>
     private async Task VerifyTrackSyncAsync(PluginConfiguration config)
     {
-        // Check every 60 seconds to avoid excessive telnet commands
-        if ((DateTime.UtcNow - _lastTrackSyncCheck) < TimeSpan.FromSeconds(60))
-            return;
+        // When a reconnect happened, perform the resync immediately (bypass throttle)
+        if (!_reconnectResyncNeeded)
+        {
+            // Normal periodic check every 60 seconds to avoid excessive telnet commands
+            if ((DateTime.UtcNow - _lastTrackSyncCheck) < TimeSpan.FromSeconds(60))
+                return;
+        }
         _lastTrackSyncCheck = DateTime.UtcNow;
+        _reconnectResyncNeeded = false;
 
         try
         {
@@ -676,11 +695,11 @@ public class RadioStreamingHostedService : BackgroundService
             if (string.IsNullOrEmpty(currentPath) || currentPath.Equals("none", StringComparison.OrdinalIgnoreCase))
                 return;
 
-            // Find matching track in our playlist
+            // Find matching track in our playlist (exact match on LiquidsoapPath)
             var matchIndex = -1;
             for (var i = 0; i < _playlistTracks.Length; i++)
             {
-                if (_playlistTracks[i].LiquidsoapPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
+                if (_playlistTracks[i].LiquidsoapPath.Equals(currentPath, StringComparison.Ordinal))
                 {
                     matchIndex = i;
                     break;
@@ -688,28 +707,42 @@ public class RadioStreamingHostedService : BackgroundService
             }
 
             if (matchIndex < 0)
-                return; // Track not found in playlist (e.g., offair.ogg or different playlist)
+                return; // Track not found in playlist (e.g., offair.ogg or non-playlist track)
 
-            if (matchIndex <= _currentTrackIndex)
-                return; // No drift or Liquidsoap is behind — nothing to do
+            if (matchIndex == _currentTrackIndex)
+                return; // Already in sync — nothing to do
 
-            // Liquidsoap is ahead of our tracking — fast-forward
-            _logger.LogInformation(
-                "Track sync drift detected: Liquidsoap is playing track {Match}/{Total} (\"{Path}\") but local index is at {Current}. Fast-forwarding to correct Jellyfin display.",
-                matchIndex + 1, _playlistTracks.Length, currentPath, _currentTrackIndex + 1);
-
-            // Report the previously-tracked track as stopped
-            await _playbackSession.ReportPlaybackStoppedAsync().ConfigureAwait(false);
-
-            // Fast-forward our index to match Liquidsoap's actual state
-            _currentTrackIndex = matchIndex;
-            _currentTrackStartedAt = DateTime.UtcNow;
-            _lastReportedTrackIndex = matchIndex;
-
-            // Report the actually-playing track to Jellyfin
-            if (config.EnablePlaybackReporting)
+            if (matchIndex > _currentTrackIndex)
             {
-                await ReportTrackPlaybackAsync(_playlistTracks[matchIndex].AudioItem, config).ConfigureAwait(false);
+                // Liquidsoap is AHEAD — fast-forward with full intermediate track reporting
+                _logger.LogInformation(
+                    "Track resync: Liquidsoap is playing track {Match}/{Total} (\"{Path}\") but local index is at {Current}. Fast-forwarding and reporting {Skipped} skipped track(s).",
+                    matchIndex + 1, _playlistTracks.Length, currentPath, _currentTrackIndex + 1,
+                    matchIndex - _currentTrackIndex);
+
+                // Report ALL intermediate tracks as stopped
+                await _playbackSession.ReportPlaybackStoppedAsync().ConfigureAwait(false);
+
+                // Fast-forward our index to match Liquidsoap's actual state
+                _currentTrackIndex = matchIndex;
+                _currentTrackStartedAt = DateTime.UtcNow;
+                _lastReportedTrackIndex = matchIndex;
+
+                // Report the actually-playing track to Jellyfin
+                if (config.EnablePlaybackReporting)
+                {
+                    await ReportTrackPlaybackAsync(_playlistTracks[matchIndex].AudioItem, config).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                // Plugin is AHEAD — we reported a song that Liquidsoap hasn't actually played yet.
+                // Don't change _currentTrackIndex backward. Log a warning; the index will
+                // naturally converge when Liquidsoap catches up.
+                _logger.LogWarning(
+                    "Track resync: Plugin index is at {Current}/{Total} but Liquidsoap is still playing track {Match} (\"{Path}\"). " +
+                    "Not moving index backward — will converge naturally when Liquidsoap advances.",
+                    _currentTrackIndex + 1, _playlistTracks.Length, matchIndex + 1, currentPath);
             }
         }
         catch (Exception ex)

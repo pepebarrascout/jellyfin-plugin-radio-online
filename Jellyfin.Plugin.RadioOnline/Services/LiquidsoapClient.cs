@@ -14,6 +14,19 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 /// </summary>
 public class LiquidsoapClient : IDisposable
 {
+    /// <summary>
+    /// Fired when a NEW TCP connection is established after a previous connection existed.
+    /// Does NOT fire on the very first connection — only on reconnections.
+    /// Used by the streaming service to trigger track resync after connection loss.
+    /// </summary>
+    public event Action? OnReconnected;
+
+    /// <summary>
+    /// Gets whether a previous connection to Liquidsoap has existed (and was subsequently dropped).
+    /// Returns true when a reconnect event would be meaningful (i.e., there was a prior connection).
+    /// </summary>
+    public bool HadPreviousConnection => _lastConnectionTime != DateTime.MinValue;
+
     private readonly ILogger<LiquidsoapClient> _logger;
     private TcpClient? _tcpClient;
     private NetworkStream? _stream;
@@ -353,11 +366,16 @@ public class LiquidsoapClient : IDisposable
     /// <summary>
     /// Ensures a TCP connection to the Liquidsoap Telnet server is active.
     /// Creates a new connection if needed or reconnects if the existing one is dead.
+    /// Fires <see cref="OnReconnected"/> when a new connection is established after a previous one existed.
     /// </summary>
     private void EnsureConnected()
     {
         if (_disposed)
             return;
+
+        // Capture whether a previous connection existed BEFORE any Disconnect() calls reset the flag.
+        // This allows us to distinguish first-connect from reconnect.
+        var hadPreviousConnection = _lastConnectionTime != DateTime.MinValue;
 
         // Check if existing connection should be proactively renewed
         if (_tcpClient != null)
@@ -407,6 +425,15 @@ public class LiquidsoapClient : IDisposable
                 _stream = _tcpClient.GetStream();
                 _lastConnectionTime = DateTime.UtcNow;
                 _logger.LogInformation("Connected to Liquidsoap Telnet at {Host}:{Port}", _host, _port);
+
+                // Fire reconnect event only if this is NOT the very first connection.
+                // hadPreviousConnection is captured before any Disconnect() that may have
+                // reset _lastConnectionTime to DateTime.MinValue.
+                if (hadPreviousConnection)
+                {
+                    _logger.LogInformation("Liquidsoap reconnected after previous connection loss");
+                    OnReconnected?.Invoke();
+                }
             }
             else
             {
