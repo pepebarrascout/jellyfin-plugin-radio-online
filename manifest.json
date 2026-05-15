@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.38",
+        "changelog": "FIX: Plugin stuck in Inactivo state after failed queue attempts — _currentScheduleKey was set before verifying tracks sent, causing the plugin to never retry loading the playlist\nFIX: _currentScheduleKey now only set on successful queue, cleared on failure so next cycle retries automatically\nIMPROVE: Error message now includes 'will retry on next cycle' for clarity",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.38/jellyfin-plugin-radio-online_0.0.0.38.zip",
+        "checksum": "05168a30edcbd25125a9a30fade27a08",
+        "timestamp": "2026-05-16T04:30:00Z"
+      },
+      {
         "version": "0.0.0.37",
         "changelog": "ARCHITECTURE: Push metadata — Liquidsoap now TELLS the plugin what's playing via HTTP POST, eliminating all sync issues\nNEW: TrackChangeController — HTTP endpoint at /RadioOnline/TrackChange receives track notifications from Liquidsoap\nREMOVE: All sync code eliminated — _currentTrackIndex, VerifyTrackSyncAsync, TryResumeCurrentPlaylistAsync, OnReconnected, queue.remaining\nSIMPLIFY: RadioStreamingHostedService now only manages buffer (keep queue.length >= 3) — no timing, no guessing\nSIMPLIFY: LiquidsoapClient — removed OnReconnected event, HadPreviousConnection, GetQueueRemainingAsync\nIMPROVE: Buffer refill based on queue.length instead of estimated timing — 100% reliable\nIMPROVE: Resume on restart still works via queue.current_track + queue.length query\nIMPORTANT: You MUST add on_track HTTP callback to radio.liq — see release notes\nIMPORTANT: Remove queue.remaining command from radio.liq (no longer needed)",
         "targetAbi": "10.11.8.0",

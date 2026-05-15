@@ -444,18 +444,19 @@ public class RadioStreamingHostedService : BackgroundService
             }
         }
 
-        _currentScheduleKey = scheduleKey;
         _state.IsStreaming = added > 0;
 
         if (added > 0)
         {
+            _currentScheduleKey = scheduleKey;
             _logger.LogInformation(
                 "Queued {Added}/{Total} initial tracks for \"{Name}\" (buffer: {Buffer})",
                 added, _playlistTracks.Length, activeEntry.DisplayName, MinBufferDepth);
         }
         else
         {
-            _logger.LogError("Failed to queue any tracks for \"{Name}\"", activeEntry.DisplayName);
+            _logger.LogError("Failed to queue any tracks for \"{Name}\" — will retry on next cycle", activeEntry.DisplayName);
+            _currentScheduleKey = null;
             ResetState();
         }
     }
