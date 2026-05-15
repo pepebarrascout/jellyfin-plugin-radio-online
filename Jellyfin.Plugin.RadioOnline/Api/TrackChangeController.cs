@@ -18,6 +18,9 @@ namespace Jellyfin.Plugin.RadioOnline.Api;
 /// The controller looks up the corresponding Jellyfin Audio item and
 /// reports it to ISessionManager for accurate playback tracking.
 ///
+/// Also provides a public NowPlaying endpoint for external apps/websites
+/// to retrieve current track metadata and album artwork URL.
+///
 /// This is the SINGLE source of truth for what is playing on the radio.
 /// No guessing, no sync — Liquidsoap tells us directly.
 /// </summary>
@@ -29,17 +32,20 @@ public class TrackChangeController : ControllerBase
     private readonly ILibraryManager _libraryManager;
     private readonly IUserManager _userManager;
     private readonly RadioPlaybackSessionService _playbackSession;
+    private readonly RadioStateService _state;
 
     public TrackChangeController(
         ILogger<TrackChangeController> logger,
         ILibraryManager libraryManager,
         IUserManager userManager,
-        RadioPlaybackSessionService playbackSession)
+        RadioPlaybackSessionService playbackSession,
+        RadioStateService state)
     {
         _logger = logger;
         _libraryManager = libraryManager;
         _userManager = userManager;
         _playbackSession = playbackSession;
+        _state = state;
     }
 
     /// <summary>
@@ -62,6 +68,60 @@ public class TrackChangeController : ControllerBase
         return HandleTrackChange(path);
     }
 
+    /// <summary>
+    /// Public endpoint that returns metadata and artwork URL for the currently playing track.
+    /// Used by external apps and websites to display real-time now-playing information.
+    /// No authentication required.
+    /// 
+    /// Optional query parameter: maxWidth (default 720) — controls album art resolution.
+    /// 
+    /// Example response:
+    /// {
+    ///   "artist": "Martin Garrix",
+    ///   "title": "Gold Skies",
+    ///   "album": "Gold Skies",
+    ///   "year": 2014,
+    ///   "duration": "4:23",
+    ///   "artworkUrl": "http://server:8096/Items/abc/Images/Primary?maxWidth=720"
+    /// }
+    /// </summary>
+    [HttpGet]
+    public ActionResult NowPlaying([FromQuery] int maxWidth = 720)
+    {
+        var track = _state.CurrentTrack;
+        if (track == null)
+        {
+            return Ok(new { isPlaying = false });
+        }
+
+        // Build artwork URL using the request's scheme + host (works behind Cloudflare tunnel, reverse proxy, etc.)
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var artworkUrl = $"{baseUrl}/Items/{track.ItemId}/Images/Primary?maxWidth={maxWidth}";
+
+        // Format duration
+        string duration;
+        if (track.DurationTicks.HasValue && track.DurationTicks.Value > 0)
+        {
+            var ts = TimeSpan.FromTicks(track.DurationTicks.Value);
+            duration = $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
+        }
+        else
+        {
+            duration = null;
+        }
+
+        return Ok(new
+        {
+            isPlaying = true,
+            artist = track.Artist,
+            title = track.Title,
+            album = track.Album,
+            year = track.Year,
+            duration,
+            artworkUrl
+        });
+    }
+
     private ActionResult HandleTrackChange(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -71,7 +131,7 @@ public class TrackChangeController : ControllerBase
         }
 
         var config = Plugin.Instance?.Configuration as PluginConfiguration;
-        if (config == null || !config.EnablePlaybackReporting)
+        if (config == null)
         {
             return Ok();
         }
@@ -89,33 +149,46 @@ public class TrackChangeController : ControllerBase
                 return Ok();
             }
 
-            // Get the configured user
-            if (!Guid.TryParse(config.JellyfinUserId, out var userId))
+            // Store current track info for the NowPlaying endpoint
+            _state.CurrentTrack = new NowPlayingInfo
             {
-                _logger.LogWarning("TrackChange: invalid user ID");
-                return Ok();
-            }
+                Artist = audioItem.Artists != null && audioItem.Artists.Count > 0
+                    ? string.Join(", ", audioItem.Artists)
+                    : string.Empty,
+                Title = audioItem.Name ?? string.Empty,
+                Album = audioItem.Album ?? string.Empty,
+                Year = audioItem.ProductionYear,
+                DurationTicks = audioItem.RunTimeTicks,
+                ItemId = audioItem.Id
+            };
 
-            var user = _userManager.GetUserById(userId);
-            if (user == null)
+            // Report playback to Jellyfin (if enabled)
+            if (config.EnablePlaybackReporting)
             {
-                _logger.LogWarning("TrackChange: user not found {UserId}", userId);
-                return Ok();
-            }
+                if (!Guid.TryParse(config.JellyfinUserId, out var userId))
+                {
+                    _logger.LogWarning("TrackChange: invalid user ID");
+                    return Ok();
+                }
 
-            // Ensure virtual session exists and report playback
-            var sessionReady = _playbackSession.EnsureSessionAsync(user).GetAwaiter().GetResult();
-            if (sessionReady)
-            {
-                _playbackSession.ReportPlaybackStartAsync(audioItem).GetAwaiter().GetResult();
+                var user = _userManager.GetUserById(userId);
+                if (user == null)
+                {
+                    _logger.LogWarning("TrackChange: user not found {UserId}", userId);
+                    return Ok();
+                }
+
+                var sessionReady = _playbackSession.EnsureSessionAsync(user).GetAwaiter().GetResult();
+                if (sessionReady)
+                {
+                    _playbackSession.ReportPlaybackStartAsync(audioItem).GetAwaiter().GetResult();
+                }
             }
 
             _logger.LogInformation(
                 "TrackChange: {Artist} - {Title}",
-                audioItem.Artists != null && audioItem.Artists.Count > 0
-                    ? string.Join(", ", audioItem.Artists)
-                    : "Unknown Artist",
-                audioItem.Name ?? "Unknown");
+                _state.CurrentTrack.Artist,
+                _state.CurrentTrack.Title);
         }
         catch (Exception ex)
         {

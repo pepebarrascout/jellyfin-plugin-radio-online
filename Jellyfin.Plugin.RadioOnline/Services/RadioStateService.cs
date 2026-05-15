@@ -1,3 +1,5 @@
+using System;
+
 namespace Jellyfin.Plugin.RadioOnline.Services;
 
 /// <summary>
@@ -8,6 +10,8 @@ namespace Jellyfin.Plugin.RadioOnline.Services;
 public class RadioStateService
 {
     private volatile bool _isStreaming;
+    private readonly object _nowPlayingLock = new();
+    private NowPlayingInfo? _nowPlaying;
 
     /// <summary>
     /// Gets or sets whether the radio is currently streaming tracks to Liquidsoap.
@@ -17,5 +21,21 @@ public class RadioStateService
     {
         get => _isStreaming;
         set => _isStreaming = value;
+    }
+
+    /// <summary>
+    /// Stores the currently playing track info for the NowPlaying endpoint.
+    /// Thread-safe.
+    /// </summary>
+    public NowPlayingInfo? CurrentTrack
+    {
+        get
+        {
+            lock (_nowPlayingLock) { return _nowPlaying; }
+        }
+        set
+        {
+            lock (_nowPlayingLock) { _nowPlaying = value; }
+        }
     }
 }
