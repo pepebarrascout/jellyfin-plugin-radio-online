@@ -14,4 +14,10 @@ public class NowPlayingInfo
     public int? Year { get; set; }
     public long? DurationTicks { get; set; }
     public Guid ItemId { get; set; }
+    /// <summary>
+    /// ID of the parent album (MusicAlbum) that holds the Primary image (album art).
+    /// Songs typically don't have Primary images — the artwork lives on the album folder.
+    /// Falls back to ItemId if no album parent is found.
+    /// </summary>
+    public Guid AlbumId { get; set; }
 }

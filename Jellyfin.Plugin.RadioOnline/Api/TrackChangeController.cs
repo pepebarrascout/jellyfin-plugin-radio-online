@@ -94,9 +94,10 @@ public class TrackChangeController : ControllerBase
             return Ok(new { isPlaying = false });
         }
 
-        // Build artwork URL using the request's scheme + host (works behind Cloudflare tunnel, reverse proxy, etc.)
+        // Build artwork URL using the ALBUM ID — album art (Primary image) lives on the album, not on individual songs.
+        // Uses the request's scheme + host (works behind Cloudflare tunnel, reverse proxy, etc.)
         var baseUrl = $"{Request.Scheme}://{Request.Host}";
-        var artworkUrl = $"{baseUrl}/Items/{track.ItemId}/Images/Primary?maxWidth={maxWidth}";
+        var artworkUrl = $"{baseUrl}/Items/{track.AlbumId}/Images/Primary?maxWidth={maxWidth}";
 
         // Format duration
         string? duration;
@@ -149,6 +150,10 @@ public class TrackChangeController : ControllerBase
                 return Ok();
             }
 
+            // Find the parent album (MusicAlbum) — album art (Primary image) lives on the album, not on individual songs
+            var album = audioItem.FindParent<MusicAlbum>();
+            var albumId = album?.Id ?? audioItem.Id;
+
             // Store current track info for the NowPlaying endpoint
             _state.CurrentTrack = new NowPlayingInfo
             {
@@ -159,7 +164,8 @@ public class TrackChangeController : ControllerBase
                 Album = audioItem.Album ?? string.Empty,
                 Year = audioItem.ProductionYear,
                 DurationTicks = audioItem.RunTimeTicks,
-                ItemId = audioItem.Id
+                ItemId = audioItem.Id,
+                AlbumId = albumId
             };
 
             // Report playback to Jellyfin (if enabled)
