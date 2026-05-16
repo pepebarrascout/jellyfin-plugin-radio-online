@@ -81,6 +81,7 @@ public class TrackChangeController : ControllerBase
     ///   "artist": "Martin Garrix",
     ///   "title": "Gold Skies",
     ///   "album": "Gold Skies",
+    ///   "genre": "Electronic",
     ///   "year": 2014,
     ///   "duration": "4:23",
     ///   "artworkUrl": "http://server:8096/RadioOnline/NowPlaying/Artwork?maxWidth=720"
@@ -118,6 +119,7 @@ public class TrackChangeController : ControllerBase
             artist = track.Artist,
             title = track.Title,
             album = track.Album,
+            genre = track.Genre,
             year = track.Year,
             duration,
             artworkUrl
@@ -155,6 +157,12 @@ public class TrackChangeController : ControllerBase
             var album = audioItem.FindParent<MusicAlbum>();
             var albumId = album?.Id ?? audioItem.Id;
 
+            // Get genre from album (preferred) or song (fallback) — first genre if multiple
+            var genreList = album?.Genres?.Length > 0 ? album.Genres
+                          : audioItem.Genres?.Length > 0 ? audioItem.Genres
+                          : null;
+            var genre = genreList != null ? genreList[0] : string.Empty;
+
             // Store current track info for the NowPlaying endpoint
             _state.CurrentTrack = new NowPlayingInfo
             {
@@ -166,7 +174,8 @@ public class TrackChangeController : ControllerBase
                 Year = audioItem.ProductionYear,
                 DurationTicks = audioItem.RunTimeTicks,
                 ItemId = audioItem.Id,
-                AlbumId = albumId
+                AlbumId = albumId,
+                Genre = genre
             };
 
             // Report playback to Jellyfin (if enabled)

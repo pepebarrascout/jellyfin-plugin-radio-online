@@ -20,4 +20,10 @@ public class NowPlayingInfo
     /// Falls back to ItemId if no album parent is found.
     /// </summary>
     public Guid AlbumId { get; set; }
+    /// <summary>
+    /// Genre of the album (e.g. "Rock", "Pop", "Jazz").
+    /// Taken from the parent MusicAlbum's Genres list (first genre if multiple).
+    /// Falls back to the song's Genres if no album parent is found.
+    /// </summary>
+    public string Genre { get; set; } = string.Empty;
 }
