@@ -636,12 +636,14 @@ public class RadioStreamingHostedService : BackgroundService
     }
 
     /// <summary>
-    /// Resets all tracking state.
+    /// Resets all tracking state, including the NowPlaying info so the endpoint
+    /// returns isPlaying=false when the radio is off.
     /// </summary>
     private void ResetState()
     {
         _playlistTracks = Array.Empty<QueuedTrack>();
         _nextTrackToSend = 0;
+        _state.CurrentTrack = null;
     }
 
     /// <summary>
