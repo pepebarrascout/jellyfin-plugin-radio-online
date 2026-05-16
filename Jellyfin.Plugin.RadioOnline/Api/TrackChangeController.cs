@@ -99,7 +99,7 @@ public class TrackChangeController : ControllerBase
         var artworkUrl = $"{baseUrl}/Items/{track.ItemId}/Images/Primary?maxWidth={maxWidth}";
 
         // Format duration
-        string duration;
+        string? duration;
         if (track.DurationTicks.HasValue && track.DurationTicks.Value > 0)
         {
             var ts = TimeSpan.FromTicks(track.DurationTicks.Value);
@@ -107,7 +107,7 @@ public class TrackChangeController : ControllerBase
         }
         else
         {
-            duration = null;
+            duration = (string?)null;
         }
 
         return Ok(new
