@@ -6,6 +6,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -82,7 +83,7 @@ public class TrackChangeController : ControllerBase
     ///   "album": "Gold Skies",
     ///   "year": 2014,
     ///   "duration": "4:23",
-    ///   "artworkUrl": "http://server:8096/Items/abc/Images/Primary?maxWidth=720"
+    ///   "artworkUrl": "http://server:8096/RadioOnline/NowPlaying/Artwork?maxWidth=720"
     /// }
     /// </summary>
     [HttpGet]
@@ -94,10 +95,10 @@ public class TrackChangeController : ControllerBase
             return Ok(new { isPlaying = false });
         }
 
-        // Build artwork URL using the ALBUM ID — album art (Primary image) lives on the album, not on individual songs.
+        // Build artwork URL pointing to the public proxy endpoint (no auth required).
         // Uses the request's scheme + host (works behind Cloudflare tunnel, reverse proxy, etc.)
         var baseUrl = $"{Request.Scheme}://{Request.Host}";
-        var artworkUrl = $"{baseUrl}/Items/{track.AlbumId}/Images/Primary?maxWidth={maxWidth}";
+        var artworkUrl = $"{baseUrl}/RadioOnline/NowPlaying/Artwork?maxWidth={maxWidth}";
 
         // Format duration
         string? duration;
@@ -226,6 +227,68 @@ public class TrackChangeController : ControllerBase
         {
             return liqPath;
         }
+    }
+
+    /// <summary>
+    /// Public proxy endpoint that serves the album artwork for the currently playing track.
+    /// No authentication required — works from external apps, PHP pages, Android apps, etc.
+    /// Reads the image directly from Jellyfin's internal storage and serves it inline.
+    /// 
+    /// Response headers:
+    ///   Content-Type: image/jpeg (or image/png, image/webp based on original file)
+    ///   Cache-Control: public, max-age=300 (5-minute browser/proxy cache)
+    ///   No Content-Disposition — displays inline in browser instead of downloading.
+    /// 
+    /// Returns 404 if no track is playing or the album has no Primary image.
+    /// </summary>
+    [HttpGet("/RadioOnline/NowPlaying/Artwork")]
+    public ActionResult GetNowPlayingArtwork([FromQuery] int maxWidth = 720)
+    {
+        var track = _state.CurrentTrack;
+        if (track == null || track.AlbumId == Guid.Empty)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var item = _libraryManager.GetItemById(track.AlbumId);
+            if (item == null)
+            {
+                return NotFound();
+            }
+
+            var imageInfo = item.GetImageInfo(ImageType.Primary, 0);
+            if (imageInfo == null || string.IsNullOrEmpty(imageInfo.Path) || !System.IO.File.Exists(imageInfo.Path))
+            {
+                return NotFound();
+            }
+
+            // Cache for 5 minutes — artwork only changes on track change
+            Response.Headers["Cache-Control"] = "public, max-age=300";
+
+            return PhysicalFile(imageInfo.Path, GetContentType(imageInfo.Path));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "GetNowPlayingArtwork error for album {AlbumId}", track.AlbumId);
+            return NotFound();
+        }
+    }
+
+    /// <summary>
+    /// Determines MIME type from file extension.
+    /// </summary>
+    private static string GetContentType(string path)
+    {
+        var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+        return ext switch
+        {
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            _ => "image/jpeg"
+        };
     }
 
     /// <summary>
