@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.RadioOnline.Configuration;
 using Jellyfin.Plugin.RadioOnline.Services;
@@ -50,23 +51,42 @@ public class TrackChangeController : ControllerBase
     }
 
     /// <summary>
+    /// Cooldown window (seconds) to suppress duplicate on_track callbacks
+    /// for the same track. Liquidsoap may fire on_track multiple times
+    /// for a single play (metadata updates, source transitions).
+    /// </summary>
+    private const int DuplicateCooldownSeconds = 15;
+
+    /// <summary>
+    /// Timestamp of the last successful track change report.
+    /// Used with _lastReportedItemId to suppress rapid-fire duplicates.
+    /// </summary>
+    private DateTime _lastTrackChangeTime = DateTime.MinValue;
+
+    /// <summary>
+    /// Item ID of the last reported track.
+    /// Combined with _lastTrackChangeTime for duplicate detection.
+    /// </summary>
+    private Guid _lastReportedItemId = Guid.Empty;
+
+    /// <summary>
     /// Receives track change notification from Liquidsoap.
     /// Called by Liquidsoap's on_track callback via HTTP GET.
     /// Query parameter: path = Liquidsoap file path of the currently playing track.
     /// </summary>
     [HttpGet]
-    public ActionResult TrackChange([FromQuery] string? path)
+    public async Task<ActionResult> TrackChange([FromQuery] string? path)
     {
-        return HandleTrackChange(path);
+        return await HandleTrackChangeAsync(path).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Receives track change notification from Liquidsoap (POST variant).
     /// </summary>
     [HttpPost]
-    public ActionResult TrackChangePost([FromQuery] string? path)
+    public async Task<ActionResult> TrackChangePost([FromQuery] string? path)
     {
-        return HandleTrackChange(path);
+        return await HandleTrackChangeAsync(path).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -126,7 +146,7 @@ public class TrackChangeController : ControllerBase
         });
     }
 
-    private ActionResult HandleTrackChange(string? path)
+    private async Task<ActionResult> HandleTrackChangeAsync(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -152,6 +172,25 @@ public class TrackChangeController : ControllerBase
                 _logger.LogDebug("TrackChange: no Audio item found for path \"{Path}\"", path);
                 return Ok();
             }
+
+            // ── DUPLICATE SUPPRESSION ──
+            // Liquidsoap may fire on_track multiple times for the same play instance
+            // (metadata updates, source transitions). Suppress if same track within cooldown.
+            var now = DateTime.UtcNow;
+            if (audioItem.Id == _lastReportedItemId &&
+                (now - _lastTrackChangeTime).TotalSeconds < DuplicateCooldownSeconds)
+            {
+                _logger.LogDebug(
+                    "TrackChange: duplicate suppressed for {Artist} - {Title} (within {Cooldown}s cooldown)",
+                    audioItem.Artists != null && audioItem.Artists.Count > 0
+                        ? string.Join(", ", audioItem.Artists) : "Unknown",
+                    audioItem.Name,
+                    DuplicateCooldownSeconds);
+                return Ok();
+            }
+
+            _lastReportedItemId = audioItem.Id;
+            _lastTrackChangeTime = now;
 
             // Find the parent album (MusicAlbum) — album art (Primary image) lives on the album, not on individual songs
             var album = audioItem.FindParent<MusicAlbum>();
@@ -179,7 +218,7 @@ public class TrackChangeController : ControllerBase
                 LiqPath = path
             };
 
-            // Report playback to Jellyfin (if enabled)
+            // Report playback to Jellyfin (if enabled) — using await instead of .GetAwaiter().GetResult()
             if (config.EnablePlaybackReporting)
             {
                 if (!Guid.TryParse(config.JellyfinUserId, out var userId))
@@ -195,10 +234,10 @@ public class TrackChangeController : ControllerBase
                     return Ok();
                 }
 
-                var sessionReady = _playbackSession.EnsureSessionAsync(user).GetAwaiter().GetResult();
+                var sessionReady = await _playbackSession.EnsureSessionAsync(user).ConfigureAwait(false);
                 if (sessionReady)
                 {
-                    _playbackSession.ReportPlaybackStartAsync(audioItem).GetAwaiter().GetResult();
+                    await _playbackSession.ReportPlaybackStartAsync(audioItem).ConfigureAwait(false);
                 }
             }
 

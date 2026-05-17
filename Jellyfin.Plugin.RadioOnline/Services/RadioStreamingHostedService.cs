@@ -122,7 +122,7 @@ public class RadioStreamingHostedService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.37 — Push metadata architecture");
+        _logger.LogInformation("Radio Online service started (Liquidsoap mode) — v0.0.0.48 — Push metadata architecture");
 
         // Wait for Jellyfin to fully initialize
         try
@@ -585,8 +585,8 @@ public class RadioStreamingHostedService : BackgroundService
     /// <summary>
     /// Keeps Liquidsoap's queue buffer full with position verification.
     /// Every cycle:
-    ///   1. Queries queue.current_track + queue.length to detect if Liquidsoap silently dropped tracks
-    ///   2. Corrects _nextTrackToSend if drift is detected (tracks skipped without our knowledge)
+    ///   1. Checks if the schedule has changed — if so, aborts refill immediately
+    ///   2. Queries queue.current_track + queue.length to detect if Liquidsoap silently dropped tracks
     ///   3. Detects when Liquidsoap is stuck (not advancing) and suppresses queue spam
     ///   4. If all tracks exhausted, loops the playlist from the beginning (schedule still active)
     ///   5. Refills buffer to MinBufferDepth
@@ -598,6 +598,27 @@ public class RadioStreamingHostedService : BackgroundService
 
         try
         {
+            // ── SCHEDULE PRIORITY: abort refill if schedule has changed ──
+            // The new schedule's LoadPlaylistToLiquidsoapAsync will clear the queue
+            // and load the correct playlist. Sending tracks from the old playlist
+            // here would only delay the transition.
+            var config = Plugin.Instance?.Configuration as PluginConfiguration;
+            if (config != null)
+            {
+                var activeEntry = _scheduleManager.GetActiveScheduleEntry(config.ScheduleEntries);
+                if (activeEntry != null)
+                {
+                    var currentKey = BuildScheduleKey(activeEntry);
+                    if (!string.Equals(_currentScheduleKey, currentKey, StringComparison.Ordinal))
+                    {
+                        _logger.LogInformation(
+                            "RefillQueueAsync: schedule changed from [{OldKey}] to [{NewKey}], aborting refill",
+                            _currentScheduleKey ?? "(none)", currentKey);
+                        return;
+                    }
+                }
+            }
+
             var queueLength = await _liquidsoapClient.GetQueueLengthAsync().ConfigureAwait(false);
 
             if (queueLength < 0)
@@ -608,10 +629,9 @@ public class RadioStreamingHostedService : BackgroundService
                 return;
             }
 
-            // ── POSITION VERIFICATION: compare reality vs our counter ──
-            var currentIdx = await VerifyPositionAsync(queueLength).ConfigureAwait(false);
+            // ── STUCK DETECTION: compare current track vs last known ──
+            var currentIdx = await GetCurrentlyPlayingIndexAsync().ConfigureAwait(false);
 
-            // ── STUCK DETECTION: If Liquidsoap hasn't advanced, skip refill ──
             if (_isStuck)
             {
                 if (currentIdx >= 0 && currentIdx == _lastKnownCurrentIdx)
@@ -668,14 +688,17 @@ public class RadioStreamingHostedService : BackgroundService
     }
 
     /// <summary>
-    /// Verifies that Liquidsoap's actual playback position matches our _nextTrackToSend counter.
-    /// Liquidsoap can silently drop tracks (codec issues, corrupt files) without telling us.
-    /// We detect this by comparing: (current_track_index + queue.length + 1) vs _nextTrackToSend.
-    /// If our counter is ahead of reality, tracks were dropped — we correct _nextTrackToSend backward.
-    /// Also detects when Liquidsoap is STUCK on a track (not advancing) to prevent spam.
+    /// Gets the index of the currently playing track in our playlist.
+    /// Also detects when Liquidsoap is STUCK on a track (not advancing).
     /// Returns the index of the currently playing track, or -1 if unknown.
+    ///
+    /// NOTE: We no longer correct _nextTrackToSend based on position drift.
+    /// The backward correction caused duplicate track sends to Liquidsoap's queue,
+    /// which resulted in the same song being reported multiple times in Jellyfin.
+    /// If Liquidsoap silently drops tracks, those tracks are simply skipped.
+    /// The playlist loop compensates by restarting from the beginning when exhausted.
     /// </summary>
-    private async Task<int> VerifyPositionAsync(int queueLength)
+    private async Task<int> GetCurrentlyPlayingIndexAsync()
     {
         try
         {
@@ -684,54 +707,19 @@ public class RadioStreamingHostedService : BackgroundService
                 return -1;
 
             // Find the currently playing track in our playlist
-            var currentIdx = -1;
             for (var i = 0; i < _playlistTracks.Length; i++)
             {
                 if (_playlistTracks[i].LiquidsoapPath.Equals(currentPath, StringComparison.Ordinal))
                 {
-                    currentIdx = i;
-                    break;
+                    return i;
                 }
             }
 
-            if (currentIdx < 0)
-                return -1; // Track not in our playlist (e.g. off-air source)
-
-            // Calculate where _nextTrackToSend SHOULD be based on reality
-            // currentIdx = track being played (already dequeued from buffer)
-            // queueLength = tracks still waiting in buffer
-            // So the next track to send = currentIdx + queueLength + 1
-            var actualNext = currentIdx + queueLength + 1;
-
-            if (actualNext < _nextTrackToSend)
-            {
-                var skipped = _nextTrackToSend - actualNext;
-                _logger.LogWarning(
-                    "Position drift detected: Liquidsoap playing track {Current}/{Total} with {QueueLen} in buffer, " +
-                    "but plugin counter was at {OldNext}. {Skipped} track(s) silently dropped by Liquidsoap. Corrected to {NewNext}.",
-                    currentIdx + 1, _playlistTracks.Length, queueLength, _nextTrackToSend, skipped, actualNext);
-                _nextTrackToSend = actualNext;
-
-                // If we corrected but Liquidsoap is still on the same track as before,
-                // it's stuck — set the stuck flag so RefillQueueAsync won't spam.
-                if (currentIdx == _lastKnownCurrentIdx)
-                {
-                    if (!_isStuck)
-                    {
-                        _logger.LogWarning(
-                            "Liquidsoap is STUCK on track {Track}/{Total} (not advancing after drift correction). " +
-                            "Pausing queue refill until it recovers.",
-                            currentIdx + 1, _playlistTracks.Length);
-                        _isStuck = true;
-                    }
-                }
-            }
-
-            return currentIdx;
+            return -1; // Track not in our playlist (e.g. off-air source)
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Position verification skipped (Telnet query failed)");
+            _logger.LogDebug(ex, "Current track query skipped (Telnet query failed)");
             return -1;
         }
     }
