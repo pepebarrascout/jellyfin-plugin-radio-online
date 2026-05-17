@@ -72,6 +72,18 @@ public class RadioStreamingHostedService : BackgroundService
     private bool _warnedLiquidsoapDown;
 
     /// <summary>
+    /// Index of the last known current track from Liquidsoap's queue.current_track.
+    /// Used to detect when Liquidsoap is stuck (not advancing) and suppress spam.
+    /// </summary>
+    private int _lastKnownCurrentIdx = -1;
+
+    /// <summary>
+    /// When true, Liquidsoap is stuck on the same track and we should not send more tracks.
+    /// Automatically cleared when Liquidsoap advances past the stuck track.
+    /// </summary>
+    private bool _isStuck;
+
+    /// <summary>
     /// Stores the playlist tracks with their Liquidsoap paths.
     /// Used for buffer management — knowing which track to send next.
     /// </summary>
@@ -575,8 +587,9 @@ public class RadioStreamingHostedService : BackgroundService
     /// Every cycle:
     ///   1. Queries queue.current_track + queue.length to detect if Liquidsoap silently dropped tracks
     ///   2. Corrects _nextTrackToSend if drift is detected (tracks skipped without our knowledge)
-    ///   3. If all tracks exhausted, loops the playlist from the beginning (schedule still active)
-    ///   4. Refills buffer to MinBufferDepth
+    ///   3. Detects when Liquidsoap is stuck (not advancing) and suppresses queue spam
+    ///   4. If all tracks exhausted, loops the playlist from the beginning (schedule still active)
+    ///   5. Refills buffer to MinBufferDepth
     /// </summary>
     private async Task RefillQueueAsync()
     {
@@ -596,7 +609,31 @@ public class RadioStreamingHostedService : BackgroundService
             }
 
             // ── POSITION VERIFICATION: compare reality vs our counter ──
-            await VerifyPositionAsync(queueLength).ConfigureAwait(false);
+            var currentIdx = await VerifyPositionAsync(queueLength).ConfigureAwait(false);
+
+            // ── STUCK DETECTION: If Liquidsoap hasn't advanced, skip refill ──
+            if (_isStuck)
+            {
+                if (currentIdx >= 0 && currentIdx == _lastKnownCurrentIdx)
+                {
+                    // Still stuck on the same track — don't spam the queue
+                    _logger.LogDebug(
+                        "Liquidsoap still stuck on track {Track}/{Total}, skipping refill until it advances",
+                        currentIdx + 1, _playlistTracks.Length);
+                    return;
+                }
+
+                // Liquidsoap advanced past the stuck track — resume normal operation
+                if (currentIdx >= 0)
+                {
+                    _logger.LogInformation(
+                        "Liquidsoap unstuck — advanced to track {Track}/{Total}, resuming normal refill",
+                        currentIdx + 1, _playlistTracks.Length);
+                }
+                _isStuck = false;
+            }
+
+            _lastKnownCurrentIdx = currentIdx;
 
             // ── PLAYLIST LOOP: if all tracks exhausted, restart from beginning ──
             // This compensates for tracks silently dropped by Liquidsoap.
@@ -635,15 +672,16 @@ public class RadioStreamingHostedService : BackgroundService
     /// Liquidsoap can silently drop tracks (codec issues, corrupt files) without telling us.
     /// We detect this by comparing: (current_track_index + queue.length + 1) vs _nextTrackToSend.
     /// If our counter is ahead of reality, tracks were dropped — we correct _nextTrackToSend backward.
-    /// This runs every RefillQueueAsync cycle (every 5 seconds) — minimal overhead (one extra Telnet query).
+    /// Also detects when Liquidsoap is STUCK on a track (not advancing) to prevent spam.
+    /// Returns the index of the currently playing track, or -1 if unknown.
     /// </summary>
-    private async Task VerifyPositionAsync(int queueLength)
+    private async Task<int> VerifyPositionAsync(int queueLength)
     {
         try
         {
             var currentPath = await _liquidsoapClient.GetCurrentTrackAsync().ConfigureAwait(false);
             if (string.IsNullOrEmpty(currentPath) || currentPath.Equals("none", StringComparison.OrdinalIgnoreCase))
-                return;
+                return -1;
 
             // Find the currently playing track in our playlist
             var currentIdx = -1;
@@ -657,7 +695,7 @@ public class RadioStreamingHostedService : BackgroundService
             }
 
             if (currentIdx < 0)
-                return; // Track not in our playlist (e.g. off-air source)
+                return -1; // Track not in our playlist (e.g. off-air source)
 
             // Calculate where _nextTrackToSend SHOULD be based on reality
             // currentIdx = track being played (already dequeued from buffer)
@@ -673,11 +711,28 @@ public class RadioStreamingHostedService : BackgroundService
                     "but plugin counter was at {OldNext}. {Skipped} track(s) silently dropped by Liquidsoap. Corrected to {NewNext}.",
                     currentIdx + 1, _playlistTracks.Length, queueLength, _nextTrackToSend, skipped, actualNext);
                 _nextTrackToSend = actualNext;
+
+                // If we corrected but Liquidsoap is still on the same track as before,
+                // it's stuck — set the stuck flag so RefillQueueAsync won't spam.
+                if (currentIdx == _lastKnownCurrentIdx)
+                {
+                    if (!_isStuck)
+                    {
+                        _logger.LogWarning(
+                            "Liquidsoap is STUCK on track {Track}/{Total} (not advancing after drift correction). " +
+                            "Pausing queue refill until it recovers.",
+                            currentIdx + 1, _playlistTracks.Length);
+                        _isStuck = true;
+                    }
+                }
             }
+
+            return currentIdx;
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Position verification skipped (Telnet query failed)");
+            return -1;
         }
     }
 
@@ -712,6 +767,8 @@ public class RadioStreamingHostedService : BackgroundService
         _playlistTracks = Array.Empty<QueuedTrack>();
         _nextTrackToSend = 0;
         _state.CurrentTrack = null;
+        _lastKnownCurrentIdx = -1;
+        _isStuck = false;
     }
 
     /// <summary>
