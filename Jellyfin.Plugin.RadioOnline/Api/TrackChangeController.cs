@@ -175,7 +175,8 @@ public class TrackChangeController : ControllerBase
                 DurationTicks = audioItem.RunTimeTicks,
                 ItemId = audioItem.Id,
                 AlbumId = albumId,
-                Genre = genre
+                Genre = genre,
+                LiqPath = path
             };
 
             // Report playback to Jellyfin (if enabled)

@@ -26,4 +26,9 @@ public class NowPlayingInfo
     /// Falls back to the song's Genres if no album parent is found.
     /// </summary>
     public string Genre { get; set; } = string.Empty;
+    /// <summary>
+    /// Raw Liquidsoap file path of the currently playing track.
+    /// Used by RadioStreamingHostedService to verify position against the playlist.
+    /// </summary>
+    public string LiqPath { get; set; } = string.Empty;
 }

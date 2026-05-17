@@ -571,13 +571,16 @@ public class RadioStreamingHostedService : BackgroundService
     }
 
     /// <summary>
-    /// Keeps Liquidsoap's queue buffer full.
-    /// Queries queue.length and sends tracks if below MinBufferDepth.
-    /// Simple, reliable, no timing — just keep the buffer full.
+    /// Keeps Liquidsoap's queue buffer full with position verification.
+    /// Every cycle:
+    ///   1. Queries queue.current_track + queue.length to detect if Liquidsoap silently dropped tracks
+    ///   2. Corrects _nextTrackToSend if drift is detected (tracks skipped without our knowledge)
+    ///   3. If all tracks exhausted, loops the playlist from the beginning (schedule still active)
+    ///   4. Refills buffer to MinBufferDepth
     /// </summary>
     private async Task RefillQueueAsync()
     {
-        if (_playlistTracks.Length == 0 || _nextTrackToSend >= _playlistTracks.Length)
+        if (_playlistTracks.Length == 0)
             return;
 
         try
@@ -592,7 +595,21 @@ public class RadioStreamingHostedService : BackgroundService
                 return;
             }
 
-            // Calculate how many tracks we need to send
+            // ── POSITION VERIFICATION: compare reality vs our counter ──
+            await VerifyPositionAsync(queueLength).ConfigureAwait(false);
+
+            // ── PLAYLIST LOOP: if all tracks exhausted, restart from beginning ──
+            // This compensates for tracks silently dropped by Liquidsoap.
+            // Without looping, the playlist would end early leaving dead air.
+            if (_nextTrackToSend >= _playlistTracks.Length)
+            {
+                _logger.LogInformation(
+                    "Playlist exhausted (all {Count} tracks processed), restarting from track 1 to fill remaining schedule time",
+                    _playlistTracks.Length);
+                _nextTrackToSend = 0;
+            }
+
+            // ── BUFFER REFILL: keep queue.length >= MinBufferDepth ──
             var needed = MinBufferDepth - queueLength;
 
             while (needed > 0 && _nextTrackToSend < _playlistTracks.Length)
@@ -601,15 +618,66 @@ public class RadioStreamingHostedService : BackgroundService
                 needed--;
             }
 
-            // Check if we've reached the end of the playlist
+            // Check if we've reached the end of the playlist (again, after refill)
             if (_nextTrackToSend >= _playlistTracks.Length)
             {
-                _logger.LogInformation("All {Count} tracks sent to Liquidsoap queue for current playlist", _playlistTracks.Length);
+                _logger.LogInformation("All {Count} tracks queued for current playlist cycle", _playlistTracks.Length);
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Queue refill error, will retry next cycle");
+        }
+    }
+
+    /// <summary>
+    /// Verifies that Liquidsoap's actual playback position matches our _nextTrackToSend counter.
+    /// Liquidsoap can silently drop tracks (codec issues, corrupt files) without telling us.
+    /// We detect this by comparing: (current_track_index + queue.length + 1) vs _nextTrackToSend.
+    /// If our counter is ahead of reality, tracks were dropped — we correct _nextTrackToSend backward.
+    /// This runs every RefillQueueAsync cycle (every 5 seconds) — minimal overhead (one extra Telnet query).
+    /// </summary>
+    private async Task VerifyPositionAsync(int queueLength)
+    {
+        try
+        {
+            var currentPath = await _liquidsoapClient.GetCurrentTrackAsync().ConfigureAwait(false);
+            if (string.IsNullOrEmpty(currentPath) || currentPath.Equals("none", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            // Find the currently playing track in our playlist
+            var currentIdx = -1;
+            for (var i = 0; i < _playlistTracks.Length; i++)
+            {
+                if (_playlistTracks[i].LiquidsoapPath.Equals(currentPath, StringComparison.Ordinal))
+                {
+                    currentIdx = i;
+                    break;
+                }
+            }
+
+            if (currentIdx < 0)
+                return; // Track not in our playlist (e.g. off-air source)
+
+            // Calculate where _nextTrackToSend SHOULD be based on reality
+            // currentIdx = track being played (already dequeued from buffer)
+            // queueLength = tracks still waiting in buffer
+            // So the next track to send = currentIdx + queueLength + 1
+            var actualNext = currentIdx + queueLength + 1;
+
+            if (actualNext < _nextTrackToSend)
+            {
+                var skipped = _nextTrackToSend - actualNext;
+                _logger.LogWarning(
+                    "Position drift detected: Liquidsoap playing track {Current}/{Total} with {QueueLen} in buffer, " +
+                    "but plugin counter was at {OldNext}. {Skipped} track(s) silently dropped by Liquidsoap. Corrected to {NewNext}.",
+                    currentIdx + 1, _playlistTracks.Length, queueLength, _nextTrackToSend, skipped, actualNext);
+                _nextTrackToSend = actualNext;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Position verification skipped (Telnet query failed)");
         }
     }
 
