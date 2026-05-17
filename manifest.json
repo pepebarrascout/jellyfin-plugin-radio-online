@@ -13,7 +13,7 @@
         "changelog": "CRITICAL FIX: Eliminated duplicate track reports — Jellyfin was reporting the same song 2-3 times (A,A,A,D,E,E,E pattern) while Icecast played correctly\nCRITICAL FIX: NowPlaying JSON and Android app now show the correct current track instead of stale data from duplicate on_track callbacks\nFIX: TrackChangeController made fully async — removed .GetAwaiter().GetResult() that caused thread pool starvation and request deadlocks\nFIX: Duplicate suppression — same track reported within 15 seconds is suppressed (handles Liquidsoap firing on_track multiple times per play)\nFIX: Removed backward drift correction — it caused duplicate track sends to Liquidsoap queue, making playlists longer than expected\nFIX: Schedule change now takes immediate priority — RefillQueueAsync aborts if schedule changed, preventing old playlist from continuing past its time slot\nIMPROVE: GetCurrentlyPlayingIndexAsync replaces VerifyPositionAsync — only detects stuck tracks, no longer modifies _nextTrackToSend counter",
         "targetAbi": "10.11.8.0",
         "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.48/jellyfin-plugin-radio-online_0.0.0.48.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "8cf1d831df9b3db76f5c204f095981c5",
         "timestamp": "2026-05-18T12:00:00Z"
       },
       {
