@@ -1,12 +1,15 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.RadioOnline.Configuration;
 using Jellyfin.Plugin.RadioOnline.Services;
+using MediaBrowser.Controller.Drawing;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Drawing;
 using MediaBrowser.Model.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -33,6 +36,7 @@ public class TrackChangeController : ControllerBase
     private readonly ILogger<TrackChangeController> _logger;
     private readonly ILibraryManager _libraryManager;
     private readonly IUserManager _userManager;
+    private readonly IImageProcessor _imageProcessor;
     private readonly RadioPlaybackSessionService _playbackSession;
     private readonly RadioStateService _state;
 
@@ -40,12 +44,14 @@ public class TrackChangeController : ControllerBase
         ILogger<TrackChangeController> logger,
         ILibraryManager libraryManager,
         IUserManager userManager,
+        IImageProcessor imageProcessor,
         RadioPlaybackSessionService playbackSession,
         RadioStateService state)
     {
         _logger = logger;
         _libraryManager = libraryManager;
         _userManager = userManager;
+        _imageProcessor = imageProcessor;
         _playbackSession = playbackSession;
         _state = state;
     }
@@ -140,7 +146,7 @@ public class TrackChangeController : ControllerBase
             title = track.Title,
             album = track.Album,
             genre = track.Genre,
-            year = track.Year,
+            year = track.Year?.ToString(),
             duration,
             artworkUrl
         });
@@ -281,17 +287,17 @@ public class TrackChangeController : ControllerBase
     /// <summary>
     /// Public proxy endpoint that serves the album artwork for the currently playing track.
     /// No authentication required — works from external apps, PHP pages, Android apps, etc.
-    /// Reads the image directly from Jellyfin's internal storage and serves it inline.
+    /// Uses Jellyfin's IImageProcessor for proper resizing based on maxWidth parameter.
     /// 
     /// Response headers:
-    ///   Content-Type: image/jpeg (or image/png, image/webp based on original file)
+    ///   Content-Type: image/jpeg (or image/png, image/webp based on output format)
     ///   Cache-Control: public, max-age=300 (5-minute browser/proxy cache)
     ///   No Content-Disposition — displays inline in browser instead of downloading.
     /// 
     /// Returns 404 if no track is playing or the album has no Primary image.
     /// </summary>
     [HttpGet("/RadioOnline/NowPlaying/Artwork")]
-    public ActionResult GetNowPlayingArtwork([FromQuery] int maxWidth = 720)
+    public async Task<ActionResult> GetNowPlayingArtwork([FromQuery] int maxWidth = 720)
     {
         var track = _state.CurrentTrack;
         if (track == null || track.AlbumId == Guid.Empty)
@@ -313,10 +319,27 @@ public class TrackChangeController : ControllerBase
                 return NotFound();
             }
 
+            // Use Jellyfin's IImageProcessor for proper resizing
+            var options = new ImageProcessingOptions
+            {
+                Image = imageInfo,
+                Item = item,
+                MaxWidth = maxWidth > 0 ? maxWidth : null,
+                Quality = 90,
+                SupportedOutputFormats = _imageProcessor.GetSupportedImageOutputFormats(),
+            };
+
+            var (imagePath, contentType, _) = await _imageProcessor.ProcessImage(options).ConfigureAwait(false);
+
+            if (string.IsNullOrEmpty(imagePath) || !System.IO.File.Exists(imagePath))
+            {
+                return NotFound();
+            }
+
             // Cache for 5 minutes — artwork only changes on track change
             Response.Headers["Cache-Control"] = "public, max-age=300";
 
-            return PhysicalFile(imageInfo.Path, GetContentType(imageInfo.Path));
+            return PhysicalFile(imagePath, contentType ?? "image/jpeg");
         }
         catch (Exception ex)
         {
