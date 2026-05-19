@@ -243,7 +243,9 @@ public class LiquidsoapClient : IDisposable
             }
 
             // Send the command followed by newline
-            var commandBytes = Encoding.ASCII.GetBytes(command + "\n");
+            // Use UTF-8 encoding to preserve non-ASCII characters in file paths
+            // (e.g., é, ó, ñ, á, í, ú in Spanish artist/song names)
+            var commandBytes = Encoding.UTF8.GetBytes(command + "\n");
             await _stream.WriteAsync(commandBytes).ConfigureAwait(false);
             await _stream.FlushAsync().ConfigureAwait(false);
 
@@ -265,7 +267,7 @@ public class LiquidsoapClient : IDisposable
                     return string.Empty;
                 }
 
-                var commandBytes = Encoding.ASCII.GetBytes(command + "\n");
+                var commandBytes = Encoding.UTF8.GetBytes(command + "\n");
                 await _stream.WriteAsync(commandBytes).ConfigureAwait(false);
                 await _stream.FlushAsync().ConfigureAwait(false);
 
@@ -315,7 +317,7 @@ public class LiquidsoapClient : IDisposable
                 if (bytesRead == 0)
                     break;
 
-                var text = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+                var text = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                 foreach (var c in text)
                 {
                     if (c == '\n')
