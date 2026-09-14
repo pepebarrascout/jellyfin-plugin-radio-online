@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://www.liquidsoap.info/doc.html?path=quick_start.html",
+    "name": "Quick Start - Liquidsoap",
+    "snippet": "That source is fallible! A couple of things can go wrong in your streaming system. In Liquidsoap, we say that a source is infallible if it is always available.\nThe second difference is the use of the mksafe which turns your fallible playlist source into an infallible source . If you want to use HLS instead for streaming ...",
+    "host_name": "www.liquidsoap.info",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/discussions/2665",
+    "name": "Windows Help · savonet liquidsoap · Discussion #2665 - GitHub",
+    "snippet": "I've been trying to transfer my station over to a better solution for a few days now, and I'm at a loss. ... source is fallible. Beta Was this translation helpful ...",
+    "host_name": "github.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/doc-dev/quick_start.html",
+    "name": "Quickstart - Liquidsoap",
+    "snippet": "That source is fallible! A couple of things can go wrong in your streaming system. In Liquidsoap, we say that a source is infallible if it is always available.",
+    "host_name": "www.liquidsoap.info",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/discussions/2203",
+    "name": "Fading with live source in a switch #2203 - savonet liquidsoap",
+    "snippet": "... : Invalid value: That source is fallible. Beta Was this translation helpful? Give feedback. 1. You must be logged in to vote. All reactions. 2 replies. @ ...",
+    "host_name": "github.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "http://www.liquidsoap.info/book/book.pdf",
+    "name": "[PDF] The Liquidsoap book",
+    "snippet": "Liquidsoap automatically detects that a source is fallible and issues an error if this is not handled, by a fallback for instance, in order to make sure ...",
+    "host_name": "www.liquidsoap.info",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.scribd.com/document/758103463/210-al-FINAL-The-Liquidsoap-Book",
+    "name": "Liquidsoap Video Streaming Guide | PDF | Codec - Scribd",
+    "snippet": "Liquidsoap will issue the error. Error 7: Invalid value: That source is fallible. indicating that it has determined that we are trying to play the source s ...",
+    "host_name": "www.scribd.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://gist.github.com/GeekBrony/47d2212ed6408be816a2",
+    "name": "Liquidsoap Radio System - GitHub Gist",
+    "snippet": "# The variable 'securityuri' has to be a local file otherwise you will get an error saying 'That source is fallible!' securityuri = \"/var/www/bdn/httpdocs ...",
+    "host_name": "gist.github.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/issues/1676",
+    "name": "[2.0.0 beta2] Example from documentation gives error! #1676 - GitHub",
+    "snippet": "... source is fallible audio = playlist(\"/home/user/assets/music\") # no whining about fallabiltiy mksafe(audio) # Encode it in mp3 audio ...",
+    "host_name": "github.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://vmeste.eu/forum?tid=22566",
+    "name": "настройка и запуск liquidsoap - Vmeste.EU",
+    "snippet": "liquidsoap ругается: Invalid value at line 8, char 22-110: That source is fallible. в чем может быть дело? содержимое jingles_playlist.txt? Отредактировано ...",
+    "host_name": "vmeste.eu",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/AzuraCast/AzuraCast/issues/2858",
+    "name": "LiquidSoap error : That source is fallible · Issue #2858",
+    "snippet": "20 May 2020 — Thank you ! Solved by adding this under the # Crossfade into the custom LiquidSoap configuration : radio = fallback (id=\"stationname_safe_fallback ...",
+    "host_name": "github.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

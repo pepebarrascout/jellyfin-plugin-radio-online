@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://github.com/savonet/liquidsoap/discussions/4469",
+    "name": "Smooth Transitions Between Fallback Sources in Liquidsoap",
+    "snippet": "I'm trying to achieve smooth transitions ( crossfades ) between sources in a fallback setup, specifically between a live DJ stream (input.harbor) and an ... Read more\nJan 10, 2026 — I'm trying to achieve smooth transitions ( crossfades ) between sources in a fallback setup, specifically between a live DJ stream (input.harbor) and an ... Read more",
+    "host_name": "github.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/issues/3788",
+    "name": "Crossfade is not working · Issue #3788 · savonet/liquidsoap",
+    "snippet": "5 Mar 2024 — Crossfade just stop playing previous track and starts next one. This behavior occur only in v2. 2.4 + version and works as expected in v2.2.3. Read more\nMar 5, 2024 — Crossfade just stop playing previous track and starts next one. This behavior occur only in v2. 2.4 + version and works as expected in v2.2.3. Read more",
+    "host_name": "github.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/issues/3334",
+    "name": "Crossfading operates wrongly in 2.2.0 after some hours",
+    "snippet": "18 Aug 2023 — Describe the bug. After some hours (maybe around twelve?) of running liquidsoap 2.2.0, simple overlaps between tracks using cue_cut, ... Read more\nAug 18, 2023 — Describe the bug. After some hours (maybe around twelve?) of running liquidsoap 2.2.0, simple overlaps between tracks using cue_cut, ... Read more",
+    "host_name": "github.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/issues/240",
+    "name": "How to make prepend work as expected? → Avoid",
+    "snippet": "24 Jul 2015 — ): Here's a quite short example that works using opam-installed Liquidsoap 1.3.7 (it takes the next song to play from a script):. # test-04 ... Read more",
+    "host_name": "github.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/issues/1993",
+    "name": "Skip command causes request.dynamic.list to prefetch",
+    "snippet": "2 Oct 2021 — I'm currently working on an update for AzuraCast to use Liquidsoap 2.0 and noticed this issue so I don't yet have a simplified example . Read more",
+    "host_name": "github.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/doc-2.2.5/cookbook.html",
+    "name": "Cookbook",
+    "snippet": "Usually, you achieve that using a fallback switch (see below) with a branch made of a safe single . Roughly, a single is safe when it is given a valid local ... Read more",
+    "host_name": "www.liquidsoap.info",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://liquidsoap.readthedocs.io/en/stable",
+    "name": "Welcome to Liquidsoap's documentation!",
+    "snippet": "Basics · Adding liquidsoap binary · Configuration variables · Full example · Documentation index · Encoding formats · List of formats and ... Read more",
+    "host_name": "liquidsoap.readthedocs.io",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/doc-dev/sources.html",
+    "name": "Sources",
+    "snippet": "That means somewhere in your source graph, you need a fallback plan. For example : Add a static file with single() at the end of a fallback () . Use mksafe () ... Read more",
+    "host_name": "www.liquidsoap.info",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://savonet-users.narkive.com/NdHRlyqI/cross-fading-with-liquidsoap",
+    "name": "[Savonet-users] Cross fading with liquidsoap",
+    "snippet": "Aug 10, 2014 — mksafe ( fallback ([request.queue(id=\"q\"),playlist(\"/home/kjsc/music ... In crossfade you must set your own parameters for the mix (for example , by Read more",
+    "host_name": "savonet-users.narkive.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/issues/695",
+    "name": "Transition between Sources not working propertly #695",
+    "snippet": "Jan 21, 2019 — We use Liquidsoap to manage moderator access and to compensate for failures of our automation through a backup list.",
+    "host_name": "github.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://www.liquidsoap.info/doc-2.2.5/crossfade.html",
+    "name": "Crossfading",
+    "snippet": "Example . Liquidsoap also includes a ready-to-use operator defined using cross , it is called crossfade and is defined in the pervasive helper script utils.liq . Read more",
+    "host_name": "www.liquidsoap.info",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://ocaml.org/p/liquidsoap/latest/CHANGES.html",
+    "name": "liquidsoap 2.4.2 (latest)",
+    "snippet": "Normalized expected API from autocue , allow multiple implementation and adapt cross / crossfade to work with it out of the box with workaround for short tracks ... Read more",
+    "host_name": "ocaml.org",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap-release-assets/releases",
+    "name": "savonet/liquidsoap-release-assets",
+    "snippet": "Nov 6, 2567 BE — This is the second bugfix release of liquidsoap 2.4 .x . Assets listed in this release will never be modified or deleted. Read more",
+    "host_name": "github.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://liquidsoap.readthedocs.io/en/stable",
+    "name": "Welcome to Liquidsoap's documentation!",
+    "snippet": "Basic operator · Example · Basics · Adding liquidsoap binary · Configuration variables · Full example · Documentation index · General ... Read more",
+    "host_name": "liquidsoap.readthedocs.io",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/doc-2.4.0/settings.html",
+    "name": "Settings",
+    "snippet": "Options related to channel layout conversion. Preferred samplerate converters. Preferred channel layout converter. The native converter is always available. Read more",
+    "host_name": "www.liquidsoap.info",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/discussions/4273",
+    "name": "Applying Cross Fade · savonet liquidsoap · Discussion #4273",
+    "snippet": "Dec 16, 2567 BE — I have moved the radio = crossfade (fade_out=3., fade_in=3., duration=5., radio) below the /skip function , and now it works perfectly. However, ... Read more",
+    "host_name": "github.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "http://mcfiredrill.github.io/blog/liquidsoap-cue-and-cross-fade-metadata",
+    "name": "liquidsoap cue and crossfade metadata",
+    "snippet": "May 9, 2559 BE — You can easily control cue and crossfade points per song in liquidsoap using metadata via the annotate protocol. Read more",
+    "host_name": "mcfiredrill.github.io",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://centova.com/forums/index.php?topic=3377.0",
+    "name": "Crossfade Not Working with LiquidSoap",
+    "snippet": "Oct 23, 2557 BE — Has anyone gotten crossfade to work with liquid soap ? I've all the tracks loaded, cross fade set for 3 seconds on everything, yet tracks play in ... Read more",
+    "host_name": "centova.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/doc-dev/crossfade.html",
+    "name": "Crossfading",
+    "snippet": "Crossfade. Out of the box. Liquidsoap provides a default crossfade operator out of the box . It is a simple operator that does the work and does it well! Read more",
+    "host_name": "www.liquidsoap.info",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://discourse.libretime.org/t/my-autodj-liquidsoap-code-what-is-yours/1448",
+    "name": "My \"AutoDJ\" liquidsoap code. What is yours?",
+    "snippet": "Apr 4, 2566 BE — AutoDJ is a feature that plays random songs (with jingles every 4 tracks) if no show is scheduled in Libretime. I'm curious to know your AutoDj solution! Read more",
+    "host_name": "discourse.libretime.org",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

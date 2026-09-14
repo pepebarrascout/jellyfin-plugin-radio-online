@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://www.liquidsoap.info/doc-dev/crossfade.html",
+    "name": "Crossfading - Liquidsoap",
+    "snippet": "Liquidsoap provides a default crossfade operator out of the box. It is a simple operator that does the work and does it well! Missing: signature | Show results with: signature",
+    "host_name": "www.liquidsoap.info",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/legacy/doc-1.2.1/smartcrossfade.html",
+    "name": "Smart crossfading - Savonet / Liquidsoap 1.2.1",
+    "snippet": "Liquidsoap includes an advanced crossfading operator. Using it, you can code which transition you want for your songs, according to the average volume level. Missing: signature | Show results with: signature",
+    "host_name": "www.liquidsoap.info",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/blob/main/CHANGES.md",
+    "name": "liquidsoap/CHANGES.md at main - GitHub",
+    "snippet": "Supports transition, as functions of type (source,source) -> source in all switching operators: schedule, random, fallback. Restart icecast2 outputs on ... Missing: signature | Show results with: signature",
+    "host_name": "github.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "http://www.liquidsoap.info/book/book.pdf",
+    "name": "[PDF] The Liquidsoap book",
+    "snippet": "specifying the transitions to be applied when switching from one source to the other. A transition is described by a function taking two sources as arguments.",
+    "host_name": "www.liquidsoap.info",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/doc-dev/reference.html",
+    "name": "Core API - Liquidsoap",
+    "snippet": "Cross operator, allowing the composition of the n last seconds of a track ... Transition function, composing from the end of a track and the next track. Missing: signature | Show results with: signature",
+    "host_name": "www.liquidsoap.info",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/legacy/doc-1.3.1/scripts/on2_p2_my_crossfade.html",
+    "name": "on2_p2_my_crossfade.liq - Liquidsoap",
+    "snippet": "Our custom crossfade that # only crossfade between tracks def my_crossfade(s) = # Our transition function def f(_,_, old_m, new_m, old, new) = # If none of ...",
+    "host_name": "www.liquidsoap.info",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/discussions/4469",
+    "name": "Smooth Transitions Between Fallback Sources in Liquidsoap #4469",
+    "snippet": "I'm trying to achieve smooth transitions (crossfades) between sources in a fallback setup, specifically between a live DJ stream (input.harbor) and an ... Missing: x operator signature",
+    "host_name": "github.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/doc-2.2.5/crossfade.html",
+    "name": "Crossfading - Liquidsoap",
+    "snippet": "Liquidsoap includes an advanced crossfading operator. Using it, you can code which transition you want for your songs, according to the average volume level (in ... Missing: x | Show results with: x",
+    "host_name": "www.liquidsoap.info",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.liquidsoap.info/doc-dev/sources.html",
+    "name": "Sources - Liquidsoap",
+    "snippet": "The Liquidsoap language gives you functions and operators to build sources: Some functions produce elementary sources (e.g. reading from a file or microphone). Missing: x cross transition signature",
+    "host_name": "www.liquidsoap.info",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/savonet/liquidsoap/discussions/2203",
+    "name": "Fading with live source in a switch #2203 - savonet liquidsoap",
+    "snippet": "Can anybody explain why is this happening? When I remove the cross operator (no fading) the switch behaves as expected but without transition. Thanks! Origin of ... Missing: signature | Show results with: signature",
+    "host_name": "github.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]
