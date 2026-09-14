@@ -142,6 +142,7 @@ public class TrackChangeController : ControllerBase
         return Ok(new
         {
             isPlaying = true,
+            itemId = track.ItemId.ToString(),
             artist = track.Artist,
             title = track.Title,
             album = track.Album,

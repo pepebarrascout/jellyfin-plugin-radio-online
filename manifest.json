@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png",
     "versions": [
       {
+        "version": "0.0.0.51",
+        "changelog": "NEW: NowPlaying JSON now includes itemId (Jellyfin's unique audio item ID) for direct database lookups\nCHANGE: itemId is placed right after isPlaying in the JSON response",
+        "targetAbi": "10.11.8.0",
+        "sourceUrl": "https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases/download/v0.0.0.51/jellyfin-plugin-radio-online_0.0.0.51.zip",
+        "checksum": "ea7540a525e715d94b670862f06b021d",
+        "timestamp": "2026-05-25T12:00:00Z"
+      },
+      {
         "version": "0.0.0.50",
         "changelog": "CRITICAL FIX: UTF-8 encoding in Telnet client — file paths with non-ASCII characters (é, ó, ñ, á, í, ú) are now sent correctly to Liquidsoap, fixing ~80% of silently skipped tracks\nFIX: LiquidsoapClient.cs now uses UTF-8 encoding for all Telnet communications instead of ASCII (ASCII corrupted accented characters into '?' causing 'Nonexistent file or ill-formed URI' errors)\nFIX: Telnet response reading also uses UTF-8 encoding for consistency\nNOTE: Recommended radio.liq changes to further reduce latency and track skipping: disable enable_autocue_metadata(), reduce crossfade to 1.5s, add normalize_url=false to http.get",
         "targetAbi": "10.11.8.0",
