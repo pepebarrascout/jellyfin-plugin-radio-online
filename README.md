@@ -4,14 +4,14 @@
         <img alt="Logo" src="https://raw.githubusercontent.com/pepebarrascout/jellyfin-plugin-radio-online/main/logo.png" height="180"/><br />
         <a href="https://github.com/pepebarrascout/jellyfin-plugin-radio-online/releases"><img alt="Total GitHub Downloads" src="https://img.shields.io/github/downloads/pepebarrascout/jellyfin-plugin-radio-online/total?color=9b59b6&label=descargas"/></a>
         <a href="https://github.com/pepebarrascout/jellyfin-plugin-radio-online/issues"><img alt="GitHub Issues" src="https://img.shields.io/github/issues/pepebarrascout/jellyfin-plugin-radio-online?color=9b59b6"/></a>
-        <a href="https://jellyfin.org/"><img alt="Jellyfin Version" src="https://img.shields.io/badge/Jellyfin-10.11.x-blue.svg"/></a>
+        <a href="https://jellyfin.org/"><img alt="Jellyfin Version" src="https://img.shields.io/badge/Jellyfin-12.1.x-blue.svg"/></a>
         <a href="https://www.liquidsoap.info/"><img alt="Liquidsoap" src="https://img.shields.io/badge/Liquidsoap-Streaming-orange?logo=liquidsoap&logoColor=white"/></a>
     </p>
 </div>
 
 > **Radio en linea automatizada** desde Jellyfin usando Liquidsoap como motor de streaming. Transmite audio a un servidor Icecast con programacion semanal de playlists. Liquidsoap se ejecuta en un contenedor Docker separado y el plugin lo controla via Telnet.
 
-**Requiere Jellyfin version `10.11.0` o superior y un contenedor Docker de Liquidsoap.**
+**Requiere Jellyfin version `12.1.0` o superior y un contenedor Docker de Liquidsoap.**
 
 ---
 
@@ -35,7 +35,7 @@
 
 Antes de instalar el plugin, necesitas:
 
-1. **Jellyfin 10.11.0+** corriendo en tu servidor
+1. **Jellyfin 12.1.0+** corriendo en tu servidor
 2. **Liquidsoap** instalado en un contenedor Docker (ve [LIQUIDSOAP.md](LIQUIDSOAP.md) para instrucciones)
 3. **Icecast** como servidor de streaming (puede estar en otro servidor)
 4. **Biblioteca de musica** accesible desde el contenedor Liquidsoap
@@ -137,36 +137,36 @@ El plugin opera como un servicio en segundo plano que monitorea la programacion 
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                  Jellyfin Server                      │
-│                                                       │
+│                  Jellyfin Server                     │
+│                                                      │
 │  ┌──────────────┐    ┌──────────────────┐            │
-│  │ Config Page   │    │ Schedule Manager │            │
-│  │ (Dashboard)   │    │ Service          │            │
+│  │ Config Page  │    │ Schedule Manager │            │
+│  │ (Dashboard)  │    │ Service          │            │
 │  └──────┬───────┘    └────────┬─────────┘            │
-│         │                     │                       │
-│         ▼                     ▼                       │
+│         │                     │                      │
+│         ▼                     ▼                      │
 │  ┌──────────────────────────────────────┐            │
-│  │   Radio Streaming Hosted Service      │            │
-│  │   (Monitorea programacion semanal)    │            │
+│  │   Radio Streaming Hosted Service     │            │
+│  │   (Monitorea programacion semanal)   │            │
 │  └──────────────┬───────────────────────┘            │
-│                 │ Telnet (TCP)                          │
-└─────────────────┼──────────────────────────────────────┘
+│                 │ Telnet (TCP)                       │
+└─────────────────┼────────────────────────────────────┘
                   │
                   ▼
-┌──────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────┐
 │           Contenedor Liquidsoap (Docker)              │
 │                                                       │
-│  ┌──────────────┐    ┌──────────────────┐            │
+│  ┌───────────────┐    ┌──────────────────┐            │
 │  │ Telnet Server │    │ request.queue()  │            │
-│  │ (puerto 8080)│    │ Cola de canciones│            │
-│  └──────────────┘    └────────┬─────────┘            │
+│  │ (puerto 8080) │    │ Cola de canciones│            │
+│  └───────────────┘    └────────┬─────────┘            │
 │                               │                       │
 │                               ▼                       │
-│                      ┌──────────────────┐            │
-│                      │ output.icecast   │            │
-│                      │ (OGG Vorbis)     │            │
-│                      └────────┬─────────┘            │
-└───────────────────────────────┼──────────────────────┘
+│                      ┌──────────────────┐             │
+│                      │ output.icecast   │             │
+│                      │ (OGG Vorbis)     │             │
+│                      └────────┬─────────┘             │
+└───────────────────────────────┼───────────────────────┘
                                 │
                                 ▼
                     ┌──────────────────────┐
