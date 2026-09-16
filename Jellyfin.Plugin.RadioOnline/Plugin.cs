@@ -19,7 +19,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// <summary>
     /// The unique identifier for this plugin.
     /// </summary>
-    public static readonly Guid PluginGuid = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+    public static readonly Guid PluginGuid = new("d6a5ecc8-0481-4ca4-b03a-1fb8595ef8e6");
 
     /// <summary>
     /// Singleton instance of the plugin for access by services.
